@@ -769,8 +769,6 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
             tks.append((i, m, enc_params, d, vhs_bg, title, sub_style, horror_intervals, clip_durations))
 
         # Evitar saturar el CPU y disco con múltiples renders simultáneos.
-        # Si la máquina tiene 4 o menos núcleos lógicos (ej. i5 dual-core con hyper-threading),
-        # procesamos de 1 en 1 (secuencialmente) para mantener la PC fría y totalmente responsiva.
         max_workers = min(len(tks), 2)
 
         with ThreadPoolExecutor(max_workers=max_workers) as ex: 
@@ -778,8 +776,10 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         
         if not chunk_files: raise Exception("No se procesaron clips en modo MIX.")
 
-        # COMPOSICIÓN, MEZCLA FINAL DE AUDIO Y SUBTÍTULOS ASS (ETAPA FUSIONADA)
-        if status_callback: status_callback("🔗 COMPONIENDO VIDEO Y MEZCLA DE AUDIO AVANZADA...", "#FFD700")
+        # COMPOSICIÓN, MEZCLA FINAL DE AUDIO Y SUBTÍTULOS ASS (ETAPA DE DOS PASOS PARA PREVENIR OUT-OF-MEMORY)
+        if status_callback: status_callback("🔗 PASO 1/2: COMPONIENDO VIDEO Y SUPERPOSICIONES...", "#FFD700")
+        
+        body_video_only_ts = os.path.abspath(os.path.join(cache_chunks, "body_video_only.ts"))
         body_ts = os.path.abspath(os.path.join(cache_chunks, "body_mix.ts"))
         
         # --- COMPOSICIÓN DE VIDEO CON TRANSICIONES DINÁMICAS ---
@@ -788,43 +788,91 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         transition_offsets = []
         current_offset = 0
 
-        # Obtenemos las duraciones reales para calcular los puntos de corte (ya calculadas en clip_durations)
-
         for i in range(1, len(chunk_files)):
-            # Determinar si hay algún clip subliminal en la transición
             is_sub_prev = isinstance(mixed_media[i-1], dict) and mixed_media[i-1].get("is_subliminal")
             is_sub_curr = isinstance(mixed_media[i], dict) and mixed_media[i].get("is_subliminal")
             
             if is_sub_prev or is_sub_curr:
-                # CORTE DIRECTO para subliminales: 0.05s garantiza 1.5 frames a 30fps para evitar deadlock en xfade
                 t_name = "fade"
                 t_dur = 0.05 
             else:
-                # Transición normal para clips estándar
                 t_name = random.choice(possible_transitions)
                 t_dur = 0.5
             
-            # Ajuste de robustez: la duración de la transición no puede superar la duración de los clips que une
             min_clip_dur = min(clip_durations[i-1], clip_durations[i])
             if t_dur >= min_clip_dur:
-                t_dur = max(0.05, min_clip_dur - 0.1)  # Mantener al menos 0.1s de clip fuera de la transición
+                t_dur = max(0.05, min_clip_dur - 0.1)
             
-            # El offset es el acumulado del clip anterior menos la transición
             current_offset += clip_durations[i-1] - t_dur
             if current_offset < 0:
                 current_offset = 0.0
                 
             transition_offsets.append(current_offset)
-            
             f_s += f"[v{i-1}][{i}:v]xfade=transition={t_name}:duration={t_dur:.2f}:offset={current_offset:.2f}[v{i}];"
             
         last_v = f"v{len(chunk_files)-1}"
-        
-        # APLICAR GLITCH AL 48% PARA REINICIAR LA ATENCIÓN
         mid_t = total_visual_dur * 0.48
         f_s += f"[{last_v}]negate=enable='between(t,{mid_t:.2f},{mid_t+0.15:.2f})'[v_final]"
 
-        # Activos de transiciones de audio
+        in_cmd_video = []
+        for c in chunk_files:
+            in_cmd_video.extend(["-i", c])
+        
+        num_chunks = len(chunk_files)
+        for idx, broll in enumerate(downloaded_brolls):
+            in_cmd_video.extend(["-stream_loop", "-1", "-i", broll["path"]])
+            broll["input_idx_video"] = num_chunks + idx
+
+        if downloaded_brolls:
+            broll_filters = ""
+            v_current = "v_final"
+            for idx, broll in enumerate(downloaded_brolls):
+                v_next = f"v_broll_{idx}"
+                broll_filters += f"[{broll['input_idx_video']}:v]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},format=yuv420p[broll_{idx}_scaled];"
+                broll_filters += f"[{v_current}][broll_{idx}_scaled]overlay=0:0:enable='between(t,{broll['start']:.3f},{broll['end']:.3f})'[{v_next}];"
+                v_current = v_next
+            f_s += ";" + broll_filters.strip(";")
+            v_l = v_current
+        else:
+            v_l = "v_final"
+
+        temp_srt_mirror = os.path.abspath(os.path.join(cache_ass, "temp_subs_final.ass"))
+        if srt_path and os.path.exists(srt_path):
+            try:
+                import shutil
+                shutil.copy2(srt_path, temp_srt_mirror)
+                time.sleep(0.2)
+                abs_srt = temp_srt_mirror.replace('\\', '/').replace(':', '\\:')
+                f_s += f";[{v_l}]subtitles=filename='{abs_srt}'[vs]"
+                v_l = "vs"
+            except Exception as e:
+                print(f"Error copiando subtítulos: {e}")
+
+        cpu_params = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-maxrate", "5M", "-bufsize", "10M", "-pix_fmt", "yuv420p"]
+        if hw_failed[0] or "-c:v" not in enc_params or "libx264" in enc_params:
+            final_enc_params = cpu_params
+        else:
+            final_enc_params = enc_params
+
+        cmd_video = ["ffmpeg", "-y", "-threads", "2"] + in_cmd_video + ["-filter_complex", f_s, "-map", f"[{v_l}]"] + final_enc_params + ["-an", "-f", "mpegts", "-t", str(total_visual_dur), body_video_only_ts]
+        try:
+            subprocess.run(cmd_video, check=True, capture_output=True, text=True, errors='replace', **sub_kwargs)
+        except subprocess.CalledProcessError as e:
+            print(f"--- FFMPEG VIDEO ERROR LOG ---\n{e.stderr}\n------------------------")
+            if final_enc_params != cpu_params:
+                print("Video-only render with hardware encoder failed. Retrying with CPU fallback...")
+                cmd_video_fallback = ["ffmpeg", "-y", "-threads", "2"] + in_cmd_video + ["-filter_complex", f_s, "-map", f"[{v_l}]"] + cpu_params + ["-an", "-f", "mpegts", "-t", str(total_visual_dur), body_video_only_ts]
+                try:
+                    subprocess.run(cmd_video_fallback, check=True, capture_output=True, text=True, errors='replace', **sub_kwargs)
+                except subprocess.CalledProcessError as e_fallback:
+                    print(f"--- FFMPEG VIDEO FALLBACK ERROR LOG ---\n{e_fallback.stderr}\n------------------------")
+                    raise Exception(f"Fallo en renderizado de video FFmpeg (Fallback CPU también falló): {e_fallback.stderr[:100]}")
+            else:
+                raise Exception(f"Fallo en renderizado de video FFmpeg: {e.stderr[:100]}")
+
+        # --- PASO 2/2: COMPOSICIÓN Y MEZCLA DE AUDIOS ---
+        if status_callback: status_callback("🎚️ PASO 2/2: MEZCLANDO Y SINCRONIZANDO AUDIO...", "#FFD700")
+
         trans_dir = os.path.join("assets", "audio", "transitions")
         riser_path = os.path.abspath(os.path.join(trans_dir, "real_riser.mp3"))
         impact_path = os.path.abspath(os.path.join(trans_dir, "real_impact.mp3"))
@@ -834,36 +882,21 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
             os.path.abspath(os.path.join(trans_dir, "real_whoosh.mp3"))
         ]
 
-        # Mapeo dinámico de inputs
-        in_cmd = []
-        # Chunks son inputs 0 a len(chunk_files)-1
-        for c in chunk_files:
-            in_cmd.extend(["-i", c])
-        num_chunks = len(chunk_files)
+        in_cmd_audio = ["-i", body_video_only_ts]
+        in_cmd_audio.extend(["-i", audio_full_path])
+        idx_voice = 1
         
-        # Voz principal
-        in_cmd.extend(["-i", audio_full_path])
-        idx_voice = num_chunks
+        in_cmd_audio.extend(["-i", riser_path, "-i", impact_path])
+        idx_riser = 2
+        idx_impact = 3
         
-        # Riser & Impact
-        in_cmd.extend(["-i", riser_path, "-i", impact_path])
-        idx_riser = num_chunks + 1
-        idx_impact = num_chunks + 2
-        
-        n_x = num_chunks + 3 # Siguiente índice de input libre
-
-        # --- INPUTS DE B-ROLL ---
-        for broll in downloaded_brolls:
-            in_cmd.extend(["-stream_loop", "-1", "-i", broll["path"]])
-            broll["input_idx"] = n_x
-            n_x += 1
+        n_x = 4
         a_c = 0
         
         num_trans = len(transition_offsets)
         a_m = f"[{idx_riser}:a]asplit={num_trans}" + "".join([f"[r_raw{i}]" for i in range(num_trans)]) + ";"
         a_m += f"[{idx_impact}:a]asplit={num_trans+1}" + "".join([f"[im_raw{i}]" for i in range(num_trans+1)]) + ";"
 
-        # Voz Principal (recortada de origen)
         if music_path:
             a_m += f"[{idx_voice}:a]loudnorm=I=-16,asplit=2[v_main][v_sc];"
         else:
@@ -871,28 +904,23 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         
         a_i = "[v_main]"; a_c += 1
         
-        # Impacto Inicial (Segundo 0)
         a_m += f"[im_raw{num_trans}]atrim=0:1.0,volume=0.8[init_impact];"
         a_i += "[init_impact]"; a_c += 1
 
-        # Generar SFX para cada transición
         for i, offset in enumerate(transition_offsets):
             sfx_path = random.choice(sfx_pool)
-            in_cmd.extend(["-i", sfx_path])
+            in_cmd_audio.extend(["-i", sfx_path])
             idx_sfx = n_x; n_x += 1
             
-            # Riser (0.5s antes del impacto)
             a_m += f"[r_raw{i}]atrim=0:0.5,afade=t=in:st=0:d=0.4,volume=0.6,adelay={max(0, int((offset-0.5)*1000))}|{max(0, int((offset-0.5)*1000))}[r{i}];"
-            # Impacto
             a_m += f"[im_raw{i}]atrim=0:0.5,volume=1.0,adelay={int(offset*1000)}|{int(offset*1000)}[im{i}];"
-            # SFX Aleatorio
             a_m += f"[{idx_sfx}:a]silenceremove=start_periods=1:start_duration=0:start_threshold=-40dB,atrim=0:1.0,afade=t=out:st=0.5:d=0.5,volume=1.0,adelay={int(offset*1000)}|{int(offset*1000)}[s{i}];"
             
             a_i += f"[r{i}][im{i}][s{i}]"
             a_c += 3
 
         if music_path:
-            in_cmd.extend(["-i", os.path.abspath(music_path)])
+            in_cmd_audio.extend(["-i", os.path.abspath(music_path)])
             a_m += f"[{n_x}:a]volume=0.4[m_pre];[m_pre][v_sc]sidechaincompress=threshold=0.04:ratio=6:attack=2:release=150[bg_duck];"
             a_i += "[bg_duck]"; a_c += 1; n_x += 1
         
@@ -904,83 +932,37 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
             if has_audio and is_video:
                 ach = os.path.abspath(os.path.join(cache_audio, f"audio_mix_{i:03d}.wav"))
                 if os.path.exists(ach):
-                    in_cmd.extend(["-i", ach])
+                    in_cmd_audio.extend(["-i", ach])
                     offset_ms = int(transition_offsets[i-1] * 1000) if i > 0 else 0
                     a_m += f"[{n_x}:a]volume=0.7,adelay={offset_ms}|{offset_ms}[a{i}];"
                     a_i += f"[a{i}]"; a_c += 1; n_x += 1
 
-        # --- SFX INJECTION ---
         json_path = os.path.join(temp_dir, "data_mix.json")
         sfx_events = extract_sfx_events(json_path)
         for sfx_path, sfx_start in sfx_events:
-            in_cmd.extend(["-i", sfx_path])
+            in_cmd_audio.extend(["-i", sfx_path])
             delay_ms = int(sfx_start * 1000)
             a_m += f"[{n_x}:a]volume=0.9,adelay={delay_ms}|{delay_ms}[sfx{n_x}];"
             a_i += f"[sfx{n_x}]"; a_c += 1; n_x += 1
 
-        # --- OVERLAY B-ROLL CLIPS ---
-        if downloaded_brolls:
-            broll_filters = ""
-            v_current = "v_final"
-            for idx, broll in enumerate(downloaded_brolls):
-                v_next = f"v_broll_{idx}"
-                broll_filters += f"[{broll['input_idx']}:v]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},format=yuv420p[broll_{idx}_scaled];"
-                broll_filters += f"[{v_current}][broll_{idx}_scaled]overlay=0:0:enable='between(t,{broll['start']:.3f},{broll['end']:.3f})'[{v_next}];"
-                v_current = v_next
-            f_s += ";" + broll_filters.strip(";")
-            v_l = v_current
-        else:
-            v_l = "v_final"
-        temp_srt_mirror = os.path.abspath(os.path.join(cache_ass, "temp_subs_final.ass"))
-        if srt_path and os.path.exists(srt_path):
-            try:
-                import shutil
-                shutil.copy2(srt_path, temp_srt_mirror)
-                time.sleep(0.2)
-                abs_srt = temp_srt_mirror.replace('\\', '/').replace(':', '\\:')
-                a_m += f"[{v_l}]subtitles=filename='{abs_srt}'[vs];"
-                v_l = "vs"
-            except Exception as e:
-                print(f"Error copiando subtítulos: {e}")
-
-        # --- INYECCIÓN DE SFX DE REINICIO DE ATENCIÓN AL 48% ---
         midpoint_sfx = os.path.abspath(os.path.join(os.getcwd(), "assets", "audio", "transitions", "real_glitch.mp3"))
         if os.path.exists(midpoint_sfx):
             mid_t = total_visual_dur * 0.48
-            in_cmd.extend(["-i", midpoint_sfx])
+            in_cmd_audio.extend(["-i", midpoint_sfx])
             delay_ms = int(mid_t * 1000)
             a_m += f"[{n_x}:a]volume=1.4,adelay={delay_ms}|{delay_ms}[mid_sfx];"
             a_i += "[mid_sfx]"
             a_c += 1
             n_x += 1
 
-        # Unir filter complex completo
         a_m = a_m.strip(";") + f";{a_i}amix=inputs={a_c}:duration=longest:normalize=0[af]"
-        full_filter_complex = f_s + ";" + a_m
-
-        # Usar codificador por hardware si está disponible en este paso final
-        cpu_params = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-maxrate", "5M", "-bufsize", "10M", "-pix_fmt", "yuv420p"]
-        if hw_failed[0] or "-c:v" not in enc_params or "libx264" in enc_params:
-            final_enc_params = cpu_params
-        else:
-            final_enc_params = enc_params
-
-        cmd_mix = ["ffmpeg", "-y", "-threads", "2"] + in_cmd + ["-filter_complex", full_filter_complex, "-map", f"[{v_l}]", "-map", "[af]"] + final_enc_params + ["-c:a", "aac", "-ac", "2", "-ar", "44100", "-f", "mpegts", "-t", str(total_visual_dur), body_ts]
         
+        cmd_audio_merge = ["ffmpeg", "-y", "-threads", "2"] + in_cmd_audio + ["-filter_complex", a_m, "-map", "0:v", "-map", "[af]", "-c:v", "copy", "-c:a", "aac", "-ac", "2", "-ar", "44100", "-f", "mpegts", "-t", str(total_visual_dur), body_ts]
         try:
-            subprocess.run(cmd_mix, check=True, capture_output=True, text=True, errors='replace', **sub_kwargs)
+            subprocess.run(cmd_audio_merge, check=True, capture_output=True, text=True, errors='replace', **sub_kwargs)
         except subprocess.CalledProcessError as e:
-            print(f"--- FFMPEG ERROR LOG ---\n{e.stderr}\n------------------------")
-            if final_enc_params != cpu_params:
-                print("Final mix with hardware encoder failed. Retrying with CPU fallback...")
-                cmd_mix_fallback = ["ffmpeg", "-y", "-threads", "2"] + in_cmd + ["-filter_complex", full_filter_complex, "-map", f"[{v_l}]", "-map", "[af]"] + cpu_params + ["-c:a", "aac", "-ac", "2", "-ar", "44100", "-f", "mpegts", "-t", str(total_visual_dur), body_ts]
-                try:
-                    subprocess.run(cmd_mix_fallback, check=True, capture_output=True, text=True, errors='replace', **sub_kwargs)
-                except subprocess.CalledProcessError as e_fallback:
-                    print(f"--- FFMPEG FALLBACK ERROR LOG ---\n{e_fallback.stderr}\n------------------------")
-                    raise Exception(f"Fallo en mezcla final FFmpeg (Fallback CPU también falló): {e_fallback.stderr[:100]}")
-            else:
-                raise Exception(f"Fallo en mezcla final FFmpeg: {e.stderr[:100]}")
+            print(f"--- FFMPEG AUDIO MERGE ERROR LOG ---\n{e.stderr}\n------------------------")
+            raise Exception(f"Fallo en mezcla final de audio FFmpeg: {e.stderr[:200]}")
 
         # FINAL CON GESTIÓN DE PERMISOS
         if status_callback: status_callback("💾 GUARDANDO RENDER MIX...", "#00FF41")
@@ -995,15 +977,18 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                 counter += 1
                 if counter > 10: break
 
-        # No prepending of cover clip anymore to avoid the 1.5s silence gap. We copy directly.
         cmd_final = ["ffmpeg", "-y", "-threads", "2", "-i", body_ts, "-c", "copy", v_final]
-        subprocess.run(cmd_final, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **sub_kwargs)
+        try:
+            subprocess.run(cmd_final, check=True, capture_output=True, text=True, errors='replace', **sub_kwargs)
+        except subprocess.CalledProcessError as e:
+            print(f"--- FFMPEG FINAL REMUX ERROR LOG ---\n{e.stderr}\n------------------------")
+            raise Exception(f"Fallo en copia final de video FFmpeg: {e.stderr[:200]}")
 
         # Limpieza
         for c in chunk_files: safe_remove(c)
         for i in range(len(mixed_media)): safe_remove(os.path.join(cache_audio, f"audio_mix_{i:03d}.wav"))
         for broll in downloaded_brolls: safe_remove(broll["path"])
-        safe_remove(body_ts); safe_remove(temp_srt_mirror)
+        safe_remove(body_ts); safe_remove(body_video_only_ts); safe_remove(temp_srt_mirror)
         return True
     except Exception as e:
         import traceback
