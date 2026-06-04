@@ -1,0 +1,59 @@
+{
+    "ganchos": [
+        "(La Narrativa Invertida): El narrador advierte con urgencia sobre un evento sin retorno que ya ocurrió, rogando que escuchen cómo empezó.",
+        "(El Reto Físico): El narrador exige verbalmente al espectador una acción física inmediata (\"¡Quédate inmóvil!\", \"¡No mires atrás!\").",
+        "(In Media Res): El narrador habla agitado solicitando asistencia o narrando porque el incidente ya está ocurriendo en este mismo instante.",
+        "(Persecución Pura): El narrador susurra entre jadeos de cansancio que está evadiendo algo y necesita esconderse rápidamente.",
+        "(El Error Fatal): El narrador se lamenta porque acaba de cometer un error irreversible y eso ya viene por él.",
+        "(El Testigo Escondido): El narrador susurra con cautela pidiendo silencio porque está viendo a la anomalía desde su escondite.",
+        "(La Metamorfosis): El narrador reacciona perturbado describiendo cómo su propio ser o entorno está cambiando en este momento.",
+        "(El Falso Tutorial): El narrador empieza hablando casualmente pero se interrumpe a sí mismo de golpe con un sonido de alerta máxima.",
+        "(La Llamada Interceptada): El narrador deja un mensaje de voz urgente dejando su último encargo a su familia.",
+        "(El Hallazgo Inmediato): El narrador balbucea confundido al describir una presencia inenarrable que acaba de encontrar frente a él.",
+        "(El Bloqueo Físico): El narrador expresa su severa angustia diciendo en voz alta que sus piernas no le responden y no puede moverse.",
+        "(La Negación Histérica): El narrador exclama fuera de sí: \"¡Esto no es real!\", intentando convencerse."
+    ],
+    "monstruos": [
+        "(Biológico Grotesco): Una materia orgánica inestable, con secreciones oscuras y una anatomía severamente dislocada.",
+        "(Uncanny Valley): Algo con textura sintética que se desplaza de forma torpe y artificial, como un maniquí defectuoso.",
+        "(Horror Geométrico): Una anomalía sombría que absorbe la luz y distorsiona la percepción del protagonista al mirarla.",
+        "(El Imitador Retorcido): Una entidad que imita formas conocidas pero tiene proporciones completamente antinaturales y asimétricas.",
+        "(Magnitud Masiva): Algo tan colosal que colapsa el entorno con su tamaño y suprime el espacio físico.",
+        "(El Enjambre Viviente): Cientos de especímenes diminutos y repelentes actuando juntos como una sola voluntad colectiva.",
+        "(Fuerza Invisible): Algo que no se puede ver, pero el protagonista narra cómo está desmantelando con hostilidad extrema el entorno a su alrededor.",
+        "(Agresividad Maníaca): Una presencia errática moviéndose con una rapidez antinatural y sin detenerse ni una fracción de segundo.",
+        "(Estatuario): Una figura que se aproxima de forma abrupta solo en los microsegundos en los que el protagonista parpadea.",
+        "(Parásito Invasor): Algo que se desplaza rápidamente debajo de las superficies o del tejido, creando protuberancias anómalas.",
+        "(Eco Sicológico): Una frecuencia que imita exactamente la voz de un familiar del protagonista para intentar atraerlo a la oscuridad.",
+        "(Humedad Podrida): Una forma corrompida y estancada que emana constantemente una sustancia densa y de olor insoportable.",
+        "(Estructura Seca): Una figura demacrada, de pura anatomía expuesta, que emite un chasquido estructural fortísimo al moverse."
+    ],
+    "atmosfera": [
+        "OLOR QUÍMICO: El narrador se queja de un olor nocivo a azufre o amoníaco y dice escuchar un siseo de gas.",
+        "OLOR ORGÁNICO: El narrador siente náuseas severas por el olor a descomposición profunda y menciona con repulsión que escucha moscas zumbando.",
+        "FRÍO EXTREMO: El narrador dice que tiembla de frío, que sale vaho de su boca y que escucha un viento helado en el interior.",
+        "ZUMBIDO: El narrador se queja con angustia de un pitido agudo insoportable que le está aturdiendo severamente los oídos.",
+        "GRAVEDAD: El narrador respira con dificultad diciendo que una presión inmensa le oprime el pecho y su corazón late a mil.",
+        "VISUAL DISTORSIONADO: El narrador advierte alarmado que las sombras de la habitación se mueven solas hacia donde no deben.",
+        "SABOR: El narrador traga saliva con dificultad, diciendo que tiene un sabor intenso a óxido o metal en la boca.",
+        "TACTO INVISIBLE: El narrador dice con urgencia que sintió un roce helado en la nuca y pasos rozando el suelo justo detrás de él.",
+        "HUMEDAD: El narrador nota perturbado que las paredes están sudando un líquido oscuro que gotea sin parar.",
+        "SILENCIO ABSOLUTO: El narrador susurra con tensión que de repente todo se quedó en un silencio absoluto y muy anormal.",
+        "VIGILANCIA: El narrador asegura con fuerte inquietud que lo están mirando fijamente y dice escuchar una respiración pesada cerca.",
+        "TIEMPO ROTO: El narrador balbucea que el tiempo parece haberse detenido y dice escuchar un reloj ir a una velocidad imposible.",
+        "VÉRTIGO: El narrador dice mareado que la habitación entera parece estar inclinándose y está perdiendo el equilibrio."
+    ],
+    "cierres": [
+        "(Bucle Causal): La última frase del narrador es una oración incompleta diseñada para conectar lógicamente con la primera frase del guion.",
+        "(Grito Interrumpido): El narrador empieza a exclamar con pánico extremo, dejando la frase a medias.",
+        "(Locura): El narrador balbucea palabras sin sentido pidiendo ayuda porque siente que su mente está colapsando",
+        "(La Súplica Cortada): El narrador llora y ruega exclamando: \"Dios, por favor no me...\", dejando la frase sin terminar.",
+        "(La Invitación): El narrador cambia a un tono demoníaco y desafía al espectador susurrando a la cámara: \"Ven a buscarme...\".",
+        "(Risa Ajena): El narrador deja de hablar por el terror y suelta un grito ahogado al decir que alguien se ríe en la oscuridad.",
+        "(El Shock Visual): El narrador balbucea \"Míralo... está justo ahí...\" y pierde la capacidad de hablar.",
+        "(El Replay Forzado): El narrador pregunta apresuradamente de forma directa al espectador: \"¿Tú también viste eso?\"",
+        "(El Apagón): El narrador avisa aterrado que se quedó en oscuridad total y solo dice: \"Escucho cómo respira...\".",
+        "(Revelación Sutil): El narrador dice con pánico ahogado: \"Me está alcanzando... ya me atrapó\".",
+        "(Batería Muerta): El narrador advierte desesperado que su celular se está apagando y pronuncia unas últimas palabras de alerta."
+    ]
+}

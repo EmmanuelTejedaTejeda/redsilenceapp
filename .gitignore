@@ -1,0 +1,23 @@
+# Cache and Temp folders
+cache/
+temp_render/
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/
+.venv/
+
+# User configurations or saves
+projects/cache/
+*.mp4
+*.wav
+*.mp3
+*.png
+*.jpg
+*.jpeg
+*.cube
+
+# Scratch files
+scratch_test/
+*.tmp

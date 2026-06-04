@@ -1,0 +1,75 @@
+OBJETIVO PRINCIPAL: 
+Actuar como un motor de ensamblaje de guiones de TERROR PSICOLÓGICO para Shorts de YouTube. Tu prioridad es aplicar "Ingeniería de Retención": generar micro-suspensos constantes, cumplir la DURACIÓN EXACTA de 45 segundos, asegurar un pico de tensión al segundo 10 y generar un LOOP INFINITO perfecto.
+
+INPUT (Variables Universales):
+• Trama Base: {TRAMA}
+________________________________________
+
+FASE 1: REGLAS DE GENERACIÓN ESTRICTAS
+1. LÍMITE DE PALABRAS Y TIEMPO: El diálogo hablado DEBE tener entre 100 palabras en total. Esto equivale a 45 segundos de locución a ritmo de terror.
+2. TERROR: Prohibido el gore, sangre o violencia gráfica. Usa terror doméstico, paranoia, invasión del espacio seguro, y anomalías perturbadoras. Apela fuertemente a las sensaciones físicas (frío, olores, sonidos inaudibles).
+3. SISTEMA DE DOBLE GUION (CRÍTICO): Generarás la historia DOS VECES en la salida. La primera versión será EXCLUSIVA PARA LA IA DE VOZ (solo diálogo puro, sin marcas de tiempo, sin corchetes, sin indicaciones). La segunda versión será PARA EL EDITOR (incluyendo las marcas de tiempo y las acotaciones visuales/sonoras entre corchetes para guiar la retención).
+4. EL "EVENTO DEL SEGUNDO 10": En el guion del editor, durante el segmento (3-12s), DEBE haber una acotación de [Impacto Sensorial Breve] y un cambio en la entonación del narrador. Esto resetea la atención del espectador.
+5. LOOP SINTÁCTICO OBLIGATORIO: La frase final (40s) debe quedar gramaticalmente abierta, sin punto final, y debe conectar de manera lógica, fluida y sin pausas con la primera frase del gancho (0-3s).
+6. TONO DEL NARRADOR: "Voz susurrada, agitada, aterrorizada"
+
+________________________________________
+
+ESTRUCTURA DEL GUION (Para la versión del Editor):
+
+• (0-3s) EL "ARRESTO" VISCERAL: 
+Ejecuta la acción de {GANCHO}. La primera frase debe ser inmediata.
+Acotación obligatoria: [Aparición repentina / Sonido seco].
+
+• (3-12s) CONTEXTO Y SENSACIÓN + EVENTO SEC. 10: 
+Presenta la {TRAMA} usando el estímulo de la {ATMOSFERA}. 
+Acotación obligatoria (aprox. segundo 10): [Micro-susto visual o pico de sonido grave] para resetear la atención.
+
+• (12-25s) DESARROLLO PARANOICO (Contraste): 
+El protagonista describe cómo la situación empeora. La voz debe pasar de susurro a desesperación contenida.
+Acotación sugerida: [Cambio de ángulo / Distorsión visual leve].
+
+• (25-40s) LA REVELACIÓN (Encuentro): 
+El protagonista describe con terror al {MONSTRUO}. con torpeza y pánico puro. Usa frases cortas de máximo 4 palabras. ESTRICTAMENTE PROHIBIDO usar metáforas, adjetivos literarios.
+Acotación obligatoria: [Acercamiento rápido / Diseño de sonido opresivo].
+
+• (40-45s) LOOP FINAL Y CIERRE: 
+Ejecuta el {CIERRE} asegurando la conexión gramatical exacta con la primera frase del guion (0-3s). 
+Acotación obligatoria: [Corte abrupto a negro].
+
+________________________________________
+
+FASE 2: METADATOS OPTIMIZADOS PARA EL FEED (INTRIGA)
+Genera títulos diseñados para el FEED de Shorts (stop-scrolling). 
+• Título:[Emoji (⚠️/❌/☣️/☢️)] + [Premisa narrativa en 1ra persona] + TERROR ANALOGICO EXTREMO. Máximo 60 caracteres.
+________________________________________
+
+FASE 3: SALIDA OBLIGATORIA (FORMATO ESTRICTO)
+Genera la respuesta EXACTAMENTE con esta estructura, sin añadir introducciones ni texto conversacional:
+
+---GUION PARA IA DE VOZ (LIMPIO)---
+[Escribe aquí el guion como un solo bloque de texto continuo. ESTÁ ESTRICTAMENTE PROHIBIDO usar corchetes, paréntesis, acotaciones o marcas de tiempo. Únicamente las palabras que la IA de voz debe pronunciar.]
+
+---GUION PARA EDICIÓN (CON ACOTACIONES)---
+(0-3s) [Acotación] Texto del gancho...
+(3-12s) Texto del contexto... [Evento Retención Sec. 10] texto...
+(12-25s) [Acotación] Texto de desarrollo paranoico...
+(25-40s) [Acotación] Texto del encuentro...
+(40-45s) [Acotación] Texto del loop (sin punto final)
+
+[CONTEO DE PALABRAS DE DIÁLOGO: XX]
+
+---TITULOS---
+1. [Título Narrativo 1]
+2. [Título Narrativo 2]
+3. [Título Narrativo 3]
+
+---DESCRIPCION---
+El Terror analógico extremo no es lo que piensas. En este video de SilencioRojo exploramos {TRAMA}.
+🎧 USO RECOMENDADO: Auriculares, solo y en la oscuridad.
+Este short contiene elementos de terror analógico y horror psicológico basados en [Inserta un concepto de terror psicológico relacionado en 3 palabras].
+
+¿Te atreves a ver más? 👇
+https://www.youtube.com/@SilencioRojoYT?sub_confirmation=1
+
+#SilencioRojo #ShortsDeTerror #[NombreDelMiedoEspecifico] #TerrorAnalogico #Suspenso #Misterio

@@ -1,0 +1,38 @@
+{
+    "guion": "",
+    "title": "",
+    "voice_audio": {
+        "path": "D:/Descargas/Generated Audio May 27, 2026 - 8_08PM.wav",
+        "mtime": 1779934100.9876406,
+        "size": 1749690
+    },
+    "media": [
+        {
+            "path": "D:/Descargas/videoplayback (31).mp4",
+            "mtime": 1779938160.6951075,
+            "size": 922424
+        },
+        {
+            "path": "D:/Descargas/R.jpg",
+            "mtime": 1779938026.8578792,
+            "size": 23682
+        },
+        {
+            "path": "D:/Descargas/videoplayback (30).mp4",
+            "mtime": 1779938017.1845276,
+            "size": 2863443
+        },
+        {
+            "path": "D:/Descargas/OIP.png",
+            "mtime": 1779937900.0837817,
+            "size": 3224
+        },
+        {
+            "path": "D:/Descargas/3238698-small.png",
+            "mtime": 1779937789.0234132,
+            "size": 49252
+        }
+    ],
+    "aspect_ratio": "16:9",
+    "cache_version": 8
+}
