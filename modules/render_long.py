@@ -325,7 +325,7 @@ def render_chapter(chapter_index, chapter_data, output_mp4, enc_params, sub_kwar
     if status_callback:
         status_callback(f"🎬 Cap {chapter_index+1}: Renderizando clip con Ken Burns...", "#FF9100")
 
-    cmd = ["ffmpeg", "-y", "-threads", "0"]
+    cmd = ["ffmpeg", "-y", "-threads", "2"]
     # Input 0: El audio de la voz
     cmd.extend(["-i", voice_audio])
 
@@ -761,7 +761,7 @@ def render_long_video_project(project_state, output_final_mp4, status_callback=N
 
         # Ejecutar mezcla de audio final con el video concatenado
         cmd_mix = [
-            "ffmpeg", "-y", "-threads", "0"
+            "ffmpeg", "-y", "-threads", "2"
         ] + in_cmd + [
             "-filter_complex", full_audio_filter,
             "-map", "0:v",
