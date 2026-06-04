@@ -95,7 +95,7 @@ def apply_audio_speed_ramping(audio_path, json_data, temp_dir):
     
     ramped_audio_path = os.path.abspath(os.path.join(temp_dir, "ramped_audio.wav"))
     cmd = [
-        "ffmpeg", "-y", "-threads", "2",
+        "ffmpeg", "-y", "-threads", "0",
         "-i", audio_path,
         "-filter_complex", full_filter,
         "-map", "[a_out]",
@@ -167,7 +167,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         # --- PRE-RECORTAR SILENCIO INICIAL DE NARRACIÓN ---
         trimmed_audio_path = os.path.abspath(os.path.join(cache_audio, "trimmed_voice.wav"))
         trim_cmd = [
-            "ffmpeg", "-y", "-threads", "2",
+            "ffmpeg", "-y", "-threads", "0",
             "-i", audio_full_path,
             "-af", "silenceremove=start_periods=1:start_duration=0:start_threshold=-40dB",
             trimmed_audio_path
@@ -716,7 +716,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         if cpu_cores <= 4:
             max_workers = 1
         else:
-            max_workers = min(len(tks), max(1, cpu_cores // 4))
+            max_workers = min(len(tks), max(1, cpu_cores // 2))
 
         with ThreadPoolExecutor(max_workers=max_workers) as ex: 
             chunk_files = [c for c in list(ex.map(process_chunk, tks)) if c]
@@ -910,7 +910,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         else:
             final_enc_params = enc_params
 
-        cmd_mix = ["ffmpeg", "-y", "-threads", "2"] + in_cmd + ["-filter_complex", full_filter_complex, "-map", f"[{v_l}]", "-map", "[af]"] + final_enc_params + ["-c:a", "aac", "-ac", "2", "-ar", "44100", "-f", "mpegts", "-t", str(total_visual_dur), body_ts]
+        cmd_mix = ["ffmpeg", "-y", "-threads", "0"] + in_cmd + ["-filter_complex", full_filter_complex, "-map", f"[{v_l}]", "-map", "[af]"] + final_enc_params + ["-c:a", "aac", "-ac", "2", "-ar", "44100", "-f", "mpegts", "-t", str(total_visual_dur), body_ts]
         
         try:
             subprocess.run(cmd_mix, check=True, capture_output=True, text=True, errors='replace', **sub_kwargs)
@@ -918,7 +918,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
             print(f"--- FFMPEG ERROR LOG ---\n{e.stderr}\n------------------------")
             if final_enc_params != cpu_params:
                 print("Final mix with hardware encoder failed. Retrying with CPU fallback...")
-                cmd_mix_fallback = ["ffmpeg", "-y", "-threads", "2"] + in_cmd + ["-filter_complex", full_filter_complex, "-map", f"[{v_l}]", "-map", "[af]"] + cpu_params + ["-c:a", "aac", "-ac", "2", "-ar", "44100", "-f", "mpegts", "-t", str(total_visual_dur), body_ts]
+                cmd_mix_fallback = ["ffmpeg", "-y", "-threads", "0"] + in_cmd + ["-filter_complex", full_filter_complex, "-map", f"[{v_l}]", "-map", "[af]"] + cpu_params + ["-c:a", "aac", "-ac", "2", "-ar", "44100", "-f", "mpegts", "-t", str(total_visual_dur), body_ts]
                 try:
                     subprocess.run(cmd_mix_fallback, check=True, capture_output=True, text=True, errors='replace', **sub_kwargs)
                 except subprocess.CalledProcessError as e_fallback:
@@ -941,7 +941,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                 if counter > 10: break
 
         # No prepending of cover clip anymore to avoid the 1.5s silence gap. We copy directly.
-        cmd_final = ["ffmpeg", "-y", "-threads", "2", "-i", body_ts, "-c", "copy", v_final]
+        cmd_final = ["ffmpeg", "-y", "-threads", "0", "-i", body_ts, "-c", "copy", v_final]
         subprocess.run(cmd_final, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **sub_kwargs)
 
         # Limpieza

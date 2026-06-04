@@ -35,6 +35,7 @@ def detect_hardware_encoder(output_folder):
     
     options = [
         ("NVENC", ["-c:v", "h264_nvenc", "-preset", "fast", "-b:v", "2200k", "-pix_fmt", "yuv420p"]),
+        ("AMF", ["-c:v", "h264_amf", "-b:v", "2200k", "-pix_fmt", "yuv420p"]),
         ("QSV", ["-c:v", "h264_qsv", "-preset", "faster", "-look_ahead", "0", "-b:v", "2200k", "-pix_fmt", "nv12"]),
         ("CPU", ["-c:v", "libx264", "-preset", "ultrafast", "-b:v", "2200k", "-pix_fmt", "yuv420p"])
     ]
