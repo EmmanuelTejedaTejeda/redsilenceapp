@@ -254,6 +254,149 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         if status_callback: status_callback("⚙️ VERIFICANDO ACELERACIÓN DE HARDWARE...", "#00E5FF")
         enc_params = detect_hardware_encoder(output_folder)
         total_visual_dur = audio_dur + 0.3
+
+        # --- CARGAR AJUSTES PARA PEXELS KEY ---
+        pexels_key = ""
+        try:
+            settings_path = os.path.abspath(os.path.join(project_root, "config", "settings.json"))
+            if os.path.exists(settings_path):
+                with open(settings_path, "r", encoding="utf-8") as f:
+                    settings = json.load(f)
+                    pexels_key = settings.get("pexels_api_key", "")
+        except Exception as e:
+            print(f"Error cargando settings para Pexels Key: {e}")
+
+        # --- EXTRACCIÓN DE INTERVALOS DE HORROR Y B-ROLL ---
+        horror_intervals = []
+        horror_keywords = [
+            "terror", "miedo", "sangre", "muerte", "sombra", "oscuridad",
+            "grito", "espejo", "dolor", "fantasma", "rostro", "monstruo",
+            "silencio", "detrás", "atrás", "peligro", "morir", "asesino",
+            "cuerpo", "cadáver", "tumba", "cementerio", "alma", "espíritu",
+            "sangriento", "oscura", "gritos", "fantasmas", "monstruos",
+            "silencioso", "peligroso", "muerto", "muerta", "muertos",
+            "grifo", "horror", "creepy", "susto", "oscuro"
+        ]
+
+        broll_keywords_map = {
+            "sombra": "scary shadow",
+            "fantasma": "ghost",
+            "cementerio": "cemetery spooky",
+            "tumba": "grave cemetery",
+            "bosque": "dark forest",
+            "habitación": "dark empty room",
+            "habitacion": "dark empty room",
+            "sangre": "blood splash",
+            "espejo": "scary mirror",
+            "rostro": "creepy face",
+            "oscuridad": "dark smoke",
+            "monstruo": "monster scary",
+            "puerta": "creepy door opening",
+            "grifo": "dripping tap faucet",
+            "agua": "dark water",
+            "pasos": "walking feet dark",
+            "silencio": "quiet dark house",
+            "cuerpo": "corpse dark outline",
+            "cadáver": "corpse dark outline",
+            "cadaver": "corpse dark outline",
+            "alma": "spirit ghostly",
+            "espíritu": "spirit ghostly",
+            "espiritu": "spirit ghostly",
+            "miedo": "scary eyes",
+            "terror": "spooky background",
+            "muerte": "grim reaper silhouette",
+            "morir": "scary shadow zoom",
+            "asesino": "slasher shadow",
+            "grito": "screaming mouth silhouette",
+            "gritos": "screaming mouth silhouette",
+            "peligro": "warning alert dark",
+            "corazón": "heartbeat pulse",
+            "corazon": "heartbeat pulse",
+            "detrás": "creepy figure behind",
+            "atrás": "creepy figure behind",
+            "atras": "creepy figure behind"
+        }
+
+        broll_matches = []
+        if result and "segments" in result:
+            for segment in result["segments"]:
+                words_data = segment.get("words", [])
+                if words_data:
+                    for w in words_data:
+                        w_text = w["word"].strip().replace('"', '').upper()
+                        clean_w = "".join([c for c in w_text if c.isalnum()]).lower()
+                        # Horror check
+                        if clean_w in horror_keywords:
+                            horror_intervals.append((w["start"], w["end"]))
+                        # B-roll check
+                        if clean_w in broll_keywords_map:
+                            broll_matches.append({
+                                "query": broll_keywords_map[clean_w],
+                                "start": w["start"],
+                                "end": w["end"]
+                            })
+                else:
+                    text = segment.get("text", "").strip()
+                    if text:
+                        words = text.split()
+                        seg_start = segment.get("start", 0.0)
+                        seg_end = segment.get("end", 0.0)
+                        dur_per_word = (seg_end - seg_start) / max(1, len(words))
+                        for i, w in enumerate(words):
+                            w_text = w.strip().replace('"', '').upper()
+                            clean_w = "".join([c for c in w_text if c.isalnum()]).lower()
+                            # Horror check
+                            if clean_w in horror_keywords:
+                                horror_intervals.append((seg_start + (i * dur_per_word), seg_start + ((i + 1) * dur_per_word)))
+                            # B-roll check
+                            if clean_w in broll_keywords_map:
+                                broll_matches.append({
+                                    "query": broll_keywords_map[clean_w],
+                                    "start": seg_start + (i * dur_per_word),
+                                    "end": seg_start + ((i + 1) * dur_per_word)
+                                })
+
+        # Seleccionar hasta 3 B-rolls sin superposición
+        selected_brolls = []
+        for match in broll_matches:
+            if len(selected_brolls) >= 3:
+                break
+            p_start = max(0.0, match["start"] - 0.5)
+            p_end = min(total_visual_dur, p_start + 2.0)
+            
+            overlap = False
+            for sel in selected_brolls:
+                if not (p_end + 1.0 < sel["start"] or p_start > sel["end"] + 1.0):
+                    overlap = True
+                    break
+            if not overlap:
+                selected_brolls.append({
+                    "query": match["query"],
+                    "start": p_start,
+                    "end": p_end,
+                    "duration": p_end - p_start
+                })
+
+        # Descargar B-rolls desde Pexels
+        downloaded_brolls = []
+        if pexels_key and selected_brolls:
+            from modules.pexels_client import search_pexels_video, download_video_file
+            for idx, broll in enumerate(selected_brolls):
+                if status_callback:
+                    status_callback(f"🔍 BUSCANDO B-ROLL: '{broll['query']}'...", "#FFD700")
+                video_url = search_pexels_video(broll["query"], pexels_key, orientation="portrait")
+                if video_url:
+                    local_path = os.path.abspath(os.path.join(cache_chunks, f"broll_{idx}.mp4"))
+                    if status_callback:
+                        status_callback(f"📥 DESCARGANDO B-ROLL: {broll['query']}...", "#00E5FF")
+                    success_dl = download_video_file(video_url, local_path)
+                    if success_dl and os.path.exists(local_path) and os.path.getsize(local_path) > 0:
+                        broll["path"] = local_path
+                        downloaded_brolls.append(broll)
+                    else:
+                        print(f"Error descargando B-roll de: {video_url}")
+                else:
+                    print(f"No se encontró video en Pexels para: {broll['query']}")
         
         # --- CÁLCULO DE TIEMPOS DINÁMICOS Y COMPENSACIÓN DE TRANSICIONES ---
         sub_dur = 0.25 # Duración ultra-rápida para flashes subliminales (7-8 frames)
@@ -301,9 +444,28 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         def process_chunk(args):
             nonlocal processed_mix, hw_failed
             try:
-                i, item, enc, dur, vhs_p, title, sub_style = args
+                i, item, enc, dur, vhs_p, title, sub_style, horror_intervals, clip_durations = args
                 if status_callback:
                     status_callback(f"🎬 RENDERIZANDO CLIP {i+1} de {len(mixed_media)}...", "#FF9100")
+                
+                # --- CALCULAR INTERVALOS LOCALES DE SACUDIDAS Y GLITCHES ---
+                chunk_start = sum(clip_durations[:i])
+                chunk_end = chunk_start + dur
+                local_glitches = []
+                for s, e in horror_intervals:
+                    overlap_start = max(chunk_start, s)
+                    overlap_end = min(chunk_end, e)
+                    if overlap_start < overlap_end:
+                        local_glitches.append((overlap_start - chunk_start, overlap_end - chunk_start))
+                
+                if local_glitches:
+                    shake_expr = "+".join([f"gte(t\\,{s:.3f})*lte(t\\,{e:.3f})" for s, e in local_glitches])
+                    shake_expr_zoom = "+".join([f"gte(on/30\\,{s:.3f})*lte(on/30\\,{e:.3f})" for s, e in local_glitches])
+                    glitch_fx = f",negate=enable='({shake_expr})*lt(mod(t\\,0.1)\\,0.05)',noise=alls=45:allf=t:enable='{shake_expr}'"
+                else:
+                    shake_expr = "0"
+                    shake_expr_zoom = "0"
+                    glitch_fx = ""
                 
                 # SOPORTE HÍBRIDO: Diccionario o String
                 is_subliminal = False
@@ -422,16 +584,28 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                 if i == 0 and not is_subliminal:
                     # GANCHO AGRESIVO: Sismo cinemático (temblor sutil) + Zoom-In progresivo en los primeros segundos
                     if item_type == "video":
-                        sx = f"(iw-ow)*0.02*(0.8*sin(6*PI*t)+0.2*sin(12*PI*t))*exp(-1.2*t)"
-                        sy = f"(ih-oh)*0.02*(0.8*sin(5*PI*t+1.57)+0.2*sin(10*PI*t))*exp(-1.2*t)"
+                        sx_base = f"(iw-ow)*0.02*(0.8*sin(6*PI*t)+0.2*sin(12*PI*t))*exp(-1.2*t)"
+                        sy_base = f"(ih-oh)*0.02*(0.8*sin(5*PI*t+1.57)+0.2*sin(10*PI*t))*exp(-1.2*t)"
+                        if local_glitches:
+                            sx = f"{sx_base} + 18*sin(60*t)*({shake_expr})"
+                            sy = f"{sy_base} + 18*cos(50*t)*({shake_expr})"
+                        else:
+                            sx = sx_base
+                            sy = sy_base
                         scale_w_eff = int(target_w * 1.35)
                         scale_h_eff = int(target_h * 1.35)
                         vf_base = f"scale={scale_w_eff}:{scale_h_eff}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}:'(iw-ow)/2+{sx}':'(ih-oh)/2+{sy}'"
                         input_opts_list = ["-stream_loop", "-1"]
                     else:
                         ze = "1.1+0.004*on"
-                        xe = f"(iw-iw/zoom)*0.4*(0.8*sin(6*PI*on/30)+0.2*sin(12*PI*on/30))*exp(-1.2*on/30)"
-                        ye = f"(ih-ih/zoom)*0.4*(0.8*sin(5*PI*on/30+1.57)+0.2*sin(10*PI*on/30))*exp(-1.2*on/30)"
+                        xe_base = f"(iw-iw/zoom)*0.4*(0.8*sin(6*PI*on/30)+0.2*sin(12*PI*on/30))*exp(-1.2*on/30)"
+                        ye_base = f"(ih-ih/zoom)*0.4*(0.8*sin(5*PI*on/30+1.57)+0.2*sin(10*PI*on/30))*exp(-1.2*on/30)"
+                        if local_glitches:
+                            xe = f"{xe_base} + 18*sin(60*on/30)*({shake_expr_zoom})"
+                            ye = f"{ye_base} + 18*cos(50*on/30)*({shake_expr_zoom})"
+                        else:
+                            xe = xe_base
+                            ye = ye_base
                         vf_base = f"loop=loop=-1:size=1:start=0,scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},zoompan=z='{ze}':d={frames+2}:x='(iw-iw/zoom)/2+{xe}':y='(ih-ih/zoom)/2+{ye}':s={target_w}x{target_h}:fps=30"
                         input_opts_list = []
                 else:
@@ -445,23 +619,33 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                         ze_normal = "max(zoom,1.1)+0.0035"
 
                     if item_type == "video":
+                        sx_base = f"(iw-ow)*{xa:.2f}*0.05*(0.8*sin({xf:.1f}*PI*t)+0.2*sin({xf*3.14:.1f}*PI*t))"
+                        sy_base = f"(ih-oh)*{ya:.2f}*0.05*(0.8*sin({yf:.1f}*PI*t+1.57)+0.2*sin({yf*2.71:.1f}*PI*t))"
+                        if local_glitches:
+                            sx = f"{sx_base} + 18*sin(60*t)*({shake_expr})"
+                            sy = f"{sy_base} + 18*cos(50*t)*({shake_expr})"
+                        else:
+                            sx = sx_base
+                            sy = sy_base
                         if dur > 2.2:
                             # Para video largo, hacemos un jump cut de zoom de 1.0x a 1.25x en el 60%
                             jump_t = dur * 0.6
-                            sx = f"(iw-ow)*{xa:.2f}*0.05*(0.8*sin({xf:.1f}*PI*t)+0.2*sin({xf*3.14:.1f}*PI*t))"
-                            sy = f"(ih-oh)*{ya:.2f}*0.05*(0.8*sin({yf:.1f}*PI*t+1.57)+0.2*sin({yf*2.71:.1f}*PI*t))"
                             vf_base = (
                                 f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}:'(iw-ow)/2+{sx}':'(ih-oh)/2+{sy}',"
                                 f"zoompan=z='if(gte(in_time,{jump_t:.2f}),1.25,1.0)':d=1:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s={target_w}x{target_h}:fps=30"
                             )
                         else:
-                            sx = f"(iw-ow)*{xa:.2f}*0.05*(0.8*sin({xf:.1f}*PI*t)+0.2*sin({xf*3.14:.1f}*PI*t))"
-                            sy = f"(ih-oh)*{ya:.2f}*0.05*(0.8*sin({yf:.1f}*PI*t+1.57)+0.2*sin({yf*2.71:.1f}*PI*t))"
                             vf_base = f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}:'(iw-ow)/2+{sx}':'(ih-oh)/2+{sy}'"
                         input_opts_list = ["-stream_loop", "-1"]
                     else:
-                        xe = f"(iw-iw/zoom)*{xa:.2f}*0.03*(0.8*sin({xf:.1f}*on/30)+0.2*sin({xf*3.14:.1f}*on/30))"
-                        ye = f"(ih-ih/zoom)*{ya:.2f}*0.03*(0.8*sin({yf:.1f}*on/30+1.57)+0.2*sin({yf*2.71:.1f}*on/30))"
+                        xe_base = f"(iw-iw/zoom)*{xa:.2f}*0.03*(0.8*sin({xf:.1f}*on/30)+0.2*sin({xf*3.14:.1f}*on/30))"
+                        ye_base = f"(ih-ih/zoom)*{ya:.2f}*0.03*(0.8*sin({yf:.1f}*on/30+1.57)+0.2*sin({yf*2.71:.1f}*on/30))"
+                        if local_glitches:
+                            xe = f"{xe_base} + 18*sin(60*on/30)*({shake_expr_zoom})"
+                            ye = f"{ye_base} + 18*cos(50*on/30)*({shake_expr_zoom})"
+                        else:
+                            xe = xe_base
+                            ye = ye_base
                         vf_base = f"loop=loop=-1:size=1:start=0,scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},zoompan=z='{ze_normal}':d={frames+2}:x='(iw-iw/zoom)/2+{xe}':y='(ih-ih/zoom)/2+{ye}':s={target_w}x{target_h}:fps=30"
                         input_opts_list = []
                 
@@ -478,9 +662,9 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
 
                 if card_png_path and os.path.exists(card_png_path):
                     # Desenfoque periférico (boxblur) de fondo en los primeros 5 segundos
-                    vf_final = f"{vf_base},boxblur=15:enable='between(t\\,0\\,5.0)',format=yuv420p,{fx_chain},{sub_fx}{lut_filter}"
-                    # Mezclar con el VHS y superponer el card
-                    cvf = f"[0:v]{vf_final},format=gbrp[b];[1:v]scale={target_w}:{target_h},hue=s=0,format=gbrp[v];[b][v]blend=all_mode=screen:all_opacity=0.08[mixed];[mixed][2:v]overlay=(W-w)/2:(H-h)/2:enable='between(t\\,0\\,5.0)',format=yuv420p"
+                    vf_final = f"{vf_base},boxblur=15:enable='between(t\\,0\\,5.0)',format=yuv420p,{fx_chain},{sub_fx}{lut_filter}{glitch_fx}"
+                    # Mezclar con el VHS y superponer el card con animación de entrada slide-up
+                    cvf = f"[0:v]{vf_final},format=gbrp[b];[1:v]scale={target_w}:{target_h},hue=s=0,format=gbrp[v];[b][v]blend=all_mode=screen:all_opacity=0.08[mixed];[mixed][2:v]overlay=(W-w)/2:y='((H-h)/2+(H-(H-h)/2)*exp(-8*t))*lt(t,0.6)+(H-h)/2*gte(t,0.6)':enable='between(t\\,0\\,5.0)',format=yuv420p"
                     
                     active_enc = ["-c:v", "libx264", "-preset", "ultrafast", "-b:v", "2200k", "-pix_fmt", "yuv420p"] if hw_failed[0] else enc
                     cmd = ["ffmpeg", "-y", "-threads", "2"] + input_opts_list + ["-i", media_path, "-stream_loop", "-1", "-i", vhs_p, "-i", card_png_path, "-t", str(render_dur), "-filter_complex", cvf, "-r", "30"] + active_enc + ["-an", chunk_name]
@@ -493,7 +677,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                         cmd_fallback = ["ffmpeg", "-y", "-threads", "2"] + input_opts_list + ["-i", media_path, "-stream_loop", "-1", "-i", vhs_p, "-i", card_png_path, "-t", str(render_dur), "-filter_complex", cvf, "-r", "30", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-an", chunk_name]
                         subprocess.run(cmd_fallback, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **sub_kwargs)
                 else:
-                    vf_final = f"{vf_base},format=yuv420p,{fx_chain},{sub_fx}{lut_filter}"
+                    vf_final = f"{vf_base},format=yuv420p,{fx_chain},{sub_fx}{lut_filter}{glitch_fx}"
                     cvf = f"[0:v]{vf_final},format=gbrp[b];[1:v]scale={target_w}:{target_h},hue=s=0,format=gbrp[v];[b][v]blend=all_mode=screen:all_opacity=0.08,format=yuv420p"
                     
                     active_enc = ["-c:v", "libx264", "-preset", "ultrafast", "-b:v", "2200k", "-pix_fmt", "yuv420p"] if hw_failed[0] else enc
@@ -523,7 +707,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         tks = []
         for i, m in enumerate(mixed_media):
             d = clip_durations[i]
-            tks.append((i, m, enc_params, d, vhs_bg, title, sub_style))
+            tks.append((i, m, enc_params, d, vhs_bg, title, sub_style, horror_intervals, clip_durations))
 
         # Evitar saturar el CPU y disco con múltiples renders simultáneos.
         # Si la máquina tiene 4 o menos núcleos lógicos (ej. i5 dual-core con hyper-threading),
@@ -612,6 +796,12 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         idx_impact = num_chunks + 2
         
         n_x = num_chunks + 3 # Siguiente índice de input libre
+
+        # --- INPUTS DE B-ROLL ---
+        for broll in downloaded_brolls:
+            in_cmd.extend(["-stream_loop", "-1", "-i", broll["path"]])
+            broll["input_idx"] = n_x
+            n_x += 1
         a_c = 0
         
         num_trans = len(transition_offsets)
@@ -673,7 +863,19 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
             a_m += f"[{n_x}:a]volume=0.9,adelay={delay_ms}|{delay_ms}[sfx{n_x}];"
             a_i += f"[sfx{n_x}]"; a_c += 1; n_x += 1
 
-        v_l = "v_final"
+        # --- OVERLAY B-ROLL CLIPS ---
+        if downloaded_brolls:
+            broll_filters = ""
+            v_current = "v_final"
+            for idx, broll in enumerate(downloaded_brolls):
+                v_next = f"v_broll_{idx}"
+                broll_filters += f"[{broll['input_idx']}:v]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},format=yuv420p[broll_{idx}_scaled];"
+                broll_filters += f"[{v_current}][broll_{idx}_scaled]overlay=0:0:enable='between(t,{broll['start']:.3f},{broll['end']:.3f})'[{v_next}];"
+                v_current = v_next
+            f_s += ";" + broll_filters.strip(";")
+            v_l = v_current
+        else:
+            v_l = "v_final"
         temp_srt_mirror = os.path.abspath(os.path.join(cache_ass, "temp_subs_final.ass"))
         if srt_path and os.path.exists(srt_path):
             try:
@@ -745,6 +947,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         # Limpieza
         for c in chunk_files: safe_remove(c)
         for i in range(len(mixed_media)): safe_remove(os.path.join(cache_audio, f"audio_mix_{i:03d}.wav"))
+        for broll in downloaded_brolls: safe_remove(broll["path"])
         safe_remove(body_ts); safe_remove(temp_srt_mirror)
         return True
     except Exception as e:
