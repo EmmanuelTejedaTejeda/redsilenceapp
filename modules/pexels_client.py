@@ -38,6 +38,10 @@ def search_pexels_video(query, api_key, orientation="portrait"):
             print(f">>> [PEXELS CLIENT] No se encontraron videos para: {cleaned}")
             return None
             
+        # Elegir un video aleatorio de los resultados para mayor variedad
+        import random
+        random.shuffle(videos)
+        
         # Elegir el primer video que tenga archivos válidos
         for video in videos:
             video_files = video.get("video_files", [])

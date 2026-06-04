@@ -279,42 +279,96 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         ]
 
         broll_keywords_map = {
+            # Terror / Spooky
             "sombra": "scary shadow",
-            "fantasma": "ghost",
-            "cementerio": "cemetery spooky",
-            "tumba": "grave cemetery",
-            "bosque": "dark forest",
-            "habitación": "dark empty room",
-            "habitacion": "dark empty room",
-            "sangre": "blood splash",
-            "espejo": "scary mirror",
-            "rostro": "creepy face",
-            "oscuridad": "dark smoke",
-            "monstruo": "monster scary",
-            "puerta": "creepy door opening",
-            "grifo": "dripping tap faucet",
-            "agua": "dark water",
-            "pasos": "walking feet dark",
-            "silencio": "quiet dark house",
-            "cuerpo": "corpse dark outline",
-            "cadáver": "corpse dark outline",
-            "cadaver": "corpse dark outline",
-            "alma": "spirit ghostly",
+            "sombras": "dark shadows",
+            "fantasma": "ghost spooky",
+            "fantasmas": "ghosts",
+            "espectro": "apparition spooky",
             "espíritu": "spirit ghostly",
             "espiritu": "spirit ghostly",
-            "miedo": "scary eyes",
-            "terror": "spooky background",
+            "almas": "lost souls",
+            "demonio": "demon scary",
+            "demonios": "demons",
+            "monstruo": "scary monster",
+            "monstruos": "monsters",
+            "criatura": "creature creepy",
+            "pesadilla": "nightmare dark",
+            "aparición": "paranormal activity",
+            "aparicion": "paranormal activity",
+            
+            # Lugares / Ambientación
+            "cementerio": "cemetery spooky",
+            "tumba": "grave cemetery",
+            "tumbas": "graves cemetery",
+            "bosque": "dark forest",
+            "bosques": "dark forest night",
+            "habitación": "dark empty room",
+            "habitacion": "dark empty room",
+            "cuarto": "spooky bedroom",
+            "sótano": "dark basement",
+            "sotano": "dark basement",
+            "ático": "dusty attic",
+            "atico": "dusty attic",
+            "pasillo": "dark hallway",
+            "casa": "abandoned house creepy",
+            "cabaña": "spooky cabin",
+            "cabana": "spooky cabin",
+            "calle": "dark empty street",
+            "niebla": "foggy night",
+            
+            # Cuerpo / Muerte
+            "sangre": "blood splash",
+            "sangriento": "bloody horror",
             "muerte": "grim reaper silhouette",
-            "morir": "scary shadow zoom",
-            "asesino": "slasher shadow",
-            "grito": "screaming mouth silhouette",
-            "gritos": "screaming mouth silhouette",
+            "muerto": "dead body outline",
+            "muerta": "dead body outline",
+            "cadáver": "corpse dark",
+            "cadaver": "corpse dark",
+            "cuerpo": "human silhouette dark",
+            "rostro": "creepy face",
+            "cara": "scary face close up",
+            "ojos": "staring eyes dark",
+            "manos": "creepy hands",
+            "mano": "creepy hand reaching",
+            "huesos": "skeleton bones",
+            
+            # Acciones / Eventos
+            "grito": "screaming mouth",
+            "gritos": "screaming silhouette",
+            "llanto": "crying person dark",
+            "pasos": "footsteps shadow walking",
+            "respiración": "breathing silhouette",
+            "respiracion": "breathing silhouette",
+            "correr": "running in panic",
+            "escapar": "escaping dark",
+            "susurro": "whispering mouth",
+            "susurros": "whispering shadow",
+            
+            # Objetos / Símbolos
+            "espejo": "scary mirror reflection",
+            "puerta": "creepy door opening",
+            "ventana": "rainy window dark",
+            "grifo": "dripping faucet tap",
+            "agua": "dark deep water",
+            "velas": "burning candles dark",
+            "vela": "candle flame dark",
+            "reloj": "old ticking clock",
+            "teléfono": "old rotary phone",
+            "telefono": "old rotary phone",
+            "llave": "rusty key lock",
+            "cuchillo": "knife silhouette",
+            
+            # Sensaciones / Adjetivos
+            "oscuridad": "pitch black dark",
+            "oscuro": "dark texture",
+            "oscura": "dark background",
+            "silencio": "quiet forest",
+            "miedo": "scary face horror",
+            "terror": "spooky background",
             "peligro": "warning alert dark",
-            "corazón": "heartbeat pulse",
-            "corazon": "heartbeat pulse",
-            "detrás": "creepy figure behind",
-            "atrás": "creepy figure behind",
-            "atras": "creepy figure behind"
+            "frío": "cold winter forest",
+            "frio": "cold winter forest"
         }
 
         broll_matches = []
@@ -356,11 +410,15 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                                     "end": seg_start + ((i + 1) * dur_per_word)
                                 })
 
-        # Seleccionar hasta 3 B-rolls sin superposición
+        # Seleccionar hasta 6 B-rolls sin superposición y sin duplicar la misma consulta en el video
         selected_brolls = []
+        used_queries = set()
         for match in broll_matches:
-            if len(selected_brolls) >= 3:
+            if len(selected_brolls) >= 6:
                 break
+            if match["query"] in used_queries:
+                continue
+                
             p_start = max(0.0, match["start"] - 0.5)
             p_end = min(total_visual_dur, p_start + 2.0)
             
@@ -376,6 +434,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                     "end": p_end,
                     "duration": p_end - p_start
                 })
+                used_queries.add(match["query"])
 
         # Descargar B-rolls desde Pexels
         downloaded_brolls = []
