@@ -984,6 +984,16 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
             print(f"--- FFMPEG FINAL REMUX ERROR LOG ---\n{e.stderr}\n------------------------")
             raise Exception(f"Fallo en copia final de video FFmpeg: {e.stderr[:200]}")
 
+        # Guardar título y descripción en un archivo .txt complementario
+        try:
+            txt_final = v_final.rsplit(".", 1)[0] + ".txt"
+            with open(txt_final, "w", encoding="utf-8") as f_desc:
+                f_desc.write(f"TÍTULO:\n{title}\n\nDESCRIPCIÓN:\n{description}\n")
+            print(f"Saved description file to: {txt_final}")
+        except Exception as e_desc:
+            print(f"Error guardando descripción txt: {e_desc}")
+
+
         # Limpieza
         for c in chunk_files: safe_remove(c)
         for i in range(len(mixed_media)): safe_remove(os.path.join(cache_audio, f"audio_mix_{i:03d}.wav"))
