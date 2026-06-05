@@ -57,7 +57,22 @@ class ConceptTab(ctk.CTkFrame):
                                        border_color="#222",
                                        border_width=1,
                                        text_color="white")
-        self.entry_idea.pack(fill="x", pady=(0, 20))
+        self.entry_idea.pack(fill="x", pady=(0, 15))
+        
+        # Duration Selector Frame
+        duration_frame = ctk.CTkFrame(input_container, fg_color="transparent")
+        duration_frame.pack(fill="x", pady=(0, 15))
+        
+        ctk.CTkLabel(duration_frame, text="Duración Objetivo:", font=("Arial", 11, "bold"), text_color=COLOR_TEXT_SUB).pack(side="left")
+        
+        self.seg_duration = ctk.CTkSegmentedButton(duration_frame,
+                                                  values=["30s", "45s", "60s"],
+                                                  selected_color=COLOR_ACCENT,
+                                                  selected_hover_color="#B71C1C",
+                                                  fg_color="#080808",
+                                                  text_color="white")
+        self.seg_duration.pack(side="right")
+        self.seg_duration.set("30s")
         
         # Action Button (Hero)
         self.btn_generate = ctk.CTkButton(input_container, 
@@ -158,11 +173,12 @@ class ConceptTab(ctk.CTkFrame):
         self.btn_generate.configure(state="disabled", text="GENERANDO...")
         self.btn_regenerate.configure(state="disabled")
         self.main.current_trama_cache = idea # Save for later tabs
+        duration = self.seg_duration.get()
         
         # Start Thread
-        threading.Thread(target=self.run_generation, args=(idea, api_key, provider), daemon=True).start()
+        threading.Thread(target=self.run_generation, args=(idea, api_key, provider, duration), daemon=True).start()
 
-    def run_generation(self, idea, api_key, provider):
+    def run_generation(self, idea, api_key, provider, duration):
         try:
             # --- LOGIC (Background Thread) ---
             # 1. Update paths and reload template to ensure the latest selection is used
@@ -186,6 +202,16 @@ class ConceptTab(ctk.CTkFrame):
                                           .replace("{MONSTRUO}", sel_monstruo)\
                                           .replace("{ATMOSFERA}", sel_atmosfera)\
                                           .replace("{CIERRE}", sel_cierre)
+            
+            # 3.1. Inject dynamic target duration rule
+            if duration == "30s":
+                word_limit = "El guion para la IA de voz (limpio) DEBE tener entre 100 y 115 palabras en total. Esto es un límite ESTRICTO. Mantén las frases muy cortas, dinámicas y directas al grano."
+            elif duration == "45s":
+                word_limit = "El guion para la IA de voz (limpio) DEBE tener entre 150 y 165 palabras en total. Esto es un límite ESTRICTO. Mantén las frases dinámicas y directas al grano."
+            else: # "60s"
+                word_limit = "El guion para la IA de voz (limpio) DEBE tener entre 190 y 210 palabras en total. Esto es un límite ESTRICTO. Mantén las frases dinámicas y directas al grano."
+            
+            full_prompt += f"\n\n[INSTRUCCIÓN CRÍTICA DE DURACIÓN Y LÍMITE DE PALABRAS]:\n{word_limit}\n"
             
             # 4. Call API
             if provider == "groq":

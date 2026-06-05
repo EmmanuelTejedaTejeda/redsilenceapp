@@ -114,8 +114,17 @@ def apply_audio_speed_ramping(audio_path, json_data, temp_dir):
         print(f"Error aplicando audio speed ramping: {e}")
         return audio_path, json_data
 
-def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, description, vhs_enabled, music_path=None, status_callback=None, groq_key=None, aspect_ratio="9:16", lut_name=None, sub_style="TikTok / Hormozi"):
+def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, description, vhs_enabled, music_path=None, status_callback=None, groq_key=None, aspect_ratio="9:16", lut_name=None, sub_style="TikTok / Hormozi", reddit_card_title=None, pacing="Dinámico [2.0s]", vol_voice=100.0, vol_music=40.0, vol_sfx=100.0):
     sub_kwargs = {}
+    
+    # Parse pacing duration
+    pacing_dur = 2.0
+    if pacing and "[" in pacing:
+        try:
+            pacing_val = pacing.split("[")[1].split("s]")[0]
+            pacing_dur = float(pacing_val)
+        except Exception as pe:
+            print(f"Error parsing pacing: {pe}. Using default 2.0s")
     if os.name == 'nt':
         # 0x00000040 es IDLE_PRIORITY_CLASS (Prioridad de fondo mínima)
         sub_kwargs['creationflags'] = 0x00000040
@@ -420,7 +429,9 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                 continue
                 
             p_start = max(0.0, match["start"] - 0.5)
-            p_end = min(total_visual_dur, p_start + 2.0)
+            # Adjust B-roll duration based on pacing_dur
+            broll_duration = max(1.2, min(2.5, pacing_dur))
+            p_end = min(total_visual_dur, p_start + broll_duration)
             
             overlap = False
             for sel in selected_brolls:
@@ -669,8 +680,8 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                         input_opts_list = []
                 else:
                     # Comportamiento normal (restante de clips)
-                    # Si el clip es largo (>2.2s), aplicar el "Re-encuadre de Emergencia Automático" (Punch-In / Jump Cut) en el 60% de su duración
-                    if dur > 2.2:
+                    # Si el clip es largo (>pacing_dur), aplicar el "Re-encuadre de Emergencia Automático" (Punch-In / Jump Cut) en el 60% de su duración
+                    if dur > pacing_dur:
                         jump_frame = int(dur * 0.6 * 30)
                         # Zoom-in repentino del 1.1x al 1.35x para imagen
                         ze_normal = f"if(gte(on,{jump_frame}), max(zoom,1.35)+0.0035, max(zoom,1.1)+0.0035)"
@@ -686,7 +697,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                         else:
                             sx = sx_base
                             sy = sy_base
-                        if dur > 2.2:
+                        if dur > pacing_dur:
                             # Para video largo, hacemos un jump cut de zoom de 1.0x a 1.25x en el 60%
                             jump_t = dur * 0.6
                             vf_base = (
@@ -714,7 +725,10 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                     card_png_path = os.path.abspath(os.path.join(cache_chunks, "reddit_card.png"))
                     try:
                         from modules.render_utils import generate_reddit_card
-                        generate_reddit_card(title, card_png_path, aspect_ratio)
+                        card_text = reddit_card_title if reddit_card_title else title
+                        if "#" in card_text:
+                            card_text = card_text.split("#")[0].strip()
+                        generate_reddit_card(card_text, card_png_path, aspect_ratio)
                     except Exception as e:
                         print(f"Error generating Reddit card: {e}")
                         card_png_path = None
@@ -897,14 +911,18 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         a_m = f"[{idx_riser}:a]asplit={num_trans}" + "".join([f"[r_raw{i}]" for i in range(num_trans)]) + ";"
         a_m += f"[{idx_impact}:a]asplit={num_trans+1}" + "".join([f"[im_raw{i}]" for i in range(num_trans+1)]) + ";"
 
+        vol_voice_mult = vol_voice / 100.0
+        vol_music_mult = 0.4 * (vol_music / 100.0)
+        vol_sfx_mult = vol_sfx / 100.0
+
         if music_path:
-            a_m += f"[{idx_voice}:a]loudnorm=I=-16,asplit=2[v_main][v_sc];"
+            a_m += f"[{idx_voice}:a]loudnorm=I=-16,volume={vol_voice_mult:.2f},asplit=2[v_main][v_sc];"
         else:
-            a_m += f"[{idx_voice}:a]loudnorm=I=-16[v_main];"
+            a_m += f"[{idx_voice}:a]loudnorm=I=-16,volume={vol_voice_mult:.2f}[v_main];"
         
         a_i = "[v_main]"; a_c += 1
         
-        a_m += f"[im_raw{num_trans}]atrim=0:1.0,volume=0.8[init_impact];"
+        a_m += f"[im_raw{num_trans}]atrim=0:1.0,volume={0.8 * vol_sfx_mult:.2f}[init_impact];"
         a_i += "[init_impact]"; a_c += 1
 
         for i, offset in enumerate(transition_offsets):
@@ -912,16 +930,16 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
             in_cmd_audio.extend(["-i", sfx_path])
             idx_sfx = n_x; n_x += 1
             
-            a_m += f"[r_raw{i}]atrim=0:0.5,afade=t=in:st=0:d=0.4,volume=0.6,adelay={max(0, int((offset-0.5)*1000))}|{max(0, int((offset-0.5)*1000))}[r{i}];"
-            a_m += f"[im_raw{i}]atrim=0:0.5,volume=1.0,adelay={int(offset*1000)}|{int(offset*1000)}[im{i}];"
-            a_m += f"[{idx_sfx}:a]silenceremove=start_periods=1:start_duration=0:start_threshold=-40dB,atrim=0:1.0,afade=t=out:st=0.5:d=0.5,volume=1.0,adelay={int(offset*1000)}|{int(offset*1000)}[s{i}];"
+            a_m += f"[r_raw{i}]atrim=0:0.5,afade=t=in:st=0:d=0.4,volume={0.6 * vol_sfx_mult:.2f},adelay={max(0, int((offset-0.5)*1000))}|{max(0, int((offset-0.5)*1000))}[r{i}];"
+            a_m += f"[im_raw{i}]atrim=0:0.5,volume={1.0 * vol_sfx_mult:.2f},adelay={int(offset*1000)}|{int(offset*1000)}[im{i}];"
+            a_m += f"[{idx_sfx}:a]silenceremove=start_periods=1:start_duration=0:start_threshold=-40dB,atrim=0:1.0,afade=t=out:st=0.5:d=0.5,volume={1.0 * vol_sfx_mult:.2f},adelay={int(offset*1000)}|{int(offset*1000)}[s{i}];"
             
             a_i += f"[r{i}][im{i}][s{i}]"
             a_c += 3
 
         if music_path:
             in_cmd_audio.extend(["-i", os.path.abspath(music_path)])
-            a_m += f"[{n_x}:a]volume=0.4[m_pre];[m_pre][v_sc]sidechaincompress=threshold=0.04:ratio=6:attack=2:release=150[bg_duck];"
+            a_m += f"[{n_x}:a]volume={vol_music_mult:.2f}[m_pre];[m_pre][v_sc]sidechaincompress=threshold=0.04:ratio=6:attack=2:release=150[bg_duck];"
             a_i += "[bg_duck]"; a_c += 1; n_x += 1
         
         for i, m in enumerate(mixed_media):
@@ -934,7 +952,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                 if os.path.exists(ach):
                     in_cmd_audio.extend(["-i", ach])
                     offset_ms = int(transition_offsets[i-1] * 1000) if i > 0 else 0
-                    a_m += f"[{n_x}:a]volume=0.7,adelay={offset_ms}|{offset_ms}[a{i}];"
+                    a_m += f"[{n_x}:a]volume={0.7 * vol_sfx_mult:.2f},adelay={offset_ms}|{offset_ms}[a{i}];"
                     a_i += f"[a{i}]"; a_c += 1; n_x += 1
 
         json_path = os.path.join(temp_dir, "data_mix.json")
@@ -942,7 +960,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         for sfx_path, sfx_start in sfx_events:
             in_cmd_audio.extend(["-i", sfx_path])
             delay_ms = int(sfx_start * 1000)
-            a_m += f"[{n_x}:a]volume=0.9,adelay={delay_ms}|{delay_ms}[sfx{n_x}];"
+            a_m += f"[{n_x}:a]volume={0.9 * vol_sfx_mult:.2f},adelay={delay_ms}|{delay_ms}[sfx{n_x}];"
             a_i += f"[sfx{n_x}]"; a_c += 1; n_x += 1
 
         midpoint_sfx = os.path.abspath(os.path.join(os.getcwd(), "assets", "audio", "transitions", "real_glitch.mp3"))
@@ -950,7 +968,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
             mid_t = total_visual_dur * 0.48
             in_cmd_audio.extend(["-i", midpoint_sfx])
             delay_ms = int(mid_t * 1000)
-            a_m += f"[{n_x}:a]volume=1.4,adelay={delay_ms}|{delay_ms}[mid_sfx];"
+            a_m += f"[{n_x}:a]volume={1.4 * vol_sfx_mult:.2f},adelay={delay_ms}|{delay_ms}[mid_sfx];"
             a_i += "[mid_sfx]"
             a_c += 1
             n_x += 1
