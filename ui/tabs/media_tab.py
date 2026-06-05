@@ -297,7 +297,7 @@ class MediaTab(ctk.CTkFrame):
         status_frame = ctk.CTkFrame(action_bar, fg_color="#080808", corner_radius=12, border_width=1, border_color="#111")
         status_frame.pack(side="left", fill="both", expand=True, padx=(0, 20))
         
-        self.lbl_status = ctk.CTkLabel(status_frame, text="ESPERANDO CONFIGURACIÓN...", font=("Inter", 11, "bold"), text_color="#444")
+        self.lbl_status = ctk.CTkLabel(status_frame, text="ESPERANDO CONFIGURACIÓN...", font=("Inter", 11, "bold"), text_color="#888")
         self.lbl_status.pack(pady=(15, 5))
         
         self.progress_render = ctk.CTkProgressBar(status_frame, fg_color="#111", progress_color=COLOR_ACCENT, height=6)
@@ -305,13 +305,13 @@ class MediaTab(ctk.CTkFrame):
         self.progress_render.set(0)
         
         self.btn_render = ctk.CTkButton(action_bar, text="INICIAR RENDERIZADO", width=220, height=60, 
-                                        fg_color="#333", state="disabled", font=("Impact", 18), 
+                                        fg_color="#333", state="disabled", font=("Arial", 13, "bold"), 
                                         corner_radius=12, command=self.on_render_click)
         self.btn_render.pack(side="left")
         
         self.btn_upload = ctk.CTkButton(action_bar, text="SUBIR A SHORTS", width=180, height=60,
                                         fg_color="#002211", text_color="#00FF66", state="disabled", 
-                                        font=("Impact", 18), corner_radius=12, command=self.on_upload_click)
+                                        font=("Arial", 13, "bold"), corner_radius=12, command=self.on_upload_click)
         self.btn_upload.pack(side="left", padx=(15, 0))
 
     # --- UI CALLBACKS ---
