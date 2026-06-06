@@ -1075,9 +1075,7 @@ def auto_generate_translated_dubs(audio_path, music_path, vol_voice, vol_music, 
         languages = {
             "Inglés (USA)": ("en", "en-US-GuyNeural"),
             "Portugués (Brasil)": ("pt", "pt-BR-AntonioNeural"),
-            "Francés (Francia)": ("fr", "fr-FR-HenriNeural"),
-            "Italiano (Italia)": ("it", "it-IT-DiegoNeural"),
-            "Alemán (Alemania)": ("de", "de-DE-ConradNeural")
+            "Árabe (Egipto)": ("ar", "ar-EG-ShakirNeural")
         }
         
         try:
