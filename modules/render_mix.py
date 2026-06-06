@@ -1036,6 +1036,8 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                 vol_music=vol_music,
                 output_folder=output_folder,
                 safe_title=safe_title,
+                title=title,
+                description=description,
                 status_callback=status_callback
             )
         except Exception as e_dubs:
@@ -1048,7 +1050,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         if status_callback: status_callback(f"🛑 Error Mix: {str(e)[:50]}", "red")
         return False
 
-def auto_generate_translated_dubs(audio_path, music_path, vol_voice, vol_music, output_folder, safe_title, status_callback=None):
+def auto_generate_translated_dubs(audio_path, music_path, vol_voice, vol_music, output_folder, safe_title, title="", description="", status_callback=None):
     try:
         if status_callback: status_callback("🎙️ CARGANDO IA DE VOZ PARA TRADUCCIÓN...", "#FFD700")
         
@@ -1138,6 +1140,23 @@ def auto_generate_translated_dubs(audio_path, music_path, vol_voice, vol_music, 
                     except Exception as se:
                         print(f"Error stretching voice: {se}")
                 
+                # Translate title and description to target language
+                try:
+                    translated_title = ""
+                    translated_desc = ""
+                    if title:
+                        translated_title = GoogleTranslator(source='es', target=lang_code).translate(title)
+                    if description:
+                        translated_desc = GoogleTranslator(source='es', target=lang_code).translate(description)
+                    
+                    if translated_title or translated_desc:
+                        meta_txt_path = os.path.join(dubs_folder, f"{safe_title}_{lang_code}.txt")
+                        with open(meta_txt_path, "w", encoding="utf-8") as f_meta:
+                            f_meta.write(f"TÍTULO:\n{translated_title}\n\nDESCRIPCIÓN:\n{translated_desc}")
+                        print(f"Saved translated metadata to: {meta_txt_path}")
+                except Exception as t_err:
+                    print(f"Error translating/saving metadata for {lang_code}: {t_err}")
+
                 # 3. Mix with background music (if provided)
                 output_dub_path = os.path.join(dubs_folder, f"{safe_title}_{lang_code}.wav")
                 
@@ -1168,6 +1187,9 @@ def auto_generate_translated_dubs(audio_path, music_path, vol_voice, vol_music, 
                         try: os.remove(temp_translated_wav)
                         except: pass
                 else:
+                    if music_path:
+                        print(f"Music file not found or path empty: {music_path}")
+                        if status_callback: status_callback(f"⚠️ MÚSICA NO ENCONTRADA: {os.path.basename(music_path)}", "orange")
                     # No music, just rename the temp file to the final output name
                     if os.path.exists(output_dub_path):
                         try: os.remove(output_dub_path)

@@ -1046,6 +1046,7 @@ class MediaTab(ctk.CTkFrame):
         self.update_render_status("🎙️ INICIANDO TRADUCCIÓN DE VOZ BAJO DEMANDA...", "#FFD700")
         
         title = self.entry_title.get().strip() or "SilencioRojo_Video"
+        desc = self.txt_desc.get("0.0", "end").strip()
         safe_title = "".join([c for c in title if c.isalnum() or c==' ']).rstrip().replace(" ", "_") or "Video_Render_Mix"
         output_folder = getattr(self.main, "ruta_drive", os.path.join(os.getcwd(), "dist"))
         music = self.current_music_path if self.var_music.get() else None
@@ -1062,6 +1063,8 @@ class MediaTab(ctk.CTkFrame):
                     vol_music=vol_music,
                     output_folder=output_folder,
                     safe_title=safe_title,
+                    title=title,
+                    description=desc,
                     status_callback=self.update_render_status
                 )
                 self.after(0, lambda: [
@@ -1206,6 +1209,20 @@ class MediaTab(ctk.CTkFrame):
         self.last_render_path = state.get("last_render_path", "")
         self.combo_luts.set(state.get("lut_name", "Ninguno"))
         self.combo_sub_style.set(state.get("sub_style", "TikTok / Hormozi"))
+        
+        # Restore audio and BGM paths
+        self.audio_path = state.get("audio_path", "")
+        if self.audio_path and os.path.exists(self.audio_path):
+            self.lbl_audio_name.configure(text=f"AUDIO ACTIVO: {os.path.basename(self.audio_path)[:25]}", text_color=COLOR_SUCCESS)
+            self.btn_audio.configure(border_color=COLOR_SUCCESS)
+        else:
+            self.lbl_audio_name.configure(text="No hay audio activo", text_color="#444")
+            self.btn_audio.configure(border_color="#222")
+
+        self.var_music.set(state.get("music_enabled", True))
+        self.current_music_path = state.get("music_path", "")
+        if self.current_music_path and os.path.exists(self.current_music_path):
+            self.combo_music.set(os.path.basename(self.current_music_path))
         
         # Refresh visuals
         self.refresh_grid()
