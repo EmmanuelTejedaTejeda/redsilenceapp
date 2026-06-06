@@ -1212,19 +1212,24 @@ class MediaTab(ctk.CTkFrame):
         def thread_run():
             try:
                 prompt = (
-                    "Actúa como un experto en SEO de YouTube Shorts y viralidad. "
-                    "A partir del siguiente guion de un Short de terror, genera lo siguiente de forma precisa:\n\n"
+                    "Actúa como un experto en SEO de YouTube Shorts y viralidad de terror para TikTok/Shorts. "
+                    "A partir del siguiente guion de un Short de terror, genera de forma precisa la metadata:\n\n"
                     f"GUION:\n{story}\n\n"
                     "Genera tu respuesta en este formato exacto:\n"
                     "---SEO_TITLE---\n"
-                    "[Escribe aquí un título optimizado para búsquedas de YouTube de menos de 80 caracteres. Debe incluir palabras clave del nicho como HILO DE REDDIT, Reddit Stories, Terror o Horror, y hashtags indexables como #terror #misterio #backrooms #shorts. Añade algún emoji interesante]\n"
+                    "[Escribe un título optimizado de entre 40 y 60 caracteres en total. Debe iniciar (front-loading) en los primeros 35 caracteres con una frase clave de impacto (ej: 'HILO DE REDDIT...', 'POV: Lees Reddit...', 'Confesión anónima...'). Usa fórmulas de intriga o confesión prohibida y finaliza con exactamente 1 o 2 emojis de terror como 💀, 👁️, 📱, 🤫. NO uses hashtags en el título]\n"
                     "---CARD_TITLE---\n"
-                    "[Escribe aquí el gancho de intriga visual para la tarjeta de Reddit. Debe ser una pregunta o confesión de terror muy intrigante de máximo 70 caracteres, sin hashtags, sin links, muy limpio y auténtico como un post real de r/nosleep. Añade un emoji intrigante]\n"
+                    "[Escribe el gancho de intriga visual para la tarjeta de Reddit. Debe ser una pregunta o confesión de terror muy intrigante de máximo 70 caracteres, sin hashtags, sin links, muy limpio y auténtico como un post real de r/nosleep. Añade un emoji intrigante al final]\n"
                     "---DESCRIPTION---\n"
-                    "[Escribe aquí una descripción intrigante y optimizada de 2 o 3 párrafos cortos. Añade hashtags relevantes, una pregunta para incentivar comentarios en el feed de Shorts, y la siguiente marca de capítulos temporales:\n"
-                    "00:00 - La captura de Reddit\n"
-                    "00:15 - El secreto perturbador\n"
-                    "00:35 - La confesión final\n]\n"
+                    "[Escribe una descripción conversacional optimizada de 2 o 3 párrafos cortos. Cumple estrictamente estas reglas:\n"
+                    "- Las primeras 2 líneas deben incluir la palabra clave principal de forma conversacional (ej: 'Abro este hilo de Reddit...' o 'Confesión anónima de Reddit...').\n"
+                    "- Cierra con una pregunta específica para incentivar debates en los comentarios.\n"
+                    "- NO incluyas links.\n"
+                    "- Añade las siguientes marcas de tiempo:\n"
+                    "  00:00 - La captura de Reddit\n"
+                    "  00:12 - [Un nombre corto de 3 palabras para la fase de contexto/detonante]\n"
+                    "  00:35 - [Un nombre corto de 3 palabras para la fase de revelación/giro]\n"
+                    "- Al final, coloca exactamente los siguientes hashtags: #Shorts #Shorst #RedditStories #Terror y opcionalmente uno específico del nicho (máximo 5 hashtags en total)]\n"
                 )
                 
                 from modules import gemini_client, groq_client
