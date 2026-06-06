@@ -125,6 +125,15 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
             pacing_dur = float(pacing_val)
         except Exception as pe:
             print(f"Error parsing pacing: {pe}. Using default 2.0s")
+            
+    # Dynamic card duration based on pacing (shorter card = faster retention hook)
+    if pacing_dur <= 1.3:
+        card_duration = 3.0
+    elif pacing_dur <= 2.1:
+        card_duration = 4.0
+    else:
+        card_duration = 5.0
+
     if os.name == 'nt':
         # 0x00000040 es IDLE_PRIORITY_CLASS (Prioridad de fondo mínima)
         sub_kwargs['creationflags'] = 0x00000040
@@ -734,10 +743,10 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                         card_png_path = None
 
                 if card_png_path and os.path.exists(card_png_path):
-                    # Desenfoque periférico (boxblur) de fondo en los primeros 5 segundos
-                    vf_final = f"{vf_base},boxblur=15:enable='between(t\\,0\\,5.0)',format=yuv420p,{fx_chain},{sub_fx}{lut_filter}{glitch_fx}"
+                    # Desenfoque periférico (boxblur) de fondo en los primeros segundos
+                    vf_final = f"{vf_base},boxblur=15:enable='between(t\\,0\\,{card_duration})',format=yuv420p,{fx_chain},{sub_fx}{lut_filter}{glitch_fx}"
                     # Mezclar con el VHS y superponer el card con animación de entrada slide-up
-                    cvf = f"[0:v]{vf_final},format=gbrp[b];[1:v]scale={target_w}:{target_h},hue=s=0,format=gbrp[v];[b][v]blend=all_mode=screen:all_opacity=0.08[mixed];[mixed][2:v]overlay=(W-w)/2:y='((H-h)/2+(H-(H-h)/2)*exp(-8*t))*lt(t,0.6)+(H-h)/2*gte(t,0.6)':enable='between(t\\,0\\,5.0)',format=yuv420p"
+                    cvf = f"[0:v]{vf_final},format=gbrp[b];[1:v]scale={target_w}:{target_h},hue=s=0,format=gbrp[v];[b][v]blend=all_mode=screen:all_opacity=0.08[mixed];[mixed][2:v]overlay=(W-w)/2:y='((H-h)/2+(H-(H-h)/2)*exp(-8*t))*lt(t,0.6)+(H-h)/2*gte(t,0.6)':enable='between(t\\,0\\,{card_duration})',format=yuv420p"
                     
                     active_enc = ["-c:v", "libx264", "-preset", "ultrafast", "-b:v", "2200k", "-pix_fmt", "yuv420p"] if hw_failed[0] else enc
                     cmd = ["ffmpeg", "-y", "-threads", "2"] + input_opts_list + ["-i", media_path, "-stream_loop", "-1", "-i", vhs_p, "-i", card_png_path, "-t", str(render_dur), "-filter_complex", cvf, "-r", "30"] + active_enc + ["-an", chunk_name]
