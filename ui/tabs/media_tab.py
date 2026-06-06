@@ -200,7 +200,7 @@ class MediaTab(ctk.CTkFrame):
     def setup_right_panel(self, parent):
         # --- TOP: METADATOS (MODERN BAR) ---
         meta_bar = ctk.CTkFrame(parent, fg_color=COLOR_CARD_BG, corner_radius=15, border_width=1, border_color=COLOR_CARD_BORDER)
-        meta_bar.pack(side="top", fill="x", pady=(0, 10))
+        meta_bar.pack(fill="x", pady=(0, 20))
         
         meta_left = ctk.CTkFrame(meta_bar, fg_color="transparent")
         meta_left.pack(side="left", fill="both", expand=True, padx=20, pady=15)
@@ -242,9 +242,9 @@ class MediaTab(ctk.CTkFrame):
         # Tags ocultos o compactos (por simplicidad en este rediseño)
         self.entry_tags = ctk.CTkEntry(meta_bar, width=0, height=0) 
 
-        # --- BOTTOM: ACTION BAR (Pack first at the bottom so it never gets cut off) ---
+        # --- BOTTOM: ACTION BAR (Pack first at bottom to reserve space) ---
         action_bar = ctk.CTkFrame(parent, fg_color="transparent", height=100)
-        action_bar.pack(side="bottom", fill="x", pady=(10, 0))
+        action_bar.pack(side="bottom", fill="x", pady=(15, 0))
         
         status_frame = ctk.CTkFrame(action_bar, fg_color="#080808", corner_radius=12, border_width=1, border_color="#111")
         status_frame.pack(side="left", fill="both", expand=True, padx=(0, 20))
@@ -266,16 +266,16 @@ class MediaTab(ctk.CTkFrame):
                                         font=("Arial", 13, "bold"), corner_radius=12, command=self.on_upload_click)
         self.btn_upload.pack(side="left", padx=(15, 0))
 
-        # Barra de Ordenar (Sits above the bottom action bar)
+        # --- SORT BAR (Pack above action bar) ---
         sort_bar = ctk.CTkFrame(parent, fg_color="transparent")
         sort_bar.pack(side="bottom", fill="x", pady=(5, 0))
         ctk.CTkLabel(sort_bar, text="ORDENAR POR:", font=("Inter", 9, "bold"), text_color="#333").pack(side="left", padx=10)
         ctk.CTkButton(sort_bar, text="FECHA", width=60, height=20, font=("Inter", 8, "bold"), fg_color="#080808", command=lambda: self.sort_media("date")).pack(side="left", padx=2)
         ctk.CTkButton(sort_bar, text="NOMBRE", width=60, height=20, font=("Inter", 8, "bold"), fg_color="#080808", command=lambda: self.sort_media("name")).pack(side="left", padx=2)
 
-        # --- CENTER: TIMELINE (THE GRID) ---
+        # --- CENTER: TIMELINE HEADER (Pack below meta_bar) ---
         timeline_header = ctk.CTkFrame(parent, fg_color="transparent")
-        timeline_header.pack(side="top", fill="x", pady=(0, 5))
+        timeline_header.pack(side="top", fill="x", pady=(0, 10))
         
         ctk.CTkLabel(timeline_header, text="VISUAL TIMELINE", font=("Impact", 24), text_color="white").pack(side="left")
         
@@ -304,7 +304,7 @@ class MediaTab(ctk.CTkFrame):
                       font=("Inter", 10, "bold"), border_width=1, border_color="#222",
                       command=self.clear_media).pack(side="left", padx=5)
 
-        # --- MIDDLE: LINEA DE TIEMPO (AHORA CUADRÍCULA VERTICAL) ---
+        # --- MIDDLE: LINEA DE TIEMPO (Pack last to fill remaining space) ---
         self.scroll_grid = ctk.CTkScrollableFrame(parent, fg_color="#0a0a0a", corner_radius=15, 
                                                  border_width=1, border_color="#1a1a1a", orientation="vertical")
         self.scroll_grid.pack(side="top", fill="both", expand=True)
