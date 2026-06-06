@@ -113,6 +113,16 @@ class MediaTab(ctk.CTkFrame):
         self.lbl_audio_name = ctk.CTkLabel(card_v, text="No hay audio activo", font=("Consolas", 10), text_color="#444")
         self.lbl_audio_name.pack(pady=(0, 5))
         
+        row_v = ctk.CTkFrame(card_v, fg_color="transparent")
+        row_v.pack(fill="x", padx=15, pady=(0, 8))
+        
+        b_sty_v = {"height": 30, "fg_color": "#0F0F0F", "hover_color": "#151515", "border_width": 1, "border_color": "#222", "font": ("Arial", 11, "bold")}
+        self.btn_play_narration = ctk.CTkButton(row_v, text="▶ REPRODUCIR", command=self.play_narration_preview, **b_sty_v)
+        self.btn_play_narration.pack(side="left", padx=(0, 4), expand=True, fill="x")
+        
+        self.btn_stop_narration = ctk.CTkButton(row_v, text="⏸ DETENER", command=self.stop_narration_preview, **b_sty_v)
+        self.btn_stop_narration.pack(side="left", padx=(4, 0), expand=True, fill="x")
+        
         self.btn_translate_audio = ctk.CTkButton(card_v, text="🌐 TRADUCIR NARRACIÓN ⚡", 
                                                  fg_color="#1A1F38", hover_color="#2A3358", border_width=1, border_color="#3B487A",
                                                  height=32, font=("Arial", 11, "bold"), command=self.on_translate_audio_click)
@@ -478,6 +488,7 @@ class MediaTab(ctk.CTkFrame):
         target_dir = r"D:\Descargas\Audio"
         file_path = filedialog.askopenfilename(initialdir=target_dir, filetypes=[("Audio files", "*.wav *.mp3 *.m4a")])
         if file_path:
+            self.stop_narration_preview()
             self.audio_path = file_path
             self.lbl_audio_name.configure(text=f"AUDIO ACTIVO: {os.path.basename(file_path)[:25]}", text_color=COLOR_SUCCESS)
             self.btn_audio.configure(border_color=COLOR_SUCCESS)
@@ -952,6 +963,31 @@ class MediaTab(ctk.CTkFrame):
             except Exception as e:
                 print(f"Error al iniciar previsualización: {e}")
             
+    def play_narration_preview(self):
+        if self.audio_path and os.path.exists(self.audio_path):
+            self.stop_narration_preview()
+            
+            cmd = ["ffplay", "-nodisp", "-autoexit", self.audio_path]
+            try:
+                self.narration_preview_process = subprocess.Popen(cmd, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+            except Exception as e:
+                print(f"Error al iniciar previsualización de narración: {e}")
+
+    def stop_narration_preview(self):
+        if hasattr(self, "narration_preview_process") and self.narration_preview_process:
+            try:
+                self.narration_preview_process.terminate()
+            except:
+                try: self.narration_preview_process.kill()
+                except: pass
+            self.narration_preview_process = None
+        
+        try:
+            if os.name == 'nt':
+                subprocess.run(["taskkill", "/F", "/IM", "ffplay.exe", "/T"], 
+                               capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
+        except: pass
+
     def get_active_media(self):
         return self.mixed_media
 
