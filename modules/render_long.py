@@ -708,7 +708,7 @@ def render_long_video_project(project_state, output_final_mp4, status_callback=N
                 delay_ms = int(play_start * 1000)
                 
                 bgm_label = f"[bgm_cap_{cap_idx}]"
-                filter_str = f"[{in_idx}:a]volume=0.25,adelay={delay_ms}|{delay_ms}"
+                filter_str = f"[{in_idx}:a]silenceremove=start_periods=1:start_duration=0:start_threshold=-45dB,volume=0.25,adelay={delay_ms}|{delay_ms}"
                 
                 # Aplicar Fades
                 if xf_in > 0:

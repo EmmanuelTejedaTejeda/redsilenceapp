@@ -948,7 +948,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
 
         if music_path:
             in_cmd_audio.extend(["-i", os.path.abspath(music_path)])
-            a_m += f"[{n_x}:a]volume={vol_music_mult:.2f}[m_pre];[m_pre][v_sc]sidechaincompress=threshold=0.04:ratio=6:attack=2:release=150[bg_duck];"
+            a_m += f"[{n_x}:a]silenceremove=start_periods=1:start_duration=0:start_threshold=-45dB,volume={vol_music_mult:.2f}[m_pre];[m_pre][v_sc]sidechaincompress=threshold=0.04:ratio=6:attack=2:release=150[bg_duck];"
             a_i += "[bg_duck]"; a_c += 1; n_x += 1
         
         for i, m in enumerate(mixed_media):
@@ -1173,7 +1173,7 @@ def auto_generate_translated_dubs(audio_path, music_path, vol_voice, vol_music, 
                         "ffmpeg", "-y", "-threads", "2",
                         "-i", temp_translated_wav,
                         "-stream_loop", "-1", "-i", os.path.abspath(music_path),
-                        "-filter_complex", f"[0:a]volume={vol_voice_mult:.2f}[v];[1:a]volume={vol_music_mult:.2f}[m];[v][m]amix=inputs=2:duration=first:normalize=0[a]",
+                        "-filter_complex", f"[0:a]volume={vol_voice_mult:.2f}[v];[1:a]silenceremove=start_periods=1:start_duration=0:start_threshold=-45dB,volume={vol_music_mult:.2f}[m];[v][m]amix=inputs=2:duration=first:normalize=0[a]",
                         "-map", "[a]", "-ac", "2", "-ar", "44100", output_dub_path
                     ]
                     
