@@ -1090,7 +1090,7 @@ def auto_generate_translated_dubs(audio_path, music_path, vol_voice, vol_music, 
             return
             
         # Create output subfolder for translations to avoid cluttering
-        dubs_folder = os.path.join(output_folder, f"{safe_title}_doblajes")
+        dubs_folder = os.path.join(output_folder, safe_title)
         os.makedirs(dubs_folder, exist_ok=True)
         
         for lang_name, (lang_code, voice) in languages.items():
@@ -1111,7 +1111,7 @@ def auto_generate_translated_dubs(audio_path, music_path, vol_voice, vol_music, 
                 asyncio.run(run_edge())
                 
                 # 3. Mix with background music (if provided)
-                output_dub_path = os.path.join(dubs_folder, f"doblaje_{lang_code}.wav")
+                output_dub_path = os.path.join(dubs_folder, f"{safe_title}_{lang_code}.wav")
                 
                 if music_path and os.path.exists(music_path):
                     if status_callback: status_callback(f"🎛️ MEZCLANDO MÚSICA PARA {lang_name.upper()}...", "#FFD700")
