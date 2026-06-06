@@ -1026,9 +1026,130 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         for i in range(len(mixed_media)): safe_remove(os.path.join(cache_audio, f"audio_mix_{i:03d}.wav"))
         for broll in downloaded_brolls: safe_remove(broll["path"])
         safe_remove(body_ts); safe_remove(body_video_only_ts); safe_remove(temp_srt_mirror)
+
+        # Generar automáticamente doblajes traducidos mezclados con música
+        try:
+            auto_generate_translated_dubs(
+                audio_path=audio_path,
+                music_path=music_path,
+                vol_voice=vol_voice,
+                vol_music=vol_music,
+                output_folder=output_folder,
+                safe_title=safe_title,
+                status_callback=status_callback
+            )
+        except Exception as e_dubs:
+            print(f"Error en auto-generación de doblajes: {e_dubs}")
+
         return True
     except Exception as e:
         import traceback
         traceback.print_exc()
         if status_callback: status_callback(f"🛑 Error Mix: {str(e)[:50]}", "red")
         return False
+
+def auto_generate_translated_dubs(audio_path, music_path, vol_voice, vol_music, output_folder, safe_title, status_callback=None):
+    try:
+        if status_callback: status_callback("🎙️ CARGANDO IA DE VOZ PARA TRADUCCIÓN...", "#FFD700")
+        
+        # 1. Transcribe original audio using Whisper locally (No API quota)
+        try:
+            import whisper
+        except ImportError:
+            print("Whisper not installed, skipping auto translation.")
+            if status_callback: status_callback("⚠️ NO SE ENCONTRÓ WHISPER LOCAL PARA TRADUCIR", "orange")
+            return
+            
+        # Load the base model (cached locally)
+        model = whisper.load_model("base")
+        if status_callback: status_callback("🗣️ TRANSCRIBIENDO AUDIO BASE EN ESPAÑOL...", "#FFD700")
+        
+        result = model.transcribe(audio_path, language="es")
+        transcription = result.get("text", "").strip()
+        if not transcription:
+            print("No transcription found, skipping auto translation.")
+            return
+            
+        # 2. Translate and generate speech for each target language
+        # Language -> (Code, Voice)
+        languages = {
+            "Inglés (USA)": ("en", "en-US-GuyNeural"),
+            "Portugués (Brasil)": ("pt", "pt-BR-AntonioNeural"),
+            "Francés (Francia)": ("fr", "fr-FR-HenriNeural"),
+            "Italiano (Italia)": ("it", "it-IT-DiegoNeural"),
+            "Alemán (Alemania)": ("de", "de-DE-ConradNeural")
+        }
+        
+        try:
+            from deep_translator import GoogleTranslator
+            import edge_tts
+            import asyncio
+        except ImportError:
+            print("deep_translator or edge_tts not installed, skipping translation.")
+            if status_callback: status_callback("⚠️ FALTAN LIBRERÍAS DE TRADUCCIÓN (deep-translator/edge-tts)", "orange")
+            return
+            
+        # Create output subfolder for translations to avoid cluttering
+        dubs_folder = os.path.join(output_folder, f"{safe_title}_doblajes")
+        os.makedirs(dubs_folder, exist_ok=True)
+        
+        for lang_name, (lang_code, voice) in languages.items():
+            if status_callback: status_callback(f"🌐 TRADUCIENDO AUDIO A {lang_name.upper()}...", "#FFD700")
+            try:
+                # Translate
+                translated_text = GoogleTranslator(source='es', target=lang_code).translate(transcription)
+                
+                # Synthesize text to temporary wav file using Edge-TTS
+                temp_translated_wav = os.path.join(dubs_folder, f"temp_voice_{lang_code}.wav")
+                
+                # Edge-TTS is async, run it in a sync context
+                async def run_edge():
+                    communicate = edge_tts.Communicate(translated_text, voice)
+                    await communicate.save(temp_translated_wav)
+                
+                # Run async function
+                asyncio.run(run_edge())
+                
+                # 3. Mix with background music (if provided)
+                output_dub_path = os.path.join(dubs_folder, f"doblaje_{lang_code}.wav")
+                
+                if music_path and os.path.exists(music_path):
+                    if status_callback: status_callback(f"🎛️ MEZCLANDO MÚSICA PARA {lang_name.upper()}...", "#FFD700")
+                    # Calculate volume multipliers
+                    vol_voice_mult = vol_voice / 100.0
+                    vol_music_mult = 0.4 * (vol_music / 100.0) # Apply the same 0.4 factor as render_mix
+                    
+                    # Construct FFmpeg command to mix voice + music and save as wav
+                    # We loop the music to cover the voice length and fade out at the end of the voice track
+                    # We use inputs=2:duration=first to automatically cut the mixed file when the voice ends!
+                    cmd_mix = [
+                        "ffmpeg", "-y", "-threads", "2",
+                        "-i", temp_translated_wav,
+                        "-stream_loop", "-1", "-i", os.path.abspath(music_path),
+                        "-filter_complex", f"[0:a]volume={vol_voice_mult:.2f}[v];[1:a]volume={vol_music_mult:.2f}[m];[v][m]amix=inputs=2:duration=first:normalize=0[a]",
+                        "-map", "[a]", "-ac", "2", "-ar", "44100", output_dub_path
+                    ]
+                    
+                    sub_kwargs = {}
+                    if os.name == 'nt':
+                        sub_kwargs['creationflags'] = 0x00000040
+                        
+                    subprocess.run(cmd_mix, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **sub_kwargs)
+                    # Remove temp voice file
+                    if os.path.exists(temp_translated_wav):
+                        try: os.remove(temp_translated_wav)
+                        except: pass
+                else:
+                    # No music, just rename the temp file to the final output name
+                    if os.path.exists(output_dub_path):
+                        try: os.remove(output_dub_path)
+                        except: pass
+                    os.rename(temp_translated_wav, output_dub_path)
+                    
+                print(f"Generated auto dub for {lang_code}: {output_dub_path}")
+            except Exception as le:
+                print(f"Error generating dub for {lang_code}: {le}")
+                
+        if status_callback: status_callback("✅ RENDER Y DOBLAJES COMPLETADOS CON ÉXITO", "#00FF66")
+    except Exception as e:
+        print(f"Error in auto_generate_translated_dubs: {e}")
