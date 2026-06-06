@@ -111,7 +111,12 @@ class MediaTab(ctk.CTkFrame):
         self.btn_audio.pack(fill="x", padx=15, pady=(5, 8))
         
         self.lbl_audio_name = ctk.CTkLabel(card_v, text="No hay audio activo", font=("Consolas", 10), text_color="#444")
-        self.lbl_audio_name.pack(pady=(0, 10))
+        self.lbl_audio_name.pack(pady=(0, 5))
+        
+        self.btn_translate_audio = ctk.CTkButton(card_v, text="🌐 TRADUCIR NARRACIÓN ⚡", 
+                                                 fg_color="#1A1F38", hover_color="#2A3358", border_width=1, border_color="#3B487A",
+                                                 height=32, font=("Arial", 11, "bold"), command=self.on_translate_audio_click)
+        self.btn_translate_audio.pack(fill="x", padx=15, pady=(0, 10))
 
         # --- DISEÑO SONORO (BGM) ---
         card_m = self.create_card(parent, "AMBIENTACIÓN (BGM)")
@@ -1031,6 +1036,46 @@ class MediaTab(ctk.CTkFrame):
             self.update_render_status(f"CRITICAL ERROR: {e}", "red")
             
         self.after(0, lambda: self.btn_render.configure(state="normal", text="⚡ RENDERIZAR VIDEO FINAL ⚡"))
+
+    def on_translate_audio_click(self):
+        if not self.audio_path or not os.path.exists(self.audio_path):
+            self.update_render_status("⚠️ Selecciona un audio de narración válido primero", "orange")
+            return
+            
+        self.btn_translate_audio.configure(state="disabled", text="TRADUCIENDO... ⏳")
+        self.update_render_status("🎙️ INICIANDO TRADUCCIÓN DE VOZ BAJO DEMANDA...", "#FFD700")
+        
+        title = self.entry_title.get().strip() or "SilencioRojo_Video"
+        safe_title = "".join([c for c in title if c.isalnum() or c==' ']).rstrip().replace(" ", "_") or "Video_Render_Mix"
+        output_folder = getattr(self.main, "ruta_drive", os.path.join(os.getcwd(), "dist"))
+        music = self.current_music_path if self.var_music.get() else None
+        vol_voice = self.slider_voice.get() if hasattr(self, "slider_voice") else 100.0
+        vol_music = self.slider_music.get() if hasattr(self, "slider_music") else 40.0
+        
+        def run():
+            try:
+                from modules.render_mix import auto_generate_translated_dubs
+                auto_generate_translated_dubs(
+                    audio_path=self.audio_path,
+                    music_path=music,
+                    vol_voice=vol_voice,
+                    vol_music=vol_music,
+                    output_folder=output_folder,
+                    safe_title=safe_title,
+                    status_callback=self.update_render_status
+                )
+                self.after(0, lambda: [
+                    self.btn_translate_audio.configure(state="normal", text="🌐 TRADUCIR NARRACIÓN ⚡"),
+                    self.update_render_status("✨ ¡TRADUCCIONES Y DOBLAJES LISTOS!", COLOR_SUCCESS)
+                ])
+            except Exception as e:
+                print(f"Error in on_translate_audio_click: {e}")
+                self.after(0, lambda: [
+                    self.btn_translate_audio.configure(state="normal", text="🌐 TRADUCIR NARRACIÓN ⚡"),
+                    self.update_render_status(f"❌ Error en traducción: {str(e)[:30]}", "red")
+                ])
+                
+        threading.Thread(target=run, daemon=True).start()
 
     def update_render_status(self, text, color):
         self.after(0, lambda: self.lbl_status.configure(text=text, text_color=color))
