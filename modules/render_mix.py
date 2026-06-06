@@ -1089,6 +1089,9 @@ def auto_generate_translated_dubs(audio_path, music_path, vol_voice, vol_music, 
             if status_callback: status_callback("⚠️ FALTAN LIBRERÍAS DE TRADUCCIÓN (deep-translator/edge-tts)", "orange")
             return
             
+        # Get original audio duration
+        orig_dur = get_video_duration(audio_path)
+
         # Create output subfolder for translations to avoid cluttering
         dubs_folder = os.path.join(os.getcwd(), "projects", safe_title)
         os.makedirs(dubs_folder, exist_ok=True)
@@ -1109,6 +1112,33 @@ def auto_generate_translated_dubs(audio_path, music_path, vol_voice, vol_music, 
                 
                 # Run async function
                 asyncio.run(run_edge())
+                
+                # Speed adjust synthesized voice to match original duration exactly
+                trans_dur = get_video_duration(temp_translated_wav)
+                if orig_dur > 0 and trans_dur > 0:
+                    tempo = trans_dur / orig_dur
+                    tempo = max(0.5, min(2.0, tempo))  # Clamp to FFmpeg limits
+                    
+                    stretched_wav = os.path.join(dubs_folder, f"stretched_voice_{lang_code}.wav")
+                    cmd_stretch = [
+                        "ffmpeg", "-y", "-threads", "2",
+                        "-i", temp_translated_wav,
+                        "-filter_complex", f"[0:a]atempo={tempo:.4f}[a]",
+                        "-map", "[a]", "-ac", "2", "-ar", "44100", stretched_wav
+                    ]
+                    sub_kwargs = {}
+                    if os.name == 'nt':
+                        sub_kwargs['creationflags'] = 0x00000040
+                        
+                    try:
+                        subprocess.run(cmd_stretch, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **sub_kwargs)
+                        if os.path.exists(stretched_wav):
+                            if os.path.exists(temp_translated_wav):
+                                try: os.remove(temp_translated_wav)
+                                except: pass
+                            os.rename(stretched_wav, temp_translated_wav)
+                    except Exception as se:
+                        print(f"Error stretching voice: {se}")
                 
                 # 3. Mix with background music (if provided)
                 output_dub_path = os.path.join(dubs_folder, f"{safe_title}_{lang_code}.wav")
