@@ -1090,7 +1090,7 @@ def auto_generate_translated_dubs(audio_path, music_path, vol_voice, vol_music, 
             return
             
         # Create output subfolder for translations to avoid cluttering
-        dubs_folder = os.path.join(output_folder, safe_title)
+        dubs_folder = os.path.join(os.getcwd(), "projects", safe_title)
         os.makedirs(dubs_folder, exist_ok=True)
         
         for lang_name, (lang_code, voice) in languages.items():
