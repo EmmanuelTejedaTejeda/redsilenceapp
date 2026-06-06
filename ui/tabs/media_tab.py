@@ -200,7 +200,7 @@ class MediaTab(ctk.CTkFrame):
     def setup_right_panel(self, parent):
         # --- TOP: METADATOS (MODERN BAR) ---
         meta_bar = ctk.CTkFrame(parent, fg_color=COLOR_CARD_BG, corner_radius=15, border_width=1, border_color=COLOR_CARD_BORDER)
-        meta_bar.pack(fill="x", pady=(0, 20))
+        meta_bar.pack(side="top", fill="x", pady=(0, 10))
         
         meta_left = ctk.CTkFrame(meta_bar, fg_color="transparent")
         meta_left.pack(side="left", fill="both", expand=True, padx=20, pady=15)
@@ -242,9 +242,40 @@ class MediaTab(ctk.CTkFrame):
         # Tags ocultos o compactos (por simplicidad en este rediseño)
         self.entry_tags = ctk.CTkEntry(meta_bar, width=0, height=0) 
 
+        # --- BOTTOM: ACTION BAR (Pack first at the bottom so it never gets cut off) ---
+        action_bar = ctk.CTkFrame(parent, fg_color="transparent", height=100)
+        action_bar.pack(side="bottom", fill="x", pady=(10, 0))
+        
+        status_frame = ctk.CTkFrame(action_bar, fg_color="#080808", corner_radius=12, border_width=1, border_color="#111")
+        status_frame.pack(side="left", fill="both", expand=True, padx=(0, 20))
+        
+        self.lbl_status = ctk.CTkLabel(status_frame, text="ESPERANDO CONFIGURACIÓN...", font=("Inter", 11, "bold"), text_color="#888")
+        self.lbl_status.pack(pady=(15, 5))
+        
+        self.progress_render = ctk.CTkProgressBar(status_frame, fg_color="#111", progress_color=COLOR_ACCENT, height=6)
+        self.progress_render.pack(fill="x", padx=20, pady=(0, 15))
+        self.progress_render.set(0)
+        
+        self.btn_render = ctk.CTkButton(action_bar, text="INICIAR RENDERIZADO", width=220, height=60, 
+                                        fg_color="#333", state="disabled", font=("Arial", 13, "bold"), 
+                                        corner_radius=12, command=self.on_render_click)
+        self.btn_render.pack(side="left")
+        
+        self.btn_upload = ctk.CTkButton(action_bar, text="SUBIR A SHORTS", width=180, height=60,
+                                        fg_color="#002211", text_color="#00FF66", state="disabled", 
+                                        font=("Arial", 13, "bold"), corner_radius=12, command=self.on_upload_click)
+        self.btn_upload.pack(side="left", padx=(15, 0))
+
+        # Barra de Ordenar (Sits above the bottom action bar)
+        sort_bar = ctk.CTkFrame(parent, fg_color="transparent")
+        sort_bar.pack(side="bottom", fill="x", pady=(5, 0))
+        ctk.CTkLabel(sort_bar, text="ORDENAR POR:", font=("Inter", 9, "bold"), text_color="#333").pack(side="left", padx=10)
+        ctk.CTkButton(sort_bar, text="FECHA", width=60, height=20, font=("Inter", 8, "bold"), fg_color="#080808", command=lambda: self.sort_media("date")).pack(side="left", padx=2)
+        ctk.CTkButton(sort_bar, text="NOMBRE", width=60, height=20, font=("Inter", 8, "bold"), fg_color="#080808", command=lambda: self.sort_media("name")).pack(side="left", padx=2)
+
         # --- CENTER: TIMELINE (THE GRID) ---
         timeline_header = ctk.CTkFrame(parent, fg_color="transparent")
-        timeline_header.pack(fill="x", pady=(0, 10))
+        timeline_header.pack(side="top", fill="x", pady=(0, 5))
         
         ctk.CTkLabel(timeline_header, text="VISUAL TIMELINE", font=("Impact", 24), text_color="white").pack(side="left")
         
@@ -276,43 +307,12 @@ class MediaTab(ctk.CTkFrame):
         # --- MIDDLE: LINEA DE TIEMPO (AHORA CUADRÍCULA VERTICAL) ---
         self.scroll_grid = ctk.CTkScrollableFrame(parent, fg_color="#0a0a0a", corner_radius=15, 
                                                  border_width=1, border_color="#1a1a1a", orientation="vertical")
-        self.scroll_grid.pack(fill="both", expand=True)
+        self.scroll_grid.pack(side="top", fill="both", expand=True)
         
         # Configurar columnas para la cuadrícula
         self.cols = 6 # Ajustamos a 6 columnas por fila
         for i in range(self.cols):
             self.scroll_grid.grid_columnconfigure(i, weight=1)
-
-        # Barra de Ordenar
-        sort_bar = ctk.CTkFrame(parent, fg_color="transparent")
-        sort_bar.pack(fill="x", pady=(5, 0))
-        ctk.CTkLabel(sort_bar, text="ORDENAR POR:", font=("Inter", 9, "bold"), text_color="#333").pack(side="left", padx=10)
-        ctk.CTkButton(sort_bar, text="FECHA", width=60, height=20, font=("Inter", 8, "bold"), fg_color="#080808", command=lambda: self.sort_media("date")).pack(side="left", padx=2)
-        ctk.CTkButton(sort_bar, text="NOMBRE", width=60, height=20, font=("Inter", 8, "bold"), fg_color="#080808", command=lambda: self.sort_media("name")).pack(side="left", padx=2)
-
-        # --- BOTTOM: ACTION BAR ---
-        action_bar = ctk.CTkFrame(parent, fg_color="transparent", height=100)
-        action_bar.pack(fill="x", pady=(20, 0))
-        
-        status_frame = ctk.CTkFrame(action_bar, fg_color="#080808", corner_radius=12, border_width=1, border_color="#111")
-        status_frame.pack(side="left", fill="both", expand=True, padx=(0, 20))
-        
-        self.lbl_status = ctk.CTkLabel(status_frame, text="ESPERANDO CONFIGURACIÓN...", font=("Inter", 11, "bold"), text_color="#888")
-        self.lbl_status.pack(pady=(15, 5))
-        
-        self.progress_render = ctk.CTkProgressBar(status_frame, fg_color="#111", progress_color=COLOR_ACCENT, height=6)
-        self.progress_render.pack(fill="x", padx=20, pady=(0, 15))
-        self.progress_render.set(0)
-        
-        self.btn_render = ctk.CTkButton(action_bar, text="INICIAR RENDERIZADO", width=220, height=60, 
-                                        fg_color="#333", state="disabled", font=("Arial", 13, "bold"), 
-                                        corner_radius=12, command=self.on_render_click)
-        self.btn_render.pack(side="left")
-        
-        self.btn_upload = ctk.CTkButton(action_bar, text="SUBIR A SHORTS", width=180, height=60,
-                                        fg_color="#002211", text_color="#00FF66", state="disabled", 
-                                        font=("Arial", 13, "bold"), corner_radius=12, command=self.on_upload_click)
-        self.btn_upload.pack(side="left", padx=(15, 0))
 
     # --- UI CALLBACKS ---
     def on_format_change(self, value):
