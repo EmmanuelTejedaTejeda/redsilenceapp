@@ -133,6 +133,23 @@ class VoiceTab(ctk.CTkFrame):
             audio_dir = self.main.settings.get("audio_folder_path")
         if not audio_dir:
             audio_dir = os.path.join(os.path.expanduser("~"), "Videos", "SilencioRojo", "Audio")
+            
+        # Group by active project name if available to avoid mixing files
+        try:
+            if hasattr(self.main, "view_cache") and "media" in self.main.view_cache:
+                project_title = self.main.view_cache["media"].entry_title.get().strip()
+                if project_title:
+                    safe_project_title = "".join([c for c in project_title if c.isalnum() or c==' ']).rstrip().replace(" ", "_")
+                    if safe_project_title:
+                        audio_dir = os.path.join(audio_dir, safe_project_title)
+        except Exception as pe:
+            print(f"Error resolving project directory for audio: {pe}")
+            
+        try:
+            os.makedirs(audio_dir, exist_ok=True)
+        except Exception as e:
+            print(f"Error creating audio directory: {e}")
+            
         return audio_dir
 
     def run_generation_thread(self):
