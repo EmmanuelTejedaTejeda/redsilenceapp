@@ -1307,9 +1307,16 @@ class MediaTab(ctk.CTkFrame):
         if hasattr(self.main, "generated_desc") and self.main.generated_desc:
             current_d = self.txt_desc.get("0.0", "end").strip()
             # If placeholder, update it
-            if "Descripción generada automáticamente" in current_d:
+            if "Descripción generada automáticamente" in current_d or not current_d:
                 self.txt_desc.delete("0.0", "end")
                 self.txt_desc.insert("0.0", self.main.generated_desc)
+                
+        # Sync Card Title
+        if hasattr(self.main, "generated_title") and self.main.generated_title and hasattr(self, "entry_card_title"):
+            current_c = self.entry_card_title.get().strip()
+            if not current_c or "Ej:" in current_c or current_c == "SilencioRojo_Video":
+                self.entry_card_title.delete(0, "end")
+                self.entry_card_title.insert(0, self.main.generated_title)
                 
         # Sync Audio path generated in VoiceTab
         if hasattr(self.main, "audio_path") and self.main.audio_path:

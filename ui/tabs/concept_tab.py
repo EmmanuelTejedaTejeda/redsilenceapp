@@ -1,7 +1,11 @@
 import customtkinter as ctk
 import threading
 import random
-from modules import gemini_client, groq_client
+import os
+import time
+import re
+import platform
+from modules import gemini_client, groq_client, voice_generator
 import config.prompts as prompts_cfg
 from core import utils as prompts_utils
 
@@ -85,6 +89,17 @@ class ConceptTab(ctk.CTkFrame):
                                           text_color="white",
                                           command=self.run_generation_thread)
         self.btn_generate.pack(fill="x")
+
+        # Autopilot Button (Purple Neon)
+        self.btn_autopilot = ctk.CTkButton(input_container, 
+                                           text="🚀 AUTOPILOTO: CREAR SHORT (1-CLIC) ⚡", 
+                                           font=("Arial", 14, "bold"),
+                                           height=55,
+                                           fg_color="#651FFF", 
+                                           hover_color="#4500C7",
+                                           text_color="white",
+                                           command=self.run_autopilot_thread)
+        self.btn_autopilot.pack(fill="x", pady=(10, 0))
 
         # Re-Generate Button (Hidden initially)
         self.btn_regenerate = ctk.CTkButton(input_container, 
@@ -312,6 +327,202 @@ class ConceptTab(ctk.CTkFrame):
 
     def open_reddit_scraper_dialog(self):
         RedditScraperWindow(self)
+
+    def run_autopilot_thread(self):
+        idea = self.entry_idea.get("0.0", "end").strip()
+        
+        # --- VALIDATIONS ---
+        if not idea or "Introduce aquí la semilla del terror" in idea:
+            self.update_status("⚠️ La pesadilla necesita un origen (Escribe una idea)", "orange")
+            return
+            
+        provider = getattr(self.main, "llm_provider", "gemini")
+        if provider == "groq":
+            api_key = getattr(self.main, "groq_api_key", "")
+            bot_name = "GROQ"
+        else:
+            api_key = getattr(self.main, "google_api_key", "")
+            bot_name = "GEMINI"
+            
+        if not api_key:
+            self.update_status(f"⚠️ Configura tu API Key de {bot_name} en el menú de engranaje", "orange")
+            return
+
+        # UI Lock
+        self.update_status("🚀 INICIANDO AUTOPILOTO (1-CLIC)...", "#FFD700")
+        self.btn_generate.configure(state="disabled")
+        self.btn_autopilot.configure(state="disabled", text="EJECUTANDO AUTOPILOTO... ⏳")
+        self.btn_regenerate.configure(state="disabled")
+        duration = self.seg_duration.get()
+        
+        threading.Thread(target=self.run_autopilot_pipeline, args=(idea, api_key, provider, duration), daemon=True).start()
+
+    def run_autopilot_pipeline(self, idea, api_key, provider, duration):
+        try:
+            # FASE 1: GENERACIÓN DE GUION
+            self.after(0, lambda: self.update_status("🚀 [AUTOPILOTO] 1/5 - GENERANDO GUION CON IA...", "#FFD700"))
+            
+            # Reload template and settings
+            prompts_cfg.update_paths_from_settings()
+            current_template = prompts_cfg.STORY_PROMPT_TEMPLATE
+            if not current_template:
+                 with open(prompts_cfg.STORY_TEMPLATE_PATH, "r", encoding="utf-8") as f: 
+                    current_template = f.read()
+
+            # Randomize Narrative Vars
+            prompts_cfg.load_narrative_vars()
+            sel_gancho = random.choice(prompts_cfg.LISTA_GANCHOS) if prompts_cfg.LISTA_GANCHOS else "Sin definir"
+            sel_monstruo = random.choice(prompts_cfg.LISTA_MONSTRUOS) if prompts_cfg.LISTA_MONSTRUOS else "Sin definir"
+            sel_atmosfera = random.choice(prompts_cfg.LISTA_ATMOSFERA) if prompts_cfg.LISTA_ATMOSFERA else "Sin definir"
+            sel_cierre = random.choice(prompts_cfg.LISTA_CIERRES) if prompts_cfg.LISTA_CIERRES else "Sin definir"
+
+            # Inject
+            full_prompt = current_template.replace("{TRAMA}", idea)\
+                                          .replace("{GANCHO}", sel_gancho)\
+                                          .replace("{MONSTRUO}", sel_monstruo)\
+                                          .replace("{ATMOSFERA}", sel_atmosfera)\
+                                          .replace("{CIERRE}", sel_cierre)
+            
+            if duration == "30s":
+                word_limit = "El guion para la IA de voz (limpio) DEBE tener entre 100 y 115 palabras en total. Esto es un límite ESTRICTO. Mantén las frases muy cortas, dinámicas y directas al grano."
+            elif duration == "45s":
+                word_limit = "El guion para la IA de voz (limpio) DEBE tener entre 150 y 165 palabras en total. Esto es un límite ESTRICTO. Mantén las frases dinámicas y directas al grano."
+            else: # "60s"
+                word_limit = "El guion para la IA de voz (limpio) DEBE tener entre 190 y 210 palabras en total. Esto es un límite ESTRICTO. Mantén las frases dinámicas y directas al grano."
+            
+            full_prompt += f"\n\n[INSTRUCCIÓN CRÍTICA DE DURACIÓN Y LÍMITE DE PALABRAS]:\n{word_limit}\n"
+            
+            # Call API
+            if provider == "groq":
+                result = groq_client.generate_content(full_prompt, api_key)
+            else:
+                result = gemini_client.generate_content(full_prompt, api_key)
+                
+            # Parse result (Title, Desc, Story)
+            # Update UI on main thread
+            self.after(0, lambda: self.show_result(result))
+            
+            # Esperar un instante para que se aplique la sincronización de variables
+            time.sleep(1.0)
+            
+            # FASE 2: GENERACIÓN DE VOZ (TTS)
+            self.after(0, lambda: self.update_status("🚀 [AUTOPILOTO] 2/5 - GENERANDO VOZ NARRACIÓN...", "#FFD700"))
+            
+            text_voice = getattr(self.main, "generated_story", "").strip()
+            if not text_voice:
+                raise Exception("No se pudo extraer el guion limpio del texto generado.")
+                
+            # Configurar nombre de archivo
+            clean_title = "".join([c for c in getattr(self.main, "generated_title", "Video") if c.isalnum() or c==' ']).rstrip().replace(" ", "_")
+            if not clean_title:
+                clean_title = "narracion_autopilot"
+            filename = f"POV_{clean_title[:30]}.wav"
+            
+            voice_instructions_path = os.path.join(os.getcwd(), "config", "prompts", "voice", "voice_instructions2.txt")
+            if not os.path.exists(voice_instructions_path):
+                voice_instructions_path = os.path.join(os.getcwd(), "config", "prompts", "voice", "voice_instructions.txt")
+                
+            model_name = "gemini-2.5-flash-preview-tts"
+            voice_tab = self.main.view_cache.get("voice_gen")
+            if voice_tab:
+                audio_dir = voice_tab.get_audio_folder()
+                self.after(0, lambda: [
+                    voice_tab.entry_filename.delete(0, "end"),
+                    voice_tab.entry_filename.insert(0, filename.replace(".wav", "")),
+                    voice_tab.txt_script.delete("0.0", "end"),
+                    voice_tab.txt_script.insert("0.0", text_voice)
+                ])
+            else:
+                audio_dir = os.path.join(os.path.expanduser("~"), "Videos", "SilencioRojo", "Audio")
+                os.makedirs(audio_dir, exist_ok=True)
+                
+            output_voice_path = os.path.join(audio_dir, filename)
+            
+            # Generate TTS voice
+            voice_generator.generate_voice(
+                text=text_voice,
+                api_key=api_key,
+                voice_instructions_path=voice_instructions_path,
+                output_path=output_voice_path,
+                model_name=model_name
+            )
+            
+            if voice_tab:
+                self.after(0, lambda: [
+                    voice_tab.on_generation_success(output_voice_path)
+                ])
+                
+            # Set global audio path
+            self.main.audio_path = output_voice_path
+            
+            # FASE 3: CONFIGURACIÓN DE METADATOS Y AUDIO ACTIVO
+            self.after(0, lambda: self.update_status("🚀 [AUTOPILOTO] 3/5 - SINCRONIZANDO AUDIO Y METADATOS...", "#FF9100"))
+            
+            media_tab = self.main.view_cache.get("media")
+            if media_tab:
+                self.after(0, lambda: [
+                    media_tab.entry_title.delete(0, "end"),
+                    media_tab.entry_title.insert(0, self.main.generated_title),
+                    media_tab.entry_card_title.delete(0, "end"),
+                    media_tab.entry_card_title.insert(0, self.main.generated_title),
+                    media_tab.txt_desc.delete("0.0", "end"),
+                    media_tab.txt_desc.insert("0.0", self.main.generated_desc),
+                    media_tab.lbl_audio_name.configure(text=f"AUDIO ACTIVO: {os.path.basename(output_voice_path)[:25]}", text_color=COLOR_SUCCESS),
+                    media_tab.btn_audio.configure(border_color=COLOR_SUCCESS),
+                ])
+                media_tab.audio_path = output_voice_path
+                
+            # FASE 4: SOURCING VISUAL (AUTO GAMEPLAY)
+            self.after(0, lambda: self.update_status("🚀 [AUTOPILOTO] 4/5 - OBTENIENDO CLIPS DE GAMEPLAY (MINECRAFT)...", "#FF9100"))
+            
+            from modules.render_utils import get_video_duration
+            dur = get_video_duration(output_voice_path)
+            if dur <= 0:
+                dur = 60.0
+                
+            if media_tab:
+                media_tab.run_gameplay_sourcing("Minecraft Parkour", dur, "9:16")
+                
+            # FASE 5: CONFIGURAR MÚSICA Y GUARDAR SESIÓN
+            self.after(0, lambda: self.update_status("🚀 [AUTOPILOTO] 5/5 - SELECCIONANDO MÚSICA Y FILTROS...", "#00FF66"))
+            
+            if media_tab:
+                self.after(0, lambda: [
+                    media_tab.chk_music.select(),
+                    media_tab.reroll_music(silent=True),
+                    media_tab.combo_luts.set("Vintage VHS"),
+                    media_tab.combo_sub_style.set("Reddit History"),
+                    media_tab.check_ready_state()
+                ])
+                media_tab.music_enabled = True
+                
+            time.sleep(1.0)
+            self.after(0, lambda: self.main.save_current_state())
+            
+            # FINALIZACIÓN
+            self.after(0, lambda: [
+                self.update_status("✅ AUTOPILOTO COMPLETADO - PROYECTO LISTO", COLOR_SUCCESS),
+                self.btn_generate.configure(state="normal"),
+                self.btn_autopilot.configure(state="normal", text="🚀 AUTOPILOTO: CREAR SHORT (1-CLIC) ⚡"),
+                self.main.show_view("media")
+            ])
+            
+            # Sound notification
+            try:
+                if platform.system() == "Windows":
+                    import winsound
+                    winsound.MessageBeep()
+            except: pass
+            
+        except Exception as err:
+            import traceback
+            traceback.print_exc()
+            self.after(0, lambda: [
+                self.update_status(f"🛑 ERROR EN AUTOPILOTO: {str(err)[:45]}", "red"),
+                self.btn_generate.configure(state="normal"),
+                self.btn_autopilot.configure(state="normal", text="🚀 AUTOPILOTO: CREAR SHORT (1-CLIC) ⚡"),
+                self.btn_regenerate.configure(state="normal")
+            ])
 
 class RedditScraperWindow(ctk.CTkToplevel):
     def __init__(self, parent_tab):
