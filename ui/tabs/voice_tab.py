@@ -206,6 +206,7 @@ class VoiceTab(ctk.CTkFrame):
     def on_generation_success(self, file_path):
         self.btn_generate.configure(state="normal", text="⚡ GENERAR NARRACIÓN ⚡")
         self.last_generated_path = file_path
+        self.main.audio_path = file_path  # Guardar en el estado global para sincronización automática
         self.btn_play.configure(state="normal")
         self.main.update_status(f"✅ VOZ GENERADA CON ÉXITO: {os.path.basename(file_path)}", COLOR_SUCCESS)
         msgbox.showinfo("Generación Completa", f"Narración generada correctamente en:\n{file_path}")
@@ -274,5 +275,23 @@ class VoiceTab(ctk.CTkFrame):
 
     def focus_set(self):
         super().focus_set()
-        # Sincronizar estado global
+        
+        # Sincronizar Guion generado en ConceptTab
+        if hasattr(self.main, "generated_story") and self.main.generated_story:
+            current_script = self.txt_script.get("0.0", "end").strip()
+            # Si está vacío o tiene el texto descriptivo por defecto, cargar el guion limpio automáticamente
+            if not current_script or "Introduce o pega aquí la historia" in current_script:
+                self.txt_script.delete("0.0", "end")
+                self.txt_script.insert("0.0", self.main.generated_story)
+        
+        # Sincronizar Nombre de Archivo basado en el título del Short
+        if hasattr(self.main, "generated_title") and self.main.generated_title:
+            current_fn = self.entry_filename.get().strip()
+            if not current_fn or current_fn == "narracion_horror" or current_fn == "narracion_horror.wav":
+                title = self.main.generated_title
+                safe_title = "".join([c for c in title if c.isalnum() or c==' ']).rstrip().replace(" ", "_")
+                if safe_title:
+                    self.entry_filename.delete(0, "end")
+                    self.entry_filename.insert(0, f"{safe_title}.wav")
+                    
         self.main.update_status("VOZ GENERATION TTS READY", COLOR_TEXT_SUB)

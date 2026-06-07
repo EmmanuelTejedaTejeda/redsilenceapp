@@ -48,16 +48,17 @@ class ConceptTab(ctk.CTkFrame):
         ctk.CTkLabel(input_container, text="SEMILLA DEL TERROR", font=("Impact", 32), text_color="#333").pack(anchor="w", pady=(0, 5))
         ctk.CTkLabel(input_container, text="Describe el núcleo de tu pesadilla...", font=("Arial", 12), text_color=COLOR_TEXT_SUB).pack(anchor="w", pady=(0, 20))
         
-        # Input Field (Styled)
-        self.entry_idea = ctk.CTkEntry(input_container, 
-                                       placeholder_text="Ej: Un payaso que llora aceite negro en un hospital abandonado...",
-                                       height=60,
-                                       font=("Arial", 14),
-                                       fg_color="#080808",
-                                       border_color="#222",
-                                       border_width=1,
-                                       text_color="white")
+        # Input Field (Styled) - Ahora es un cuadro de texto multilínea para semillas largas
+        self.entry_idea = ctk.CTkTextbox(input_container, 
+                                         height=120,
+                                         font=("Arial", 12),
+                                         fg_color="#080808",
+                                         border_color="#222",
+                                         border_width=1,
+                                         text_color="white",
+                                         wrap="word")
         self.entry_idea.pack(fill="x", pady=(0, 15))
+        self.entry_idea.insert("0.0", "Introduce aquí la semilla del terror (ideas, relatos o hilos de Reddit)...")
         
         # Duration Selector Frame
         duration_frame = ctk.CTkFrame(input_container, fg_color="transparent")
@@ -149,10 +150,10 @@ class ConceptTab(ctk.CTkFrame):
         self.txt_output.configure(state="disabled") # Read-only initially
 
     def run_generation_thread(self):
-        idea = self.entry_idea.get().strip()
+        idea = self.entry_idea.get("0.0", "end").strip()
         
         # --- VALIDATIONS ---
-        if not idea:
+        if not idea or "Introduce aquí la semilla del terror" in idea:
             self.update_status("⚠️ La pesadilla necesita un origen (Escribe una idea)", "orange")
             return
             
@@ -292,7 +293,7 @@ class ConceptTab(ctk.CTkFrame):
     # --- PROJECT MANAGEMENT ---
     def get_state(self):
         return {
-            "trama": self.entry_idea.get(),
+            "trama": self.entry_idea.get("0.0", "end").strip(),
             "guion": self.txt_output.get("0.0", "end")
         }
 
@@ -302,8 +303,8 @@ class ConceptTab(ctk.CTkFrame):
         trama = state.get("trama", "")
         guion = state.get("guion", "")
         
-        self.entry_idea.delete(0, "end")
-        self.entry_idea.insert(0, trama)
+        self.entry_idea.delete("0.0", "end")
+        self.entry_idea.insert("0.0", trama)
         
         self.txt_output.configure(state="normal")
         self.txt_output.delete("0.0", "end")
@@ -417,9 +418,9 @@ class RedditScraperWindow(ctk.CTkToplevel):
             
             # Botón de importar
             def on_import(txt=story['text']):
-                self.tab.entry_idea.delete(0, "end")
-                self.tab.entry_idea.insert(0, txt[:500])
-                self.tab.update_status("📥 Historia importada de Reddit.", "#00E676")
+                self.tab.entry_idea.delete("0.0", "end")
+                self.tab.entry_idea.insert("0.0", txt[:2000])
+                self.tab.update_status("📥 Historia importada de Reddit (Lista para editar).", "#00E676")
                 self.destroy()
 
             ctk.CTkButton(card, text="IMPORTAR COMO SEMILLA", fg_color="#FF4500", hover_color="#CC3700", height=28, font=("Arial", 10, "bold"), command=on_import).pack(anchor="e", padx=15, pady=(0, 10))

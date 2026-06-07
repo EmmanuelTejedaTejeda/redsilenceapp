@@ -326,7 +326,7 @@ class LongTab(ctk.CTkFrame):
 
             # Botón de borrar caché de capítulo individual (si existe el archivo)
             proj_name_curr = self.entry_proj_name.get().strip() or "Proyecto_Video_Largo"
-            chunk_file_path = os.path.join(os.getcwd(), "projects", "videos_largos", proj_name_curr, "chunks", f"chapter_{i}.mp4")
+            chunk_file_path = os.path.join(os.getcwd(), "cache", "videos_largos", proj_name_curr, "chunks", f"chapter_{i}.mp4")
             has_cache = os.path.exists(chunk_file_path) and os.path.getsize(chunk_file_path) > 0
             cache_color = COLOR_SUCCESS if has_cache else "#444"
             
@@ -436,7 +436,7 @@ class LongTab(ctk.CTkFrame):
 
     def clear_chapter_cache(self, index):
         proj_name = self.entry_proj_name.get().strip() or "Proyecto_Video_Largo"
-        chunk_output = os.path.join(os.getcwd(), "projects", "videos_largos", proj_name, "chunks", f"chapter_{index}.mp4")
+        chunk_output = os.path.join(os.getcwd(), "cache", "videos_largos", proj_name, "chunks", f"chapter_{index}.mp4")
         if os.path.exists(chunk_output):
             try:
                 os.remove(chunk_output)
@@ -452,7 +452,7 @@ class LongTab(ctk.CTkFrame):
 
     def clear_project_cache(self):
         proj_name = self.entry_proj_name.get().strip() or "Proyecto_Video_Largo"
-        project_chunks_dir = os.path.join(os.getcwd(), "projects", "videos_largos", proj_name, "chunks")
+        project_chunks_dir = os.path.join(os.getcwd(), "cache", "videos_largos", proj_name, "chunks")
         if os.path.exists(project_chunks_dir):
             try:
                 files = os.listdir(project_chunks_dir)

@@ -427,7 +427,7 @@ class MediaTab(ctk.CTkFrame):
         if getattr(self, "_is_thumb_running", False): return
         self._is_thumb_running = True
         
-        temp_dir = os.path.join(os.getcwd(), "temp_render")
+        temp_dir = os.path.join(os.getcwd(), "cache", "thumbnails")
         if not os.path.exists(temp_dir): os.makedirs(temp_dir)
         
         try:
@@ -1017,11 +1017,22 @@ class MediaTab(ctk.CTkFrame):
 
     def run_render(self, title, desc, output_folder, music, active_list, media_mode, aspect_ratio, lut_name, sub_style="TikTok / Hormozi", card_title="", pacing="Dinámico [2.0s]", vol_voice=100.0, vol_music=40.0, vol_sfx=100.0):
         try:
+            safe_title = "".join([c for c in title if c.isalnum() or c==' ']).strip().replace(" ", "_")
+            if not safe_title: safe_title = "Render_SilencioRojo"
+            
+            # 1. Determinar ruta local de render en la carpeta del proyecto
+            project_id = getattr(self.main, "current_project_id", None)
+            render_dest_folder = output_folder
+            if project_id:
+                local_renders_dir = os.path.join(os.getcwd(), "projects", project_id, "renders")
+                os.makedirs(local_renders_dir, exist_ok=True)
+                render_dest_folder = local_renders_dir
+                
             success = render_final_video(
                 audio_path=self.audio_path,
                 images_paths=active_list,
                 cover_path=self.cover_path,
-                output_folder=output_folder,
+                output_folder=render_dest_folder,
                 title=title,
                 description=desc,
                 vhs_enabled=True,
@@ -1041,11 +1052,22 @@ class MediaTab(ctk.CTkFrame):
             
             if success:
                 self.update_render_status("✨ ¡RENDERIZADO EXITOSO!", COLOR_SUCCESS)
-                # ... resto del código de éxito ...
-                # (He simplificado aquí para la herramienta, pero el código original se mantiene)
-                safe_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c==' ']).strip().replace(" ", "_")
-                if not safe_title: safe_title = "Render_SilencioRojo"
-                self.last_render_path = os.path.join(output_folder, f"{safe_title}.mp4")
+                
+                # Ruta del render dentro del proyecto (o fallback en output_folder)
+                self.last_render_path = os.path.join(render_dest_folder, f"{safe_title}.mp4")
+                
+                # 2. Copiar el render al directorio de salida externo si está configurado y es diferente
+                if project_id and os.path.exists(self.last_render_path):
+                    external_path = os.path.join(output_folder, f"{safe_title}.mp4")
+                    if os.path.abspath(self.last_render_path) != os.path.abspath(external_path):
+                        try:
+                            import shutil
+                            os.makedirs(output_folder, exist_ok=True)
+                            shutil.copy2(self.last_render_path, external_path)
+                            print(f">>> [RENDER] Copiado render final a la carpeta externa: {external_path}")
+                            self.last_render_path = external_path
+                        except Exception as copy_err:
+                            print(f">>> [RENDER COPY ERROR] No se pudo copiar a {external_path}: {copy_err}")
                 
                 if os.path.exists(self.last_render_path):
                     try:
@@ -1089,6 +1111,10 @@ class MediaTab(ctk.CTkFrame):
         vol_voice = self.slider_voice.get() if hasattr(self, "slider_voice") else 100.0
         vol_music = self.slider_music.get() if hasattr(self, "slider_music") else 40.0
         
+        # Obtener el directorio del proyecto activo para guardar doblajes ordenadamente
+        project_id = getattr(self.main, "current_project_id", None)
+        project_dir = os.path.join(os.getcwd(), "projects", project_id) if project_id else None
+        
         def run():
             try:
                 from modules.render_mix import auto_generate_translated_dubs
@@ -1101,7 +1127,8 @@ class MediaTab(ctk.CTkFrame):
                     safe_title=safe_title,
                     title=title,
                     description=desc,
-                    status_callback=self.update_render_status
+                    status_callback=self.update_render_status,
+                    project_dir=project_dir
                 )
                 self.after(0, lambda: [
                     self.btn_translate_audio.configure(state="normal", text="🌐 TRADUCIR NARRACIÓN ⚡"),
@@ -1283,6 +1310,14 @@ class MediaTab(ctk.CTkFrame):
             if "Descripción generada automáticamente" in current_d:
                 self.txt_desc.delete("0.0", "end")
                 self.txt_desc.insert("0.0", self.main.generated_desc)
+                
+        # Sync Audio path generated in VoiceTab
+        if hasattr(self.main, "audio_path") and self.main.audio_path:
+            if self.audio_path != self.main.audio_path and os.path.exists(self.main.audio_path):
+                self.audio_path = self.main.audio_path
+                self.lbl_audio_name.configure(text=f"AUDIO ACTIVO: {os.path.basename(self.audio_path)[:25]}", text_color=COLOR_SUCCESS)
+                self.btn_audio.configure(border_color=COLOR_SUCCESS)
+                self.check_ready_state()
 
     def run_viral_generation(self):
         # Check if story is available

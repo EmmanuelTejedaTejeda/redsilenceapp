@@ -1050,7 +1050,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         if status_callback: status_callback(f"🛑 Error Mix: {str(e)[:50]}", "red")
         return False
 
-def auto_generate_translated_dubs(audio_path, music_path, vol_voice, vol_music, output_folder, safe_title, title="", description="", status_callback=None):
+def auto_generate_translated_dubs(audio_path, music_path, vol_voice, vol_music, output_folder, safe_title, title="", description="", status_callback=None, project_dir=None):
     try:
         if status_callback: status_callback("🎙️ CARGANDO IA DE VOZ PARA TRADUCCIÓN...", "#FFD700")
         
@@ -1093,7 +1093,10 @@ def auto_generate_translated_dubs(audio_path, music_path, vol_voice, vol_music, 
         orig_dur = get_video_duration(audio_path)
 
         # Create output subfolder for translations to avoid cluttering
-        dubs_folder = os.path.join(os.getcwd(), "projects", safe_title)
+        if project_dir:
+            dubs_folder = os.path.join(project_dir, "dubs")
+        else:
+            dubs_folder = os.path.join(os.getcwd(), "projects", safe_title)
         os.makedirs(dubs_folder, exist_ok=True)
         
         for lang_name, (lang_code, voice) in languages.items():

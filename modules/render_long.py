@@ -523,7 +523,7 @@ def render_long_video_project(project_state, output_final_mp4, status_callback=N
 
         # Asegurar directorio de chunks del proyecto
         project_name = project_state.get("project_name", "TempProject")
-        project_chunks_dir = os.path.join(os.getcwd(), "projects", "videos_largos", project_name, "chunks")
+        project_chunks_dir = os.path.join(os.getcwd(), "cache", "videos_largos", project_name, "chunks")
         if not os.path.exists(project_chunks_dir):
             os.makedirs(project_chunks_dir)
 

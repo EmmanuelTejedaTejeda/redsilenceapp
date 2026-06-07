@@ -77,7 +77,6 @@ class MainWindow(ctk.CTk):
         
         self.downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
         self.assets_audio_folder = get_resource_path(os.path.join("assets", "audio"))
-        self.prompt_file = "master_prompt.txt"
         
         self.current_music_path = None
         self.preview_process = None
@@ -88,7 +87,6 @@ class MainWindow(ctk.CTk):
         self.llm_provider = self.settings.get("llm_provider", "gemini")
         
         # Inicialización de Core (Asegurar que existan las rutas)
-        self.check_prompt_file()
         for folder in [self.img_download_folder, self.ruta_drive, self.music_folder]:
             if not os.path.exists(folder):
                 try: os.makedirs(folder)
@@ -473,10 +471,6 @@ class MainWindow(ctk.CTk):
     def update_status(self, text, color=None):
         if hasattr(self, 'status_lbl'):
             self.status_lbl.configure(text=text, text_color=color if color else COLOR_TEXT_DIM)
-
-    def check_prompt_file(self):
-        if not os.path.exists(self.prompt_file):
-            with open(self.prompt_file, "w", encoding="utf-8") as f: f.write(prompts_cfg.DEFAULT_PROMPT)
 
 if __name__ == "__main__":
     app = MainWindow()
