@@ -147,14 +147,6 @@ class MediaTab(ctk.CTkFrame):
         ctk.CTkButton(row_m, text="⏸", width=40, command=self.stop_preview, **b_sty).pack(side="left", padx=4, expand=True, fill="x")
         ctk.CTkButton(row_m, text="🎲", width=40, command=self.reroll_music, **b_sty).pack(side="left", padx=(4, 0), expand=True, fill="x")
 
-        # --- FILTRO VISUAL (LUT) ---
-        card_l = self.create_card(parent, "FILTRO VISUAL (LUT)")
-        self.combo_luts = ctk.CTkComboBox(card_l, values=["Ninguno", "Gore Rojo", "Terror Frío", "Misterio Oscuro", "Vintage VHS"],
-                                           fg_color="#050505", border_color="#181818", button_color="#111", 
-                                           text_color="white", font=("Inter", 11), height=35)
-        self.combo_luts.pack(fill="x", padx=15, pady=(5, 15))
-        self.combo_luts.set("Ninguno")
-
         # --- ESTILO DE SUBTÍTULOS ---
         card_sub = self.create_card(parent, "ESTILO DE SUBTÍTULOS")
         self.combo_sub_style = ctk.CTkComboBox(card_sub, values=["TikTok / Hormozi", "Reddit History"],
@@ -162,53 +154,6 @@ class MediaTab(ctk.CTkFrame):
                                                text_color="white", font=("Inter", 11), height=35)
         self.combo_sub_style.pack(fill="x", padx=15, pady=(5, 15))
         self.combo_sub_style.set("TikTok / Hormozi")
-
-        # --- RITMO VISUAL ---
-        card_pacing = self.create_card(parent, "RITMO DE EDICIÓN VISUAL")
-        self.combo_pacing = ctk.CTkComboBox(card_pacing, values=["Ultra Rápido [1.2s]", "Dinámico [2.0s]", "Estándar [2.8s]"],
-                                             fg_color="#050505", border_color="#181818", button_color="#111", 
-                                             text_color="white", font=("Inter", 11), height=35)
-        self.combo_pacing.pack(fill="x", padx=15, pady=(5, 15))
-        self.combo_pacing.set("Dinámico [2.0s]")
-
-        # --- MEZCLA DE AUDIO ---
-        card_audio_mix = self.create_card(parent, "VOLUMEN DE MEZCLA AUDIO")
-        
-        # Slider Voz
-        f_v = ctk.CTkFrame(card_audio_mix, fg_color="transparent")
-        f_v.pack(fill="x", padx=15, pady=2)
-        ctk.CTkLabel(f_v, text="Voz Narración", font=("Inter", 10), text_color="white").pack(side="left")
-        self.lbl_vol_voice = ctk.CTkLabel(f_v, text="100%", font=("Inter", 10), text_color=COLOR_TEXT_SEC)
-        self.lbl_vol_voice.pack(side="right")
-        self.slider_voice = ctk.CTkSlider(card_audio_mix, from_=0, to=150, number_of_steps=30,
-                                          fg_color="#080808", progress_color=COLOR_ACCENT, button_color=COLOR_ACCENT,
-                                          command=lambda v: self.lbl_vol_voice.configure(text=f"{int(v)}%"))
-        self.slider_voice.pack(fill="x", padx=15, pady=(0, 8))
-        self.slider_voice.set(100)
-        
-        # Slider Música
-        f_m = ctk.CTkFrame(card_audio_mix, fg_color="transparent")
-        f_m.pack(fill="x", padx=15, pady=2)
-        ctk.CTkLabel(f_m, text="Música BGM", font=("Inter", 10), text_color="white").pack(side="left")
-        self.lbl_vol_music = ctk.CTkLabel(f_m, text="40%", font=("Inter", 10), text_color=COLOR_TEXT_SEC)
-        self.lbl_vol_music.pack(side="right")
-        self.slider_music = ctk.CTkSlider(card_audio_mix, from_=0, to=100, number_of_steps=20,
-                                          fg_color="#080808", progress_color=COLOR_ACCENT, button_color=COLOR_ACCENT,
-                                          command=lambda v: self.lbl_vol_music.configure(text=f"{int(v)}%"))
-        self.slider_music.pack(fill="x", padx=15, pady=(0, 8))
-        self.slider_music.set(40)
-        
-        # Slider SFX
-        f_s = ctk.CTkFrame(card_audio_mix, fg_color="transparent")
-        f_s.pack(fill="x", padx=15, pady=2)
-        ctk.CTkLabel(f_s, text="Efectos SFX", font=("Inter", 10), text_color="white").pack(side="left")
-        self.lbl_vol_sfx = ctk.CTkLabel(f_s, text="100%", font=("Inter", 10), text_color=COLOR_TEXT_SEC)
-        self.lbl_vol_sfx.pack(side="right")
-        self.slider_sfx = ctk.CTkSlider(card_audio_mix, from_=0, to=150, number_of_steps=30,
-                                        fg_color="#080808", progress_color=COLOR_ACCENT, button_color=COLOR_ACCENT,
-                                        command=lambda v: self.lbl_vol_sfx.configure(text=f"{int(v)}%"))
-        self.slider_sfx.pack(fill="x", padx=15, pady=(0, 12))
-        self.slider_sfx.set(100)
 
         self.refresh_music_list()
 
@@ -225,34 +170,9 @@ class MediaTab(ctk.CTkFrame):
                                         fg_color="transparent", border_width=0, font=("Inter", 16, "bold"), text_color="white")
         self.entry_title.pack(fill="x", pady=(2, 8))
         
-        ctk.CTkLabel(meta_left, text="TÍTULO DE TARJETA REDDIT (GANCHO VISUAL)", font=("Inter", 9, "bold"), text_color=COLOR_TEXT_SEC).pack(anchor="w")
-        self.entry_card_title = ctk.CTkEntry(meta_left, placeholder_text="Ej: Confesión anónima: No juegues esto en auto 🤫 (Dejar vacío para título limpio)", height=35, 
-                                             fg_color="#050505", border_width=1, border_color="#151515", font=("Inter", 11), text_color="white")
-        self.entry_card_title.pack(fill="x", pady=(2, 8))
-        
         ctk.CTkLabel(meta_left, text="DESCRIPCIÓN OPTIMIZADA", font=("Inter", 9, "bold"), text_color=COLOR_TEXT_SEC).pack(anchor="w")
         self.txt_desc = ctk.CTkTextbox(meta_left, height=60, fg_color="#050505", border_width=1, border_color="#151515", font=("Inter", 11))
         self.txt_desc.pack(fill="x", pady=(5, 0))
-        
-        # --- SELECTOR DE FORMATO (NUEVA UBICACIÓN) ---
-        meta_right = ctk.CTkFrame(meta_bar, fg_color="transparent")
-        meta_right.pack(side="right", padx=20, pady=15)
-        
-        ctk.CTkLabel(meta_right, text="FORMATO DE SALIDA", font=("Inter", 9, "bold"), text_color=COLOR_TEXT_SEC).pack(anchor="e")
-        self.seg_format = ctk.CTkSegmentedButton(meta_right, values=["9:16", "16:9"], 
-                                                 command=self.on_format_change,
-                                                 fg_color="#050505", selected_color=COLOR_ACCENT,
-                                                 selected_hover_color=COLOR_ACCENT_HOVER,
-                                                 unselected_color="#111", unselected_hover_color="#181818",
-                                                 font=("Inter", 11, "bold"), height=35, width=120)
-        self.seg_format.pack(pady=(5, 0))
-        self.seg_format.set("9:16")
-        
-        self.btn_viral = ctk.CTkButton(meta_right, text="Metadatos Virales ⚡", 
-                                       command=self.run_viral_generation,
-                                       fg_color="#4B0082", hover_color="#37006B",
-                                       font=("Inter", 11, "bold"), height=35, width=120)
-        self.btn_viral.pack(pady=(10, 0))
         
         # Tags ocultos o compactos (por simplicidad en este rediseño)
         self.entry_tags = ctk.CTkEntry(meta_bar, width=0, height=0) 
@@ -300,10 +220,6 @@ class MediaTab(ctk.CTkFrame):
         btn_s = {"height": 28, "font": ("Inter", 10, "bold"), "fg_color": "#111", "hover_color": "#181818", "border_width": 1, "border_color": "#222"}
         ctk.CTkButton(tool_bar, text="+ MEDIA", command=self.select_media, **btn_s).pack(side="left", padx=5)
         
-        btn_p = {"height": 28, "font": ("Inter", 10, "bold"), "fg_color": "#05A081", "hover_color": "#048067", "text_color": "white"}
-        self.btn_pexels = ctk.CTkButton(tool_bar, text="🤖 AUTO STOCK", command=self.auto_stock_pexels, **btn_p)
-        self.btn_pexels.pack(side="left", padx=5)
-        
         btn_g = {"height": 28, "font": ("Inter", 10, "bold"), "fg_color": "#651FFF", "hover_color": "#4500C7", "text_color": "white"}
         self.btn_gameplay = ctk.CTkButton(tool_bar, text="🎮 AUTO GAMEPLAY", command=self.open_gameplay_dialog, **btn_g)
         self.btn_gameplay.pack(side="left", padx=5)
@@ -330,10 +246,6 @@ class MediaTab(ctk.CTkFrame):
             self.scroll_grid.grid_columnconfigure(i, weight=1)
 
     # --- UI CALLBACKS ---
-    def on_format_change(self, value):
-        self.video_format = value
-        self.lbl_status.configure(text=f"MODO CAMBIADO A {value}", text_color=COLOR_ACCENT)
-        # Podríamos añadir lógica aquí para refrescar miniaturas si fuera necesario
 
     # --- UI HELPERS ---
     # Ya no necesitamos create_card redundante ni animaciones viejas
@@ -532,146 +444,7 @@ class MediaTab(ctk.CTkFrame):
         self.refresh_grid()
         self.check_ready_state()
 
-    def auto_stock_pexels(self):
-        import tkinter.messagebox as msgbox
-        
-        # 1. Validaciones
-        api_key = getattr(self.main, "pexels_api_key", "")
-        if not api_key:
-            msgbox.showwarning("API Key Faltante", "Debes configurar tu API Key de Pexels en Ajustes (icono de engranaje) primero.")
-            self.update_render_status("⚠️ CONFIGURA TU API KEY DE PEXELS EN AJUSTES", "orange")
-            return
-            
-        prompts_text = getattr(self.main, "latest_visual_prompts", "")
-        if not prompts_text:
-            msgbox.showwarning("Prompts Faltantes", "Primero debes generar los Prompts Visuales en la pestaña 'Visual' para que podamos buscar escenas relacionadas.")
-            self.update_render_status("⚠️ GENERA PRIMERO LOS PROMPTS EN LA PESTAÑA VISUAL", "orange")
-            return
-            
-        # 2. Confirmación si ya hay clips en la línea de tiempo
-        if self.mixed_media:
-            if not msgbox.askyesno("Confirmar importación", "¿Deseas vaciar la línea de tiempo actual para importar los nuevos clips desde Pexels?"):
-                return
-                
-        # 3. Bloquear UI e iniciar hilo
-        self.btn_pexels.configure(state="disabled", text="PROCESANDO... ⏳")
-        self.lbl_status.configure(text="🤖 INICIANDO AUTO-Sourcing DESDE PEXELS...", text_color="#FFD700")
-        
-        threading.Thread(target=self.run_auto_stock_pexels, args=(prompts_text, api_key), daemon=True).start()
 
-    def run_auto_stock_pexels(self, prompts_text, api_key):
-        import re
-        from modules.pexels_client import extract_keywords_from_prompt, search_pexels_video, download_video_file
-        
-        try:
-            # A) Parsear prompts visuales
-            lines = prompts_text.split('\n')
-            raw_prompts = []
-            current_prompt = []
-            for line in lines:
-                s_line = line.strip()
-                if not s_line:
-                    continue
-                is_new_prompt = re.match(r'^(\d+[:\.]|Imagen \d+|Prompt \d+|Prompt \d+[:\.]|scene \d+|Escena \d+)', s_line, re.IGNORECASE)
-                is_metadata = "VARIABLE DE ENTIDAD" in s_line or "CONTEXTO:" in s_line
-                
-                if is_new_prompt:
-                    if current_prompt:
-                        raw_prompts.append(" ".join(current_prompt))
-                    current_prompt = [s_line]
-                elif is_metadata:
-                    if current_prompt:
-                        raw_prompts.append(" ".join(current_prompt))
-                    current_prompt = []
-                else:
-                    if current_prompt:
-                        current_prompt.append(s_line)
-            if current_prompt:
-                raw_prompts.append(" ".join(current_prompt))
-                
-            # Limpiar etiquetas
-            clean_prompts = []
-            for p in raw_prompts:
-                p_clean = re.sub(r'^(\d+[:\.]|Imagen \d+[:\.]?|Prompt \d+[:\.]?|scene \d+[:\.]?|Escena \d+[:\.]?)\s*', '', p, flags=re.IGNORECASE)
-                p_clean = p_clean.strip()
-                if p_clean:
-                    clean_prompts.append(p_clean)
-                    
-            if not clean_prompts:
-                self.after(0, lambda: self.update_render_status("⚠️ No se pudieron identificar escenas en los prompts visuales.", "orange"))
-                self.after(0, lambda: self.btn_pexels.configure(state="normal", text="🤖 AUTO STOCK"))
-                return
-                
-            # Vaciar mixed_media si el usuario confirmó
-            self.mixed_media = []
-            
-            provider = getattr(self.main, "llm_provider", "gemini")
-            llm_key = getattr(self.main, "google_api_key" if provider == "gemini" else "groq_api_key", "")
-            
-            download_dir = self.main.img_download_folder
-            os.makedirs(download_dir, exist_ok=True)
-            
-            # B) Buscar y descargar cada escena
-            total = len(clean_prompts)
-            for idx, p_text in enumerate(clean_prompts):
-                self.after(0, lambda i=idx, t=total: self.update_render_status(f"🤖 Escena {i+1}/{t}: Extrayendo palabra clave...", "#FFD700"))
-                
-                # 1. Obtener palabra clave
-                keyword = extract_keywords_from_prompt(p_text, llm_key, provider)
-                if not keyword:
-                    keyword = "dark mystery"
-                    
-                self.after(0, lambda i=idx, t=total, kw=keyword: self.update_render_status(f"🤖 Escena {i+1}/{t}: Buscando '{kw}' en Pexels...", "#FFD700"))
-                
-                # 2. Buscar video
-                video_url = search_pexels_video(keyword, api_key, orientation="portrait")
-                
-                # Fallback si no hay resultados
-                if not video_url:
-                    keyword_fallback = "horror mystery"
-                    video_url = search_pexels_video(keyword_fallback, api_key, orientation="portrait")
-                    
-                if not video_url:
-                    # Fallback general si falla todo
-                    video_url = search_pexels_video("spooky", api_key, orientation="portrait")
-                    
-                if not video_url:
-                    print(f">>> [AUTO STOCK] No se pudo encontrar ningún video para la escena {idx+1}")
-                    continue
-                    
-                self.after(0, lambda i=idx, t=total, kw=keyword: self.update_render_status(f"🤖 Escena {i+1}/{t}: Descargando clip '{kw}'...", "#FF9100"))
-                
-                # 3. Descargar
-                clean_name = re.sub(r'[^a-zA-Z0-9]', '_', keyword.replace(' ', '_')).lower()[:15]
-                output_name = f"pexels_scene_{idx+1}_{clean_name}.mp4"
-                output_path = os.path.join(download_dir, output_name)
-                
-                downloaded_path = download_video_file(video_url, output_path)
-                
-                if downloaded_path and os.path.exists(downloaded_path):
-                    # 4. Registrar en mixed_media
-                    new_item = {
-                        "path": downloaded_path,
-                        "type": "video",
-                        "has_audio": False,
-                        "is_subliminal": False,
-                        "ctime": os.path.getctime(downloaded_path)
-                    }
-                    self.mixed_media.append(new_item)
-                    
-                    # Refrescar grid incrementalmente para dar feedback visual
-                    self.after(0, self.refresh_grid)
-                    self.after(0, self.check_ready_state)
-                    
-            self.after(0, lambda: self.update_render_status("✨ ¡AUTO-STOCK COMPLETADO EXITOSAMENTE!", "#00FF66"))
-            
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            self.after(0, lambda err=str(e): self.update_render_status(f"🛑 Error en Auto Stock: {err[:40]}", "red"))
-            
-        finally:
-            self.after(0, lambda: self.btn_pexels.configure(state="normal", text="🤖 AUTO STOCK"))
 
     def open_gameplay_dialog(self):
         import tkinter.messagebox as msgbox
@@ -1002,15 +775,25 @@ class MediaTab(ctk.CTkFrame):
         desc = self.txt_desc.get("0.0", "end").strip()
         music = self.current_music_path if self.var_music.get() else None
 
-        lut_name = self.combo_luts.get()
+        # Selección aleatoria del filtro visual (LUT) para variedad
+        lut_name = random.choice(["Ninguno", "Gore Rojo", "Terror Frío", "Misterio Oscuro", "Vintage VHS"])
         sub_style = self.combo_sub_style.get()
         output_folder = getattr(self.main, "ruta_drive", os.path.join(os.getcwd(), "dist"))
         
-        card_title = self.entry_card_title.get().strip() if hasattr(self, "entry_card_title") else ""
-        pacing = self.combo_pacing.get() if hasattr(self, "combo_pacing") else "Dinámico [2.0s]"
-        vol_voice = self.slider_voice.get() if hasattr(self, "slider_voice") else 100.0
-        vol_music = self.slider_music.get() if hasattr(self, "slider_music") else 40.0
-        vol_sfx = self.slider_sfx.get() if hasattr(self, "slider_sfx") else 100.0
+        # Generación automática de tarjeta de Reddit
+        if sub_style == "Reddit History":
+            import re
+            clean_title = re.sub(r'#\S+', '', title) # Quitar hashtags
+            clean_title = "".join(c for c in clean_title if c.isalnum() or c in " ,.¡!¿?()\"'-").strip() # Quitar emojis
+            card_title = clean_title if clean_title else "Pregunta intrigante de Reddit..."
+        else:
+            card_title = ""
+            
+        pacing = "Dinámico [2.0s]"
+        vol_voice = 100.0
+        vol_music = 40.0
+        vol_sfx = 100.0
+        self.video_format = "9:16"
 
         args = (title, desc, output_folder, music, active_list, self.media_mode, self.video_format, lut_name, sub_style, card_title, pacing, vol_voice, vol_music, vol_sfx)
         threading.Thread(target=self.run_render, args=args, daemon=True).start()
@@ -1108,8 +891,8 @@ class MediaTab(ctk.CTkFrame):
         safe_title = "".join([c for c in title if c.isalnum() or c==' ']).rstrip().replace(" ", "_") or "Video_Render_Mix"
         output_folder = getattr(self.main, "ruta_drive", os.path.join(os.getcwd(), "dist"))
         music = self.current_music_path if self.var_music.get() else None
-        vol_voice = self.slider_voice.get() if hasattr(self, "slider_voice") else 100.0
-        vol_music = self.slider_music.get() if hasattr(self, "slider_music") else 40.0
+        vol_voice = 100.0
+        vol_music = 40.0
         
         # Obtener el directorio del proyecto activo para guardar doblajes ordenadamente
         project_id = getattr(self.main, "current_project_id", None)
@@ -1213,7 +996,7 @@ class MediaTab(ctk.CTkFrame):
     def get_state(self):
         return {
             "meta_title": self.entry_title.get(),
-            "meta_card_title": self.entry_card_title.get() if hasattr(self, "entry_card_title") else "",
+            "meta_card_title": "",
             "meta_desc": self.txt_desc.get("0.0", "end"),
             "audio_path": self.audio_path,
             "music_enabled": self.var_music.get(),
@@ -1222,55 +1005,30 @@ class MediaTab(ctk.CTkFrame):
             "mixed_media": self.mixed_media,
             "cover_path": self.cover_path,
             "last_render_path": self.last_render_path,
-            "lut_name": self.combo_luts.get(),
+            "lut_name": "Ninguno",
             "sub_style": self.combo_sub_style.get(),
-            "pacing": self.combo_pacing.get() if hasattr(self, "combo_pacing") else "Dinámico [2.0s]",
-            "vol_voice": self.slider_voice.get() if hasattr(self, "slider_voice") else 100,
-            "vol_music": self.slider_music.get() if hasattr(self, "slider_music") else 40,
-            "vol_sfx": self.slider_sfx.get() if hasattr(self, "slider_sfx") else 100
+            "pacing": "Dinámico [2.0s]",
+            "vol_voice": 100,
+            "vol_music": 40,
+            "vol_sfx": 100
         }
 
     def restore_state(self, state):
         if not state: return
         
-        # Meta - Usando nombres de widgets rediseñados
         try:
             self.entry_title.delete(0, "end")
             self.entry_title.insert(0, state.get("meta_title", ""))
             
-            if hasattr(self, "entry_card_title"):
-                self.entry_card_title.delete(0, "end")
-                self.entry_card_title.insert(0, state.get("meta_card_title", ""))
-            
             self.txt_desc.delete("0.0", "end")
             self.txt_desc.insert("0.0", state.get("meta_desc", ""))
-            
-            if hasattr(self, "combo_pacing") and "pacing" in state:
-                self.combo_pacing.set(state.get("pacing", "Dinámico [2.0s]"))
-                
-            if "vol_voice" in state and hasattr(self, "slider_voice"):
-                v = state.get("vol_voice", 100)
-                self.slider_voice.set(v)
-                self.lbl_vol_voice.configure(text=f"{int(v)}%")
-                
-            if "vol_music" in state and hasattr(self, "slider_music"):
-                m = state.get("vol_music", 40)
-                self.slider_music.set(m)
-                self.lbl_vol_music.configure(text=f"{int(m)}%")
-                
-            if "vol_sfx" in state and hasattr(self, "slider_sfx"):
-                s = state.get("vol_sfx", 100)
-                self.slider_sfx.set(s)
-                self.lbl_vol_sfx.configure(text=f"{int(s)}%")
         except Exception as e:
             print(f"Error restoring UI state: {e}")
              
-        # Media Lists - Forzando modo MIX
         self.media_mode = "mix"
         self.mixed_media = state.get("mixed_media", [])
         self.cover_path = state.get("cover_path", "")
         self.last_render_path = state.get("last_render_path", "")
-        self.combo_luts.set(state.get("lut_name", "Ninguno"))
         self.combo_sub_style.set(state.get("sub_style", "TikTok / Hormozi"))
         
         # Restore audio and BGM paths
@@ -1307,16 +1065,9 @@ class MediaTab(ctk.CTkFrame):
         if hasattr(self.main, "generated_desc") and self.main.generated_desc:
             current_d = self.txt_desc.get("0.0", "end").strip()
             # If placeholder, update it
-            if "Descripción generada automáticamente" in current_d or not current_d:
+            if "Descripción generada automáticamente" in current_d:
                 self.txt_desc.delete("0.0", "end")
                 self.txt_desc.insert("0.0", self.main.generated_desc)
-                
-        # Sync Card Title
-        if hasattr(self.main, "generated_title") and self.main.generated_title and hasattr(self, "entry_card_title"):
-            current_c = self.entry_card_title.get().strip()
-            if not current_c or "Ej:" in current_c or current_c == "SilencioRojo_Video":
-                self.entry_card_title.delete(0, "end")
-                self.entry_card_title.insert(0, self.main.generated_title)
                 
         # Sync Audio path generated in VoiceTab
         if hasattr(self.main, "audio_path") and self.main.audio_path:
@@ -1325,100 +1076,6 @@ class MediaTab(ctk.CTkFrame):
                 self.lbl_audio_name.configure(text=f"AUDIO ACTIVO: {os.path.basename(self.audio_path)[:25]}", text_color=COLOR_SUCCESS)
                 self.btn_audio.configure(border_color=COLOR_SUCCESS)
                 self.check_ready_state()
-
-    def run_viral_generation(self):
-        # Check if story is available
-        story = getattr(self.main, "generated_story", "").strip()
-        if not story:
-            # Fallback to current_trama_cache or show error
-            story = getattr(self.main, "current_trama_cache", "").strip()
-            
-        if not story or "El guion generado por la IA" in story:
-            self.update_render_status("⚠️ Primero genera un guion en la pestaña Concepto", "orange")
-            return
-            
-        provider = getattr(self.main, "llm_provider", "gemini")
-        if provider == "groq":
-            api_key = getattr(self.main, "groq_api_key", "")
-        else:
-            api_key = getattr(self.main, "google_api_key", "")
-            
-        if not api_key:
-            self.update_render_status("⚠️ Configura tu API Key en los ajustes", "orange")
-            return
-
-        self.btn_viral.configure(state="disabled", text="GENERANDO...")
-        
-        def thread_run():
-            try:
-                prompt = (
-                    "Actúa como un experto en SEO de YouTube Shorts y viralidad de terror para TikTok/Shorts. "
-                    "A partir del siguiente guion de un Short de terror, genera de forma precisa la metadata:\n\n"
-                    f"GUION:\n{story}\n\n"
-                    "Genera tu respuesta en este formato exacto:\n"
-                    "---SEO_TITLE---\n"
-                    "[Escribe un título optimizado de entre 40 y 60 caracteres en total. Debe iniciar (front-loading) en los primeros 35 caracteres con una frase clave de impacto (ej: 'HILO DE REDDIT...', 'POV: Lees Reddit...', 'Confesión anónima...'). Usa fórmulas de intriga o confesión prohibida y finaliza con exactamente 1 o 2 emojis de terror como 💀, 👁️, 📱, 🤫. NO uses hashtags en el título]\n"
-                    "---CARD_TITLE---\n"
-                    "[Escribe el gancho de intriga visual para la tarjeta de Reddit. Debe ser una pregunta o confesión de terror muy intrigante de máximo 70 caracteres, sin hashtags, sin links, muy limpio y auténtico como un post real de r/nosleep. Añade un emoji intrigante al final]\n"
-                    "---DESCRIPTION---\n"
-                    "[Escribe una descripción conversacional optimizada de 2 o 3 párrafos cortos. Cumple estrictamente estas reglas:\n"
-                    "- Las primeras 2 líneas deben incluir la palabra clave principal de forma conversacional (ej: 'Abro este hilo de Reddit...' o 'Confesión anónima de Reddit...').\n"
-                    "- Cierra con una pregunta específica para incentivar debates en los comentarios.\n"
-                    "- NO incluyas links.\n"
-                    "- Añade las siguientes marcas de tiempo:\n"
-                    "  00:00 - La captura de Reddit\n"
-                    "  00:12 - [Un nombre corto de 3 palabras para la fase de contexto/detonante]\n"
-                    "  00:35 - [Un nombre corto de 3 palabras para la fase de revelación/giro]\n"
-                    "- Al final, coloca exactamente los siguientes hashtags: #Shorts #Shorst #RedditStories #Terror y opcionalmente uno específico del nicho (máximo 5 hashtags en total)]\n"
-                )
-                
-                from modules import gemini_client, groq_client
-                if provider == "groq":
-                    res = groq_client.generate_content(prompt, api_key)
-                else:
-                    res = gemini_client.generate_content(prompt, api_key)
-                    
-                import re
-                seo_title = ""
-                card_title = ""
-                description = ""
-                
-                seo_match = re.search(r"---SEO_TITLE---\n(.*?)(?=\n---|$$)", res, re.DOTALL | re.IGNORECASE)
-                if seo_match:
-                    seo_title = seo_match.group(1).strip().strip('\"')
-                
-                card_match = re.search(r"---CARD_TITLE---\n(.*?)(?=\n---|$$)", res, re.DOTALL | re.IGNORECASE)
-                if card_match:
-                    card_title = card_match.group(1).strip().strip('\"')
-                    
-                desc_match = re.search(r"---DESCRIPTION---\n(.*?)(?=\n---|$$)", res, re.DOTALL | re.IGNORECASE)
-                if desc_match:
-                    description = desc_match.group(1).strip()
-                    
-                # Update UI elements in main thread
-                def update_ui():
-                    if seo_title:
-                        self.entry_title.delete(0, "end")
-                        self.entry_title.insert(0, seo_title)
-                    if card_title:
-                        self.entry_card_title.delete(0, "end")
-                        self.entry_card_title.insert(0, card_title)
-                    if description:
-                        self.txt_desc.delete("0.0", "end")
-                        self.txt_desc.insert("0.0", description)
-                    self.btn_viral.configure(state="normal", text="Metadatos Virales ⚡")
-                    self.update_render_status("✨ ¡METADATOS VIRALES APLICADOS!", "#00E676")
-                    
-                self.after(0, update_ui)
-                
-            except Exception as e:
-                print(f"Error generating viral metadata: {e}")
-                self.after(0, lambda: [
-                    self.btn_viral.configure(state="normal", text="Metadatos Virales ⚡"),
-                    self.update_render_status(f"❌ Error en metadatos: {str(e)[:40]}", "red")
-                ])
-                
-        threading.Thread(target=thread_run, daemon=True).start()
 
 class GameplaySourcingDialog(ctk.CTkToplevel):
     def __init__(self, parent_tab, default_duration):
