@@ -458,11 +458,14 @@ class MediaTab(ctk.CTkFrame):
             # Evitar nombres genéricos autogenerados
             if not any(x in base_name for x in ["Generated Audio", "audio_mix", "narracion", "tts_output"]):
                 # Reemplazar guiones y limpiar
-                clean_name = base_name.replace("_", " ").replace("-", " ")
-                clean_name = re.sub(r'(?i)(audio|voz|voice|narracion|story|historia|short|video|render)', '', clean_name)
-                clean_name = " ".join(clean_name.split())
-                if clean_name:
-                    return clean_name
+                clean_name = base_name.replace("_", " ").replace("-", " ").strip()
+                # Ignorar nombres que consistan mayormente de números o códigos de tiempo
+                only_letters = re.sub(r'[^a-zA-Z]', '', clean_name)
+                if len(only_letters) > 2: # Debe tener al menos 3 letras para ser un nombre de juego válido
+                    clean_name = re.sub(r'(?i)(audio|voz|voice|narracion|story|historia|short|video|render)', '', clean_name)
+                    clean_name = " ".join(clean_name.split())
+                    if clean_name:
+                        return clean_name
 
         # 2. Intentar obtener de self.main.roblox_game_name
         if hasattr(self.main, "roblox_game_name") and self.main.roblox_game_name:
@@ -1349,7 +1352,8 @@ class RobloxSourcingDialog(ctk.CTkToplevel):
         if detected_game:
             self.entry_game_name.insert(0, detected_game)
         else:
-            self.entry_game_name.insert(0, "The Mimic")
+            self.entry_game_name.configure(placeholder_text="Escribe el nombre del juego (ej: Doors, The Mimic)...")
+        self.entry_game_name.focus_set()
             
         ctk.CTkLabel(card, text="RECURSOS A OBTENER:", font=("Arial", 11, "bold"), text_color="#888").pack(anchor="w", padx=20, pady=(0, 5))
         
