@@ -6,6 +6,7 @@ import random
 from tkinter import filedialog
 from PIL import Image
 import queue
+import re
 
 # Intentar importar dependencias del proyecto
 try:
@@ -223,6 +224,10 @@ class MediaTab(ctk.CTkFrame):
         btn_g = {"height": 28, "font": ("Inter", 10, "bold"), "fg_color": "#651FFF", "hover_color": "#4500C7", "text_color": "white"}
         self.btn_gameplay = ctk.CTkButton(tool_bar, text="🎮 AUTO GAMEPLAY", command=self.open_gameplay_dialog, **btn_g)
         self.btn_gameplay.pack(side="left", padx=5)
+        
+        btn_r = {"height": 28, "font": ("Inter", 10, "bold"), "fg_color": "#00FF66", "hover_color": "#00C853", "text_color": "black"}
+        self.btn_roblox = ctk.CTkButton(tool_bar, text="👾 AUTO ROBLOX", command=self.open_roblox_dialog, **btn_r)
+        self.btn_roblox.pack(side="left", padx=5)
         
         ctk.CTkButton(tool_bar, text="🖼️ PORTADA", command=self.select_cover, **btn_s).pack(side="left", padx=5)
         
@@ -445,6 +450,113 @@ class MediaTab(ctk.CTkFrame):
         self.check_ready_state()
 
 
+
+    def detect_roblox_game_name(self):
+        if hasattr(self.main, "roblox_game_name") and self.main.roblox_game_name:
+            return self.main.roblox_game_name.strip()
+        try:
+            concept_tab = self.main.view_cache.get("concept")
+            if concept_tab:
+                script_text = concept_tab.txt_output.get("0.0", "end")
+                match = re.search(r"---TEMA SELECCIONADO---\n\**([^*]+)\**", script_text, re.IGNORECASE)
+                if match:
+                    game_name = match.group(1).strip()
+                    if " por " in game_name:
+                        game_name = game_name.split(" por ")[0].strip()
+                    game_name = game_name.split("\n")[0].strip()
+                    return game_name
+        except:
+            pass
+        title = self.entry_title.get().strip()
+        if title and title != "SilencioRojo_Video":
+            clean_t = re.sub(r'#\S+', '', title)
+            clean_t = re.sub(r'^(⚠️|🔴|😱|NO|juegues|esto|en|Roblox|a|las|3|AM|Es|demasiado|real|\s|,|\.|\(|\))', '', clean_t, flags=re.IGNORECASE)
+            return clean_t.strip()
+        return ""
+
+    def open_roblox_dialog(self):
+        suggested_dur = 60.0
+        if self.audio_path and os.path.exists(self.audio_path):
+            try:
+                from modules.render_utils import get_video_duration
+                dur = get_video_duration(self.audio_path)
+                if dur > 0:
+                    suggested_dur = dur
+            except:
+                pass
+        import tkinter.messagebox as msgbox
+        if self.mixed_media:
+            if not msgbox.askyesno("Confirmar importación", "¿Deseas vaciar la línea de tiempo actual para importar los recursos de Roblox?"):
+                return
+        RobloxSourcingDialog(self, suggested_dur)
+
+    def run_roblox_sourcing_flow(self, game_name, duration, get_gameplay, get_images, get_gifs):
+        self.btn_roblox.configure(state="disabled", text="PROCESANDO... ⏳")
+        self.lbl_status.configure(text="👾 INICIANDO DESCARGA AUTOMÁTICA DE MEDIOS ROBLOX...", text_color="#00FF66")
+        all_new_media = []
+        try:
+            download_dir = self.main.img_download_folder
+            os.makedirs(download_dir, exist_ok=True)
+            if get_gameplay:
+                cache_dir = os.path.join(os.getcwd(), "cache", "gameplays")
+                os.makedirs(cache_dir, exist_ok=True)
+                query_str = f"Roblox {game_name} gameplay long no commentary"
+                clean_name = re.sub(r'[^a-zA-Z0-9_]', '', query_str[:30].replace(' ', '_').lower())
+                local_video_path = None
+                for file in os.listdir(cache_dir):
+                    if file.startswith(clean_name) and file.endswith(('.mp4', '.mkv', '.webm')):
+                        local_video_path = os.path.join(cache_dir, file)
+                        break
+                if local_video_path and os.path.exists(local_video_path):
+                    self.update_render_status("♻️ USANDO VIDEO DE GAMEPLAY EN CACHÉ LOCAL", "#00FF66")
+                else:
+                    self.update_render_status("🌐 Descargando gameplay de YouTube para Roblox...", "#FFD700")
+                    from modules.gameplay_sourcing import download_youtube_gameplay
+                    local_video_path = download_youtube_gameplay(query_str, cache_dir, status_callback=self.update_render_status)
+                if local_video_path and os.path.exists(local_video_path):
+                    self.update_render_status("✂️ Segmentando gameplay de Roblox...", "#FF9100")
+                    from modules.gameplay_sourcing import slice_video_segments
+                    clips = slice_video_segments(local_video_path, duration, download_dir, aspect_ratio=self.video_format, status_callback=self.update_render_status)
+                    if clips:
+                        all_new_media.extend(clips)
+            if get_images:
+                self.update_render_status("🖼️ Buscando y descargando imágenes de Roblox...", "#FFD700")
+                from modules.roblox_sourcing import download_roblox_media
+                images = download_roblox_media(game_name, limit=8, media_type="images", output_dir=download_dir, status_callback=self.update_render_status)
+                if images:
+                    all_new_media.extend(images)
+            if get_gifs:
+                self.update_render_status("🎬 Buscando y descargando GIFs de sustos y animaciones...", "#FFD700")
+                from modules.roblox_sourcing import download_roblox_media
+                gifs = download_roblox_media(game_name, limit=4, media_type="gifs", output_dir=download_dir, status_callback=self.update_render_status)
+                if gifs:
+                    all_new_media.extend(gifs)
+            if not all_new_media:
+                raise Exception("No se pudo descargar ningún medio para este juego.")
+            gameplays = [m for m in all_new_media if m.get("path", "").endswith(('.mp4', '.mov', '.avi', '.mkv', '.webm')) and "gif" not in m.get("path", "").lower()]
+            statics = [m for m in all_new_media if m.get("type") == "image"]
+            animated_gifs = [m for m in all_new_media if "gif" in m.get("path", "").lower()]
+            final_timeline = []
+            max_len = max(len(gameplays), len(statics) + len(animated_gifs))
+            non_gameplay = statics + animated_gifs
+            random.shuffle(non_gameplay)
+            for idx in range(max_len):
+                if idx < len(gameplays):
+                    final_timeline.append(gameplays[idx])
+                if idx < len(non_gameplay):
+                    final_timeline.append(non_gameplay[idx])
+            if not final_timeline:
+                final_timeline = all_new_media
+            self.mixed_media = final_timeline
+            self.after(0, self.refresh_grid)
+            self.after(0, self.check_ready_state)
+            self.after(0, lambda: self.update_render_status("✨ ¡RECURSOS DE ROBLOX IMPORTADOS CON ÉXITO!", "#00FF66"))
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.after(0, lambda err=str(e): self.update_render_status(f"🛑 Error en Roblox Sourcing: {err[:40]}", "red"))
+        finally:
+            self.after(0, lambda: self.btn_roblox.configure(state="normal", text="👾 AUTO ROBLOX"))
 
     def open_gameplay_dialog(self):
         import tkinter.messagebox as msgbox
@@ -1178,4 +1290,106 @@ class GameplaySourcingDialog(ctk.CTkToplevel):
         self.destroy()
         
         threading.Thread(target=self.tab.run_gameplay_sourcing, args=(search_str, dur, aspect_ratio), daemon=True).start()
+
+
+class RobloxSourcingDialog(ctk.CTkToplevel):
+    def __init__(self, parent_tab, default_duration):
+        super().__init__(parent_tab)
+        self.tab = parent_tab
+        self.title("ASISTENTE MULTIMEDIA ROBLOX")
+        self.geometry("520x460")
+        self.configure(fg_color="#0F0F0F")
+        self.transient(parent_tab)
+        self.grab_set()
+        self.resizable(False, False)
+        
+        if hasattr(parent_tab.main, 'winfo_x'):
+            main_x = parent_tab.main.winfo_x()
+            main_y = parent_tab.main.winfo_y()
+            main_w = parent_tab.main.winfo_width()
+            main_h = parent_tab.main.winfo_height()
+            x = main_x + (main_w // 2) - (520 // 2)
+            y = main_y + (main_h // 2) - (460 // 2)
+            self.geometry(f"+{x}+{y}")
+            
+        from core.utils import force_focus
+        force_focus(self)
+        
+        detected_game = self.tab.detect_roblox_game_name()
+        self.setup_ui(detected_game, default_duration)
+        
+    def setup_ui(self, detected_game, default_duration):
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.pack(fill="x", padx=30, pady=(25, 15))
+        ctk.CTkLabel(header, text="ROBLOX MEDIA ASSISTANT", font=("Impact", 22), text_color="#00FF66").pack(side="left")
+        
+        card = ctk.CTkFrame(self, fg_color="#141414", corner_radius=10, border_width=1, border_color="#222")
+        card.pack(fill="both", expand=True, padx=30, pady=(0, 20))
+        
+        ctk.CTkLabel(card, text="JUEGO DE ROBLOX A NARRAR:", font=("Arial", 11, "bold"), text_color="#888").pack(anchor="w", padx=20, pady=(15, 5))
+        self.entry_game_name = ctk.CTkEntry(card, fg_color="#050505", border_color="#222", font=("Arial", 12))
+        self.entry_game_name.pack(fill="x", padx=20, pady=(0, 15))
+        if detected_game:
+            self.entry_game_name.insert(0, detected_game)
+        else:
+            self.entry_game_name.insert(0, "The Mimic")
+            
+        ctk.CTkLabel(card, text="RECURSOS A OBTENER:", font=("Arial", 11, "bold"), text_color="#888").pack(anchor="w", padx=20, pady=(0, 5))
+        
+        self.var_gameplay = ctk.BooleanVar(value=True)
+        self.chk_gameplay = ctk.CTkCheckBox(card, text="🎮 Gameplay de fondo (YouTube)", variable=self.var_gameplay,
+                                            fg_color="#00FF66", border_width=2, font=("Arial", 11))
+        self.chk_gameplay.pack(anchor="w", padx=25, pady=4)
+        
+        self.var_images = ctk.BooleanVar(value=True)
+        self.chk_images = ctk.CTkCheckBox(card, text="🖼️ Imágenes de gameplay (Buscador Web)", variable=self.var_images,
+                                          fg_color="#00FF66", border_width=2, font=("Arial", 11))
+        self.chk_images.pack(anchor="w", padx=25, pady=4)
+        
+        self.var_animations = ctk.BooleanVar(value=True)
+        self.chk_animations = ctk.CTkCheckBox(card, text="🎬 GIFs animados y sustos (Buscador Web)", variable=self.var_animations,
+                                              fg_color="#00FF66", border_width=2, font=("Arial", 11))
+        self.chk_animations.pack(anchor="w", padx=25, pady=4)
+        
+        ctk.CTkLabel(card, text="DURACIÓN TOTAL DE GAMEPLAY (SEG):", font=("Arial", 11, "bold"), text_color="#888").pack(anchor="w", padx=20, pady=(10, 5))
+        self.entry_dur = ctk.CTkEntry(card, fg_color="#050505", border_color="#222", font=("Consolas", 12))
+        self.entry_dur.pack(fill="x", padx=20, pady=(0, 15))
+        self.entry_dur.insert(0, f"{default_duration:.1f}")
+        
+        self.btn_download = ctk.CTkButton(self, text="OBTENER E INTEGRAR AL TIMELINE ⚡", height=50,
+                                           fg_color="#00FF66", hover_color="#00C853", text_color="black",
+                                           font=("Arial", 12, "bold"), command=self.on_download)
+        self.btn_download.pack(fill="x", padx=30, pady=(0, 25))
+        
+    def on_download(self):
+        import threading
+        
+        game_name = self.entry_game_name.get().strip()
+        if not game_name:
+            self.entry_game_name.configure(border_color="red")
+            return
+            
+        dur_str = self.entry_dur.get().strip()
+        try:
+            dur = float(dur_str)
+            if dur <= 0:
+                raise ValueError()
+        except ValueError:
+            self.entry_dur.configure(border_color="red")
+            return
+            
+        get_gameplay = self.var_gameplay.get()
+        get_images = self.var_images.get()
+        get_gifs = self.var_animations.get()
+        
+        if not (get_gameplay or get_images or get_gifs):
+            import tkinter.messagebox as msgbox
+            msgbox.showwarning("Atención", "Debes seleccionar al menos un tipo de recurso a descargar.")
+            return
+            
+        self.destroy()
+        
+        self.tab.main.roblox_game_name = game_name
+        
+        threading.Thread(target=self.tab.run_roblox_sourcing_flow, args=(game_name, dur, get_gameplay, get_images, get_gifs), daemon=True).start()
 

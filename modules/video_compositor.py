@@ -63,7 +63,7 @@ class VideoCompositor:
                  
              # Fondo
              bg_ext = os.path.splitext(background_path)[1].lower()
-             is_bg_video = bg_ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']
+             is_bg_video = bg_ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.gif']
              
              bg_image = None
              bg_iter = None

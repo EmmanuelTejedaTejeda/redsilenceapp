@@ -258,6 +258,16 @@ class ConceptTab(ctk.CTkFrame):
                 # Override cache with the actual story for better prompt results in P2/P3
                 self.main.current_trama_cache = clean_story
             
+            # 4. Extract Roblox Game Name
+            game_match = re.search(r"---TEMA SELECCIONADO---\n\**([^*]+)\**", text, re.IGNORECASE)
+            if game_match:
+                game_name = game_match.group(1).strip()
+                if " por " in game_name:
+                    game_name = game_name.split(" por ")[0].strip()
+                game_name = game_name.split("\n")[0].strip()
+                self.main.roblox_game_name = game_name
+                print(f">>> [CONCEPT TAB] Juego Roblox detectado: {game_name}")
+            
         except Exception as e:
             print(f">>> [CONCEPT PARSE ERROR]: {e}")
 

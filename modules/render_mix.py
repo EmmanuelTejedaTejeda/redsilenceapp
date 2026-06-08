@@ -557,7 +557,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                     media_path = os.path.abspath(str(item))
                     has_audio = True
                     ext = os.path.splitext(media_path)[1].lower()
-                    item_type = "video" if ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm'] else "image"
+                    item_type = "video" if ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.gif'] else "image"
                 
                 if not os.path.exists(media_path): return None
 

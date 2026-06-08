@@ -382,7 +382,7 @@ def render_chapter(chapter_index, chapter_data, output_mp4, enc_params, sub_kwar
             filter_clauses.append(f"[{input_idx}:v]format=yuv420p,fps=30,setsar=1/1,setdar={dar_str}[v{idx}]")
         else:
             ext = os.path.splitext(media_path)[1].lower()
-            is_video = ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']
+            is_video = ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.gif']
             
             if is_video:
                 cmd.extend(["-stream_loop", "-1", "-ss", "0", "-t", f"{d_i:.3f}", "-i", media_path])
