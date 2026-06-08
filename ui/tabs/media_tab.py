@@ -452,10 +452,25 @@ class MediaTab(ctk.CTkFrame):
 
 
     def detect_roblox_game_name(self):
+        # 1. Intentar deducir del nombre del archivo de audio seleccionado (si el usuario ya trae su narración lista)
+        if self.audio_path:
+            base_name = os.path.splitext(os.path.basename(self.audio_path))[0]
+            # Evitar nombres genéricos autogenerados
+            if not any(x in base_name for x in ["Generated Audio", "audio_mix", "narracion", "tts_output"]):
+                # Reemplazar guiones y limpiar
+                clean_name = base_name.replace("_", " ").replace("-", " ")
+                clean_name = re.sub(r'(?i)(audio|voz|voice|narracion|story|historia|short|video|render)', '', clean_name)
+                clean_name = " ".join(clean_name.split())
+                if clean_name:
+                    return clean_name
+
+        # 2. Intentar obtener de self.main.roblox_game_name
         if hasattr(self.main, "roblox_game_name") and self.main.roblox_game_name:
             return self.main.roblox_game_name.strip()
+
+        # 3. Intentar buscar en concept tab (si se generó previamente en esta sesión)
         try:
-            concept_tab = self.main.view_cache.get("concept")
+            concept_tab = getattr(self.main, "view_cache", {}).get("concept")
             if concept_tab:
                 script_text = concept_tab.txt_output.get("0.0", "end")
                 match = re.search(r"---TEMA SELECCIONADO---\n\**([^*]+)\**", script_text, re.IGNORECASE)
@@ -467,6 +482,8 @@ class MediaTab(ctk.CTkFrame):
                     return game_name
         except:
             pass
+
+        # 4. Fallback al título de la interfaz
         title = self.entry_title.get().strip()
         if title and title != "SilencioRojo_Video":
             clean_t = re.sub(r'#\S+', '', title)
@@ -495,7 +512,7 @@ class MediaTab(ctk.CTkFrame):
         self.lbl_status.configure(text="👾 INICIANDO DESCARGA AUTOMÁTICA DE MEDIOS ROBLOX...", text_color="#00FF66")
         all_new_media = []
         try:
-            download_dir = self.main.img_download_folder
+            download_dir = self.img_download_folder
             os.makedirs(download_dir, exist_ok=True)
             if get_gameplay:
                 cache_dir = os.path.join(os.getcwd(), "cache", "gameplays")
