@@ -13,6 +13,53 @@ from modules.render_utils import (
     get_video_duration,
     extract_sfx_events
 )
+def get_video_resolution(file_path):
+    import subprocess
+    import json
+    import os
+    
+    if not os.path.exists(file_path):
+        return 0, 0
+        
+    cmd = [
+        "ffprobe", "-v", "quiet", 
+        "-print_format", "json", 
+        "-show_streams", 
+        file_path
+    ]
+    sub_kwargs = {}
+    if os.name == 'nt':
+        sub_kwargs['creationflags'] = 0x00000040
+        
+    try:
+        res = subprocess.run(cmd, check=True, capture_output=True, text=True, errors='replace', **sub_kwargs)
+        data = json.loads(res.stdout)
+        for stream in data.get("streams", []):
+            if stream.get("codec_type") == "video":
+                w = int(stream.get("width", 0))
+                h = int(stream.get("height", 0))
+                if w > 0 and h > 0:
+                    return w, h
+    except Exception as e:
+        print(f"Error obtaining resolution for {file_path}: {e}")
+        
+    return 0, 0
+
+def is_portrait_media(media_path, item_type):
+    try:
+        if item_type == "image":
+            from PIL import Image
+            with Image.open(media_path) as img:
+                w, h = img.size
+        else:
+            w, h = get_video_resolution(media_path)
+            
+        if w > 0 and h > 0:
+            aspect = w / h
+            return 0.5 <= aspect <= 0.62
+    except Exception as e:
+        print(f"Error checking aspect ratio for {media_path}: {e}")
+    return False
 
 _WHISPER_MODEL = None
 
@@ -660,11 +707,12 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                     # Subliminales limpias
                     fx_chain = "null"
 
+                is_portrait = is_portrait_media(media_path, item_type)
                 if i == 0 and not is_subliminal:
                     # GANCHO AGRESIVO: Sismo cinemático (temblor sutil) + Zoom-In progresivo en los primeros segundos
                     if item_type == "video":
-                        sx_base = f"(iw-ow)*0.02*(0.8*sin(6*PI*t)+0.2*sin(12*PI*t))*exp(-1.2*t)"
-                        sy_base = f"(ih-oh)*0.02*(0.8*sin(5*PI*t+1.57)+0.2*sin(10*PI*t))*exp(-1.2*t)"
+                        sx_base = f"200*0.02*(0.8*sin(6*PI*t)+0.2*sin(12*PI*t))*exp(-1.2*t)"
+                        sy_base = f"350*0.02*(0.8*sin(5*PI*t+1.57)+0.2*sin(10*PI*t))*exp(-1.2*t)"
                         if local_glitches:
                             sx = f"{sx_base} + 18*sin(60*t)*({shake_expr})"
                             sy = f"{sy_base} + 18*cos(50*t)*({shake_expr})"
@@ -673,7 +721,16 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                             sy = sy_base
                         scale_w_eff = int(target_w * 1.35)
                         scale_h_eff = int(target_h * 1.35)
-                        vf_base = f"scale={scale_w_eff}:{scale_h_eff}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}:'(iw-ow)/2+{sx}':'(ih-oh)/2+{sy}'"
+                        if is_portrait:
+                            vf_base = f"scale={scale_w_eff}:{scale_h_eff}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}:'(iw-ow)/2+{sx}':'(ih-oh)/2+{sy}'"
+                        else:
+                            # Blur padding layout
+                            vf_base = (
+                                f"split[bg][fg];"
+                                f"[bg]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},boxblur=15:2[bg_blur];"
+                                f"[fg]scale={target_w}:{target_h}:force_original_aspect_ratio=decrease[fg_scaled];"
+                                f"[bg_blur][fg_scaled]overlay=x='(W-w)/2+{sx}':y='(H-h)/2+{sy}',setsar=1/1,setdar=9/16"
+                            )
                         input_opts_list = ["-stream_loop", "-1"]
                     else:
                         ze = "1.1+0.004*on"
@@ -685,7 +742,16 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                         else:
                             xe = xe_base
                             ye = ye_base
-                        vf_base = f"loop=loop=-1:size=1:start=0,scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},zoompan=z='{ze}':d={frames+2}:x='(iw-iw/zoom)/2+{xe}':y='(ih-ih/zoom)/2+{ye}':s={target_w}x{target_h}:fps=30"
+                        if is_portrait:
+                            vf_base = f"loop=loop=-1:size=1:start=0,scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},setsar=1/1,zoompan=z='{ze}':d={frames+2}:x='(iw-iw/zoom)/2+{xe}':y='(ih-ih/zoom)/2+{ye}':s={target_w}x{target_h}:fps=30,setdar=9/16"
+                        else:
+                            vf_base = (
+                                f"loop=loop=-1:size=1:start=0,split[bg][fg];"
+                                f"[bg]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},boxblur=15:2[bg_blur];"
+                                f"[fg]scale={target_w}:{target_h}:force_original_aspect_ratio=decrease[fg_scaled];"
+                                f"[bg_blur][fg_scaled]overlay=x='(W-w)/2':y='(H-h)/2',setsar=1/1,"
+                                f"zoompan=z='{ze}':d={frames+2}:x='(iw-iw/zoom)/2+{xe}':y='(ih-ih/zoom)/2+{ye}':s={target_w}x{target_h}:fps=30,setdar=9/16"
+                            )
                         input_opts_list = []
                 else:
                     # Comportamiento normal (restante de clips)
@@ -698,23 +764,41 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                         ze_normal = "max(zoom,1.1)+0.0035"
 
                     if item_type == "video":
-                        sx_base = f"(iw-ow)*{xa:.2f}*0.05*(0.8*sin({xf:.1f}*PI*t)+0.2*sin({xf*3.14:.1f}*PI*t))"
-                        sy_base = f"(ih-oh)*{ya:.2f}*0.05*(0.8*sin({yf:.1f}*PI*t+1.57)+0.2*sin({yf*2.71:.1f}*PI*t))"
+                        sx_base = f"200*{xa:.2f}*0.05*(0.8*sin({xf:.1f}*PI*t)+0.2*sin({xf*3.14:.1f}*PI*t))"
+                        sy_base = f"350*{ya:.2f}*0.05*(0.8*sin({yf:.1f}*PI*t+1.57)+0.2*sin({yf*2.71:.1f}*PI*t))"
                         if local_glitches:
                             sx = f"{sx_base} + 18*sin(60*t)*({shake_expr})"
                             sy = f"{sy_base} + 18*cos(50*t)*({shake_expr})"
                         else:
                             sx = sx_base
                             sy = sy_base
-                        if dur > pacing_dur:
-                            # Para video largo, hacemos un jump cut de zoom de 1.0x a 1.25x en el 60%
-                            jump_t = dur * 0.6
-                            vf_base = (
-                                f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}:'(iw-ow)/2+{sx}':'(ih-oh)/2+{sy}',"
-                                f"zoompan=z='if(gte(in_time,{jump_t:.2f}),1.25,1.0)':d=1:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s={target_w}x{target_h}:fps=30"
-                            )
+                        if is_portrait:
+                            if dur > pacing_dur:
+                                jump_t = dur * 0.6
+                                vf_base = (
+                                    f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}:'(iw-ow)/2+{sx}':'(ih-oh)/2+{sy}',"
+                                    f"zoompan=z='if(gte(in_time,{jump_t:.2f}),1.25,1.0)':d=1:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s={target_w}x{target_h}:fps=30"
+                                )
+                            else:
+                                vf_base = f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}:'(iw-ow)/2+{sx}':'(ih-oh)/2+{sy}'"
                         else:
-                            vf_base = f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}:'(iw-ow)/2+{sx}':'(ih-oh)/2+{sy}'"
+                            # Blur padding layout for video
+                            if dur > pacing_dur:
+                                jump_t = dur * 0.6
+                                vf_base = (
+                                    f"split[bg][fg];"
+                                    f"[bg]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},boxblur=15:2[bg_blur];"
+                                    f"[fg]scale={target_w}:{target_h}:force_original_aspect_ratio=decrease[fg_scaled];"
+                                    f"[bg_blur][fg_scaled]overlay=x='(W-w)/2+{sx}':y='(H-h)/2+{sy}',setsar=1/1,"
+                                    f"zoompan=z='if(gte(in_time,{jump_t:.2f}),1.25,1.0)':d=1:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s={target_w}x{target_h}:fps=30,setdar=9/16"
+                                )
+                            else:
+                                vf_base = (
+                                    f"split[bg][fg];"
+                                    f"[bg]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},boxblur=15:2[bg_blur];"
+                                    f"[fg]scale={target_w}:{target_h}:force_original_aspect_ratio=decrease[fg_scaled];"
+                                    f"[bg_blur][fg_scaled]overlay=x='(W-w)/2+{sx}':y='(H-h)/2+{sy}',setsar=1/1,setdar=9/16"
+                                )
                         input_opts_list = ["-stream_loop", "-1"]
                     else:
                         xe_base = f"(iw-iw/zoom)*{xa:.2f}*0.03*(0.8*sin({xf:.1f}*on/30)+0.2*sin({xf*3.14:.1f}*on/30))"
@@ -725,7 +809,16 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                         else:
                             xe = xe_base
                             ye = ye_base
-                        vf_base = f"loop=loop=-1:size=1:start=0,scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},zoompan=z='{ze_normal}':d={frames+2}:x='(iw-iw/zoom)/2+{xe}':y='(ih-ih/zoom)/2+{ye}':s={target_w}x{target_h}:fps=30"
+                        if is_portrait:
+                            vf_base = f"loop=loop=-1:size=1:start=0,scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},setsar=1/1,zoompan=z='{ze_normal}':d={frames+2}:x='(iw-iw/zoom)/2+{xe}':y='(ih-ih/zoom)/2+{ye}':s={target_w}x{target_h}:fps=30,setdar=9/16"
+                        else:
+                            vf_base = (
+                                f"loop=loop=-1:size=1:start=0,split[bg][fg];"
+                                f"[bg]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},boxblur=15:2[bg_blur];"
+                                f"[fg]scale={target_w}:{target_h}:force_original_aspect_ratio=decrease[fg_scaled];"
+                                f"[bg_blur][fg_scaled]overlay=x='(W-w)/2':y='(H-h)/2',setsar=1/1,"
+                                f"zoompan=z='{ze_normal}':d={frames+2}:x='(iw-iw/zoom)/2+{xe}':y='(ih-ih/zoom)/2+{ye}':s={target_w}x{target_h}:fps=30,setdar=9/16"
+                            )
                         input_opts_list = []
                 
                 # UNIFICACIÓN DE EFECTOS
