@@ -14,7 +14,7 @@ def get_vqd(query):
     url = "https://duckduckgo.com/"
     data = urllib.parse.urlencode({'q': query}).encode('utf-8')
     req = urllib.request.Request(url, data=data)
-    req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+    req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
     try:
         with urllib.request.urlopen(req, timeout=10) as response:
             html = response.read().decode('utf-8', errors='ignore')
@@ -29,7 +29,7 @@ def get_vqd(query):
     return None
 
 def search_images(query, vqd, search_gifs=False):
-    """Consulta la API de imágenes de DuckDuckGo."""
+    """Consulta la API de imágenes de DuckDuckGo (Método Fallback)."""
     params = {
         'l': 'us-en',
         'o': 'json',
@@ -40,7 +40,10 @@ def search_images(query, vqd, search_gifs=False):
     }
     url = "https://duckduckgo.com/i.js?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(url)
-    req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+    req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    req.add_header("Referer", "https://duckduckgo.com/")
+    req.add_header("Accept", "application/json, text/javascript, */*; q=0.01")
+    req.add_header("Accept-Language", "es-ES,es;q=0.9,en;q=0.8,en-US;q=0.7")
     try:
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode('utf-8'))
@@ -51,14 +54,13 @@ def search_images(query, vqd, search_gifs=False):
 
 def download_roblox_media(game_name, limit=10, media_type="images", output_dir=None, status_callback=None):
     """
-    Busca y descarga imágenes o GIFs animados de un juego de Roblox.
+    Busca y descarga imágenes o GIFs animados de un juego de Roblox usando la librería duckduckgo_search.
     Retorna la lista de rutas absolutas de los archivos descargados.
     """
     if not output_dir:
         output_dir = os.path.join(os.getcwd(), "assets", "images")
     os.makedirs(output_dir, exist_ok=True)
     
-    # Definir query según el tipo solicitado
     is_gif = (media_type == "gifs" or media_type == "animations")
     if is_gif:
         query = f"Roblox {game_name} horror gif"
@@ -66,30 +68,80 @@ def download_roblox_media(game_name, limit=10, media_type="images", output_dir=N
         query = f"Roblox {game_name} horror gameplay screenshots"
         
     if status_callback:
-        status_callback(f"🔍 Conectando con DuckDuckGo para buscar {media_type}...", "#FFD700")
+        status_callback(f"🔍 Buscando {media_type} de '{game_name}'...", "#FFD700")
         
-    vqd = get_vqd(query)
-    if not vqd:
-        # Fallback query más simple si falla
-        query = f"Roblox {game_name}"
-        vqd = get_vqd(query)
-        if not vqd:
-            raise Exception("No se pudo conectar a la búsqueda de DuckDuckGo. Verifica tu conexión.")
+    results = []
+    
+    # 1. Intentar usar la librería duckduckgo_search (que gestiona TLS fingerprints y evita 403 Forbidden)
+    try:
+        from duckduckgo_search import DDGS
+        import time
+        
+        # Retardo preventivo para no activar protecciones
+        time.sleep(3.0)
+        
+        max_retries = 3
+        delay = 2.0
+        for attempt in range(max_retries):
+            try:
+                with DDGS() as ddgs:
+                    results = list(ddgs.images(
+                        keywords=query,
+                        type_image="gif" if is_gif else None,
+                        max_results=limit
+                    ))
+                break
+            except Exception as e:
+                err_str = str(e)
+                if "Ratelimit" in err_str or "403" in err_str:
+                    if status_callback:
+                        status_callback(f"⏳ Rate-limit en búsqueda. Reintentando en {delay}s...", "orange")
+                    time.sleep(delay)
+                    delay *= 2
+                else:
+                    raise e
+                    
+        # Reintento con consulta fallback simplificada si no se encontraron imágenes
+        if not results:
+            time.sleep(1.0)
+            query_fallback = f"Roblox {game_name} gameplay"
+            for attempt in range(max_retries):
+                try:
+                    with DDGS() as ddgs:
+                        results = list(ddgs.images(
+                            keywords=query_fallback,
+                            type_image="gif" if is_gif else None,
+                            max_results=limit
+                        ))
+                    break
+                except Exception as e:
+                    err_str = str(e)
+                    if "Ratelimit" in err_str or "403" in err_str:
+                        time.sleep(delay)
+                        delay *= 2
+                    else:
+                        raise e
+    except Exception as e:
+        print(f">>> [ROBLOX SOURCING] Error usando duckduckgo_search: {e}")
+        # 2. Fallback clásico de raspado con urllib
+        if status_callback:
+            status_callback("⚠️ Falló biblioteca. Usando fallback clásico...", "orange")
+        try:
+            vqd = get_vqd(query)
+            if vqd:
+                results = search_images(query, vqd, search_gifs=is_gif)
+        except Exception as ex:
+            print(f">>> [ROBLOX SOURCING] Fallback clásico también falló: {ex}")
             
-    results = search_images(query, vqd, search_gifs=is_gif)
     if not results:
-        # Reintentar sin 'horror'
-        query = f"Roblox {game_name} gameplay"
-        vqd = get_vqd(query)
-        if vqd:
-            results = search_images(query, vqd, search_gifs=is_gif)
-            
-    if not results:
-        raise Exception(f"No se encontraron resultados de {media_type} para '{game_name}'.")
+        if status_callback:
+            status_callback(f"⚠️ No se encontraron resultados de {media_type} para '{game_name}'.", "orange")
+        return []
         
     downloaded_paths = []
     count = 0
     
+    # 3. Descarga de los recursos
     for item in results:
         if count >= limit:
             break
@@ -98,7 +150,7 @@ def download_roblox_media(game_name, limit=10, media_type="images", output_dir=N
         if not img_url:
             continue
             
-        # Detectar extensión
+        # Determinar extensión
         ext = ".gif" if is_gif else ".jpg"
         if not is_gif:
             if ".png" in img_url.lower():
@@ -114,7 +166,7 @@ def download_roblox_media(game_name, limit=10, media_type="images", output_dir=N
             status_callback(f"📥 Descargando {media_type[:-1]} {count+1}/{limit}...", "#FF9100")
             
         req = urllib.request.Request(img_url)
-        req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+        req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         
         try:
             with urllib.request.urlopen(req, timeout=8) as response:
@@ -131,7 +183,6 @@ def download_roblox_media(game_name, limit=10, media_type="images", output_dir=N
                 count += 1
         except Exception as e:
             print(f">>> [ROBLOX SOURCING] Falló descarga de {img_url}: {e}")
-            # Continuar con el siguiente resultado
             
     if status_callback:
         status_callback(f"✅ Descargados {count} archivos de Roblox.", "#00FF66")
