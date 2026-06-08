@@ -494,6 +494,57 @@ class MediaTab(ctk.CTkFrame):
             return clean_t.strip()
         return ""
 
+    def transcribe_and_detect_roblox_game(self, audio_path, api_key, provider="groq"):
+        if not audio_path or not os.path.exists(audio_path):
+            return ""
+        try:
+            groq_key = getattr(self.main, "groq_api_key", self.main.settings.get("groq_api_key", ""))
+            gemini_key = getattr(self.main, "google_api_key", self.main.settings.get("google_api_key", ""))
+            
+            text = ""
+            if groq_key:
+                from modules.render_utils import transcribe_with_groq
+                transcription = transcribe_with_groq(audio_path, groq_key)
+                if transcription:
+                    text = transcription.get("text", "")
+            
+            if not text:
+                try:
+                    import whisper
+                    model = whisper.load_model("tiny")
+                    res = model.transcribe(audio_path, language="es")
+                    text = res.get("text", "")
+                except Exception as ex:
+                    print(f"Error local whisper fallback: {ex}")
+            
+            if not text:
+                return ""
+                
+            prompt = (
+                "Analiza el siguiente texto de un Short de terror y dime de qué juego de Roblox trata. "
+                "Responde ÚNICAMENTE con el nombre del juego de Roblox (ej: Residence Massacre, The Mimic, Doors, Apeirophobia). "
+                "No incluyas explicaciones, comillas ni puntos. Si no trata de ningún juego o no estás seguro, responde: The Mimic.\n\n"
+                f"Texto: {text}"
+            )
+            
+            game_name = ""
+            if provider == "groq" and groq_key:
+                from modules import groq_client
+                game_name = groq_client.generate_content(prompt, groq_key)
+            elif gemini_key:
+                from modules import gemini_client
+                game_name = gemini_client.generate_content(prompt, gemini_key)
+            elif groq_key:
+                from modules import groq_client
+                game_name = groq_client.generate_content(prompt, groq_key)
+                
+            if game_name:
+                return game_name.strip().replace('"', '').replace('.', '')
+            return ""
+        except Exception as e:
+            print(f"Error detectando juego en transcripcion: {e}")
+            return ""
+
     def open_roblox_dialog(self):
         suggested_dur = 60.0
         if self.audio_path and os.path.exists(self.audio_path):
@@ -1335,45 +1386,43 @@ class RobloxSourcingDialog(ctk.CTkToplevel):
         from core.utils import force_focus
         force_focus(self)
         
-        detected_game = self.tab.detect_roblox_game_name()
-        self.setup_ui(detected_game, default_duration)
+        self.setup_ui(default_duration)
+        import threading
+        threading.Thread(target=self.async_detect_game, daemon=True).start()
         
-    def setup_ui(self, detected_game, default_duration):
+    def setup_ui(self, default_duration):
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.pack(fill="x", padx=30, pady=(25, 15))
         ctk.CTkLabel(header, text="ROBLOX MEDIA ASSISTANT", font=("Impact", 22), text_color="#00FF66").pack(side="left")
         
-        card = ctk.CTkFrame(self, fg_color="#141414", corner_radius=10, border_width=1, border_color="#222")
-        card.pack(fill="both", expand=True, padx=30, pady=(0, 20))
+        self.card = ctk.CTkFrame(self, fg_color="#141414", corner_radius=10, border_width=1, border_color="#222")
+        self.card.pack(fill="both", expand=True, padx=30, pady=(0, 20))
         
-        ctk.CTkLabel(card, text="JUEGO DE ROBLOX A NARRAR:", font=("Arial", 11, "bold"), text_color="#888").pack(anchor="w", padx=20, pady=(15, 5))
-        self.entry_game_name = ctk.CTkEntry(card, fg_color="#050505", border_color="#222", font=("Arial", 12))
+        ctk.CTkLabel(self.card, text="JUEGO DE ROBLOX A NARRAR:", font=("Arial", 11, "bold"), text_color="#888").pack(anchor="w", padx=20, pady=(15, 5))
+        self.entry_game_name = ctk.CTkEntry(self.card, fg_color="#050505", border_color="#222", font=("Arial", 12))
         self.entry_game_name.pack(fill="x", padx=20, pady=(0, 15))
-        if detected_game:
-            self.entry_game_name.insert(0, detected_game)
-        else:
-            self.entry_game_name.configure(placeholder_text="Escribe el nombre del juego (ej: Doors, The Mimic)...")
+        self.entry_game_name.configure(placeholder_text="Detectando juego desde el audio... ⏳")
         self.entry_game_name.focus_set()
-            
-        ctk.CTkLabel(card, text="RECURSOS A OBTENER:", font=("Arial", 11, "bold"), text_color="#888").pack(anchor="w", padx=20, pady=(0, 5))
+        
+        ctk.CTkLabel(self.card, text="RECURSOS A OBTENER:", font=("Arial", 11, "bold"), text_color="#888").pack(anchor="w", padx=20, pady=(0, 5))
         
         self.var_gameplay = ctk.BooleanVar(value=True)
-        self.chk_gameplay = ctk.CTkCheckBox(card, text="🎮 Gameplay de fondo (YouTube)", variable=self.var_gameplay,
+        self.chk_gameplay = ctk.CTkCheckBox(self.card, text="🎮 Gameplay de fondo (YouTube)", variable=self.var_gameplay,
                                             fg_color="#00FF66", border_width=2, font=("Arial", 11))
         self.chk_gameplay.pack(anchor="w", padx=25, pady=4)
         
         self.var_images = ctk.BooleanVar(value=True)
-        self.chk_images = ctk.CTkCheckBox(card, text="🖼️ Imágenes de gameplay (Buscador Web)", variable=self.var_images,
+        self.chk_images = ctk.CTkCheckBox(self.card, text="🖼️ Imágenes de gameplay (Buscador Web)", variable=self.var_images,
                                           fg_color="#00FF66", border_width=2, font=("Arial", 11))
         self.chk_images.pack(anchor="w", padx=25, pady=4)
         
         self.var_animations = ctk.BooleanVar(value=True)
-        self.chk_animations = ctk.CTkCheckBox(card, text="🎬 GIFs animados y sustos (Buscador Web)", variable=self.var_animations,
+        self.chk_animations = ctk.CTkCheckBox(self.card, text="🎬 GIFs animados y sustos (Buscador Web)", variable=self.var_animations,
                                               fg_color="#00FF66", border_width=2, font=("Arial", 11))
         self.chk_animations.pack(anchor="w", padx=25, pady=4)
         
-        ctk.CTkLabel(card, text="DURACIÓN TOTAL DE GAMEPLAY (SEG):", font=("Arial", 11, "bold"), text_color="#888").pack(anchor="w", padx=20, pady=(10, 5))
-        self.entry_dur = ctk.CTkEntry(card, fg_color="#050505", border_color="#222", font=("Consolas", 12))
+        ctk.CTkLabel(self.card, text="DURACIÓN TOTAL DE GAMEPLAY (SEG):", font=("Arial", 11, "bold"), text_color="#888").pack(anchor="w", padx=20, pady=(10, 5))
+        self.entry_dur = ctk.CTkEntry(self.card, fg_color="#050505", border_color="#222", font=("Consolas", 12))
         self.entry_dur.pack(fill="x", padx=20, pady=(0, 15))
         self.entry_dur.insert(0, f"{default_duration:.1f}")
         
@@ -1381,6 +1430,39 @@ class RobloxSourcingDialog(ctk.CTkToplevel):
                                            fg_color="#00FF66", hover_color="#00C853", text_color="black",
                                            font=("Arial", 12, "bold"), command=self.on_download)
         self.btn_download.pack(fill="x", padx=30, pady=(0, 25))
+
+    def async_detect_game(self):
+        # 1. Intentar deducir rápido del nombre del archivo si es descriptivo
+        game_name = self.tab.detect_roblox_game_name()
+        if game_name:
+            self.after(0, lambda: self.set_game_name(game_name))
+            return
+            
+        # 2. Si es timestamp, transcribir el audio en segundo plano usando Whisper API
+        audio_path = self.tab.audio_path
+        if audio_path and os.path.exists(audio_path):
+            # Obtener API key preferente para transcripción
+            api_key = getattr(self.tab.main, "groq_api_key", self.tab.main.settings.get("groq_api_key", ""))
+            provider = "groq"
+            if not api_key:
+                api_key = getattr(self.tab.main, "google_api_key", self.tab.main.settings.get("google_api_key", ""))
+                provider = "gemini"
+                
+            if api_key:
+                detected = self.tab.transcribe_and_detect_roblox_game(audio_path, api_key, provider)
+                if detected:
+                    self.after(0, lambda: self.set_game_name(detected))
+                    return
+                    
+        # 3. Fallback: dejar vacío y permitir escritura
+        self.after(0, lambda: self.entry_game_name.configure(placeholder_text="No se detectó. Escribe el nombre del juego (ej: Doors, The Mimic)..."))
+
+    def set_game_name(self, name):
+        if self.entry_game_name.winfo_exists():
+            # Only set if the user hasn't typed anything yet
+            if not self.entry_game_name.get().strip():
+                self.entry_game_name.delete(0, "end")
+                self.entry_game_name.insert(0, name)
         
     def on_download(self):
         import threading
