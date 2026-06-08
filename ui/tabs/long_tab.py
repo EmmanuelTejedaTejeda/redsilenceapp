@@ -3,6 +3,7 @@ import threading
 import json
 import random
 import re
+import traceback
 import customtkinter as ctk
 from tkinter import filedialog
 import config.prompts as prompts_cfg
