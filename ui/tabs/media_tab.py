@@ -776,7 +776,7 @@ class MediaTab(ctk.CTkFrame):
         music = self.current_music_path if self.var_music.get() else None
 
         # Selección aleatoria del filtro visual (LUT) para variedad
-        lut_name = random.choice(["Ninguno", "Gore Rojo", "Terror Frío", "Misterio Oscuro", "Vintage VHS"])
+        lut_name = random.choice(["Ninguno", "Gore Rojo", "Terror Frío", "Misterio Oscuro"])
         sub_style = self.combo_sub_style.get()
         output_folder = getattr(self.main, "ruta_drive", os.path.join(os.getcwd(), "dist"))
         
