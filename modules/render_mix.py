@@ -1,11 +1,13 @@
 import os
 import subprocess
+import shutil
 import random
 import time
 import json
 import traceback
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+from PIL import Image
 from modules.render_utils import (
     detect_hardware_encoder, 
     convert_to_word_by_word_srt, 
@@ -608,6 +610,61 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                 
                 if not os.path.exists(media_path): return None
 
+                # --- DESINFECCIÓN AL VUELO DE ANIMACIONES (GIF / WEBP) ---
+                if media_path.lower().endswith(('.gif', '.webp')):
+                    try:
+                        img = Image.open(media_path)
+                        # Comprobar si es una animación multi-frame
+                        if getattr(img, "is_animated", False) and img.n_frames > 1:
+                            # Creamos un archivo MP4 temporal para este render en cache
+                            temp_mp4_path = os.path.abspath(os.path.join(cache_chunks, f"converted_media_{i}_{int(time.time())}.mp4"))
+                            
+                            # Si no existe o tiene 0 bytes, convertimos
+                            if not os.path.exists(temp_mp4_path) or os.path.getsize(temp_mp4_path) == 0:
+                                temp_frames_dir = os.path.abspath(os.path.join(cache_chunks, f"temp_frames_{i}_{int(time.time())}"))
+                                os.makedirs(temp_frames_dir, exist_ok=True)
+                                
+                                for frame_idx in range(img.n_frames):
+                                    img.seek(frame_idx)
+                                    frame_rgba = img.convert("RGBA")
+                                    frame_path = os.path.join(temp_frames_dir, f"frame_{frame_idx:03d}.png")
+                                    frame_rgba.save(frame_path)
+                                    
+                                duration_ms = img.info.get("duration", 100)
+                                if duration_ms <= 0:
+                                    duration_ms = 100
+                                fps = 1000.0 / duration_ms
+                                
+                                cmd_conv = [
+                                    "ffmpeg", "-y", "-threads", "2",
+                                    "-f", "image2",
+                                    "-framerate", f"{fps:.2f}",
+                                    "-i", os.path.join(temp_frames_dir, "frame_%03d.png"),
+                                    "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                                    "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+                                    "-an", temp_mp4_path
+                                ]
+                                sub_kwargs_conv = {}
+                                if os.name == 'nt':
+                                    sub_kwargs_conv['creationflags'] = 0x00000040
+                                    
+                                subprocess.run(cmd_conv, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **sub_kwargs_conv)
+                                shutil.rmtree(temp_frames_dir, ignore_errors=True)
+                                
+                            if os.path.exists(temp_mp4_path) and os.path.getsize(temp_mp4_path) > 0:
+                                media_path = temp_mp4_path
+                                item_type = "video"
+                        else:
+                            # Es una imagen estática (GIF/WebP de 1 frame). Convertimos a un JPG limpio temporal
+                            temp_jpg_path = os.path.abspath(os.path.join(cache_chunks, f"converted_media_{i}_{int(time.time())}.jpg"))
+                            if not os.path.exists(temp_jpg_path):
+                                img.convert("RGB").save(temp_jpg_path, "JPEG")
+                            if os.path.exists(temp_jpg_path):
+                                media_path = temp_jpg_path
+                                item_type = "image"
+                    except Exception as conv_err:
+                        print(f">>> [RENDER CONVERSION ERROR] No se pudo desinfectar animación {media_path}: {conv_err}")
+
                 chunk_name = os.path.abspath(os.path.join(cache_chunks, f"chunk_mix_{i:03d}.mp4"))
                 render_dur = dur + 1.0
                 frames = int(render_dur * 30)
@@ -650,6 +707,47 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                         if sub_style == "Reddit History":
                             # En modo Reddit, no queremos el drawtext intermitente gigante
                             fx_chain = f"{strobe_fx},{fx_chain}"
+                        elif sub_style == "Roblox Gaming":
+                            # HOOK ROBLOX GAMING: Texto gaming limpio, estático, sin parpadeo
+                            font_path_roblox = "C\\:/Windows/Fonts/ariblk.ttf"
+                            if not os.path.exists("C:\\Windows\\Fonts\\ariblk.ttf"):
+                                font_path_roblox = "C\\:/Windows/Fonts/arialbd.ttf"
+                                if not os.path.exists("C:\\Windows\\Fonts\\arialbd.ttf"):
+                                    font_path_roblox = "arial"
+                            
+                            if font_path_roblox == "arial":
+                                font_param_roblox = "font='Arial'"
+                            else:
+                                font_param_roblox = f"fontfile='{font_path_roblox}'"
+                            
+                            clean_title_roblox = title.replace("'", "").replace('"', '').replace(":", " ").replace("\\", " ").strip().upper()
+                            words_roblox = clean_title_roblox.split()
+                            # Máximo 5 palabras para el hook (2 líneas de ~3 palabras)
+                            hook_words = words_roblox[:5]
+                            mid = (len(hook_words) + 1) // 2
+                            line1_roblox = " ".join(hook_words[:mid])
+                            line2_roblox = " ".join(hook_words[mid:])
+                            
+                            # Fondo oscuro semitransparente para el hook (drawbox)
+                            hook_bg = "drawbox=x=0:y=(h-320)/2:w=iw:h=320:color=black@0.55:t=fill:enable='between(t\\,0\\,2.5)'"
+                            # Línea 1: texto principal blanco con borde negro grueso
+                            dt1_roblox = (
+                                f"drawtext={font_param_roblox}:text='{line1_roblox}':"
+                                f"fontcolor=white:fontsize=95:borderw=8:bordercolor=black:"
+                                f"x=(w-text_w)/2:y=(h-text_h)/2-55:"
+                                f"enable='between(t\\,0\\,2.5)'"
+                            )
+                            # Línea 2: texto secundario en naranja gaming
+                            if line2_roblox:
+                                dt2_roblox = (
+                                    f"drawtext={font_param_roblox}:text='{line2_roblox}':"
+                                    f"fontcolor=0xFFA500:fontsize=90:borderw=8:bordercolor=black:"
+                                    f"x=(w-text_w)/2:y=(h-text_h)/2+55:"
+                                    f"enable='between(t\\,0\\,2.5)'"
+                                )
+                                fx_chain = f"{fx_chain},{hook_bg},{dt1_roblox},{dt2_roblox}"
+                            else:
+                                fx_chain = f"{fx_chain},{hook_bg},{dt1_roblox}"
                         else:
                             # Buscar fuente disponible en Windows
                             font_path = "C\\:/Windows/Fonts/ariblk.ttf"
@@ -731,7 +829,10 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                                 f"[fg]scale={target_w}:{target_h}:force_original_aspect_ratio=decrease[fg_scaled];"
                                 f"[bg_blur][fg_scaled]overlay=x='(W-w)/2+{sx}':y='(H-h)/2+{sy}',setsar=1/1,setdar=9/16"
                             )
-                        input_opts_list = ["-stream_loop", "-1"]
+                        if media_path.lower().endswith(".gif"):
+                            input_opts_list = ["-ignore_loop", "0"]
+                        else:
+                            input_opts_list = ["-stream_loop", "-1"]
                     else:
                         ze = "1.1+0.004*on"
                         xe_base = f"(iw-iw/zoom)*0.4*(0.8*sin(6*PI*on/30)+0.2*sin(12*PI*on/30))*exp(-1.2*on/30)"
@@ -777,7 +878,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                                 jump_t = dur * 0.6
                                 vf_base = (
                                     f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}:'(iw-ow)/2+{sx}':'(ih-oh)/2+{sy}',"
-                                    f"zoompan=z='if(gte(in_time,{jump_t:.2f}),1.25,1.0)':d=1:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s={target_w}x{target_h}:fps=30"
+                                    f"zoompan=z='if(gte(time,{jump_t:.2f}),1.25,1.0)':d=1:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s={target_w}x{target_h}:fps=30"
                                 )
                             else:
                                 vf_base = f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}:'(iw-ow)/2+{sx}':'(ih-oh)/2+{sy}'"
@@ -790,7 +891,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                                     f"[bg]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},boxblur=15:2[bg_blur];"
                                     f"[fg]scale={target_w}:{target_h}:force_original_aspect_ratio=decrease[fg_scaled];"
                                     f"[bg_blur][fg_scaled]overlay=x='(W-w)/2+{sx}':y='(H-h)/2+{sy}',setsar=1/1,"
-                                    f"zoompan=z='if(gte(in_time,{jump_t:.2f}),1.25,1.0)':d=1:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s={target_w}x{target_h}:fps=30,setdar=9/16"
+                                    f"zoompan=z='if(gte(time,{jump_t:.2f}),1.25,1.0)':d=1:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s={target_w}x{target_h}:fps=30,setdar=9/16"
                                 )
                             else:
                                 vf_base = (
@@ -799,7 +900,10 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                                     f"[fg]scale={target_w}:{target_h}:force_original_aspect_ratio=decrease[fg_scaled];"
                                     f"[bg_blur][fg_scaled]overlay=x='(W-w)/2+{sx}':y='(H-h)/2+{sy}',setsar=1/1,setdar=9/16"
                                 )
-                        input_opts_list = ["-stream_loop", "-1"]
+                        if media_path.lower().endswith(".gif"):
+                            input_opts_list = ["-ignore_loop", "0"]
+                        else:
+                            input_opts_list = ["-stream_loop", "-1"]
                     else:
                         xe_base = f"(iw-iw/zoom)*{xa:.2f}*0.03*(0.8*sin({xf:.1f}*on/30)+0.2*sin({xf*3.14:.1f}*on/30))"
                         ye_base = f"(ih-ih/zoom)*{ya:.2f}*0.03*(0.8*sin({yf:.1f}*on/30+1.57)+0.2*sin({yf*2.71:.1f}*on/30))"
@@ -955,7 +1059,6 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         temp_srt_mirror = os.path.abspath(os.path.join(cache_ass, "temp_subs_final.ass"))
         if srt_path and os.path.exists(srt_path):
             try:
-                import shutil
                 shutil.copy2(srt_path, temp_srt_mirror)
                 time.sleep(0.2)
                 abs_srt = temp_srt_mirror.replace('\\', '/').replace(':', '\\:')
@@ -971,20 +1074,37 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
             final_enc_params = enc_params
 
         cmd_video = ["ffmpeg", "-y", "-threads", "2"] + in_cmd_video + ["-filter_complex", f_s, "-map", f"[{v_l}]"] + final_enc_params + ["-an", "-f", "mpegts", "-t", str(total_visual_dur), body_video_only_ts]
+        err_log = os.path.join(cache_base, "ffmpeg_video_err.log")
         try:
-            subprocess.run(cmd_video, check=True, capture_output=True, text=True, errors='replace', **sub_kwargs)
+            with open(err_log, "w", encoding="utf-8", errors="replace") as f_err:
+                subprocess.run(cmd_video, check=True, stdout=subprocess.DEVNULL, stderr=f_err, **sub_kwargs)
+            safe_remove(err_log)
         except subprocess.CalledProcessError as e:
-            print(f"--- FFMPEG VIDEO ERROR LOG ---\n{e.stderr}\n------------------------")
+            try:
+                with open(err_log, "r", encoding="utf-8", errors="replace") as f_read:
+                    err_text = f_read.read()
+            except:
+                err_text = "No se pudo leer el archivo de log."
+            safe_remove(err_log)
+            print(f"--- FFMPEG VIDEO ERROR LOG ---\n{err_text}\n------------------------")
             if final_enc_params != cpu_params:
                 print("Video-only render with hardware encoder failed. Retrying with CPU fallback...")
                 cmd_video_fallback = ["ffmpeg", "-y", "-threads", "2"] + in_cmd_video + ["-filter_complex", f_s, "-map", f"[{v_l}]"] + cpu_params + ["-an", "-f", "mpegts", "-t", str(total_visual_dur), body_video_only_ts]
                 try:
-                    subprocess.run(cmd_video_fallback, check=True, capture_output=True, text=True, errors='replace', **sub_kwargs)
+                    with open(err_log, "w", encoding="utf-8", errors="replace") as f_err2:
+                        subprocess.run(cmd_video_fallback, check=True, stdout=subprocess.DEVNULL, stderr=f_err2, **sub_kwargs)
+                    safe_remove(err_log)
                 except subprocess.CalledProcessError as e_fallback:
-                    print(f"--- FFMPEG VIDEO FALLBACK ERROR LOG ---\n{e_fallback.stderr}\n------------------------")
-                    raise Exception(f"Fallo en renderizado de video FFmpeg (Fallback CPU también falló): {e_fallback.stderr[:100]}")
+                    try:
+                        with open(err_log, "r", encoding="utf-8", errors="replace") as f_read2:
+                            err_text_fallback = f_read2.read()
+                    except:
+                        err_text_fallback = "No se pudo leer el archivo de log."
+                    safe_remove(err_log)
+                    print(f"--- FFMPEG VIDEO FALLBACK ERROR LOG ---\n{err_text_fallback}\n------------------------")
+                    raise Exception(f"Fallo en renderizado de video FFmpeg (Fallback CPU también falló): {err_text_fallback[:100]}")
             else:
-                raise Exception(f"Fallo en renderizado de video FFmpeg: {e.stderr[:100]}")
+                raise Exception(f"Fallo en renderizado de video FFmpeg: {err_text[:100]}")
 
         # --- PASO 2/2: COMPOSICIÓN Y MEZCLA DE AUDIOS ---
         if status_callback: status_callback("🎚️ PASO 2/2: MEZCLANDO Y SINCRONIZANDO AUDIO...", "#FFD700")
@@ -1065,12 +1185,23 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
             a_m += f"[{n_x}:a]volume={0.9 * vol_sfx_mult:.2f},adelay={delay_ms}|{delay_ms}[sfx{n_x}];"
             a_i += f"[sfx{n_x}]"; a_c += 1; n_x += 1
 
-        midpoint_sfx = os.path.abspath(os.path.join(os.getcwd(), "assets", "audio", "transitions", "real_glitch.mp3"))
-        if os.path.exists(midpoint_sfx):
+        midpoint_candidates = [
+            os.path.abspath(os.path.join(os.getcwd(), "assets", "audio", "transitions", "real_glitch.mp3")),
+            os.path.abspath(os.path.join(os.getcwd(), "assets", "audio", "transitions", "real_boom.mp3")),
+            os.path.abspath(os.path.join(os.getcwd(), "assets", "audio", "transitions", "real_impact.mp3")),
+            os.path.abspath(os.path.join(os.getcwd(), "assets", "audio", "transitions", "real_whoosh.mp3")),
+            os.path.abspath(os.path.join(os.getcwd(), "assets", "audio", "sfx", "scream.mp3")),
+            os.path.abspath(os.path.join(os.getcwd(), "assets", "audio", "sfx", "whisper.mp3")),
+            os.path.abspath(os.path.join(os.getcwd(), "assets", "audio", "sfx", "heartbeat.mp3")),
+            os.path.abspath(os.path.join(os.getcwd(), "assets", "audio", "sfx", "breathing.mp3"))
+        ]
+        midpoint_pool = [p for p in midpoint_candidates if os.path.exists(p)]
+        if midpoint_pool:
+            midpoint_sfx = random.choice(midpoint_pool)
             mid_t = total_visual_dur * 0.48
             in_cmd_audio.extend(["-i", midpoint_sfx])
             delay_ms = int(mid_t * 1000)
-            a_m += f"[{n_x}:a]volume={1.4 * vol_sfx_mult:.2f},adelay={delay_ms}|{delay_ms}[mid_sfx];"
+            a_m += f"[{n_x}:a]atrim=0:2.5,asetpts=PTS-STARTPTS,afade=t=out:st=1.5:d=1.0,volume={1.4 * vol_sfx_mult:.2f},adelay={delay_ms}|{delay_ms}[mid_sfx];"
             a_i += "[mid_sfx]"
             a_c += 1
             n_x += 1
@@ -1078,11 +1209,20 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         a_m = a_m.strip(";") + f";{a_i}amix=inputs={a_c}:duration=longest:normalize=0[af]"
         
         cmd_audio_merge = ["ffmpeg", "-y", "-threads", "2"] + in_cmd_audio + ["-filter_complex", a_m, "-map", "0:v", "-map", "[af]", "-c:v", "copy", "-c:a", "aac", "-ac", "2", "-ar", "44100", "-f", "mpegts", "-t", str(total_visual_dur), body_ts]
+        err_audio_log = os.path.join(cache_base, "ffmpeg_audio_err.log")
         try:
-            subprocess.run(cmd_audio_merge, check=True, capture_output=True, text=True, errors='replace', **sub_kwargs)
+            with open(err_audio_log, "w", encoding="utf-8", errors="replace") as f_err:
+                subprocess.run(cmd_audio_merge, check=True, stdout=subprocess.DEVNULL, stderr=f_err, **sub_kwargs)
+            safe_remove(err_audio_log)
         except subprocess.CalledProcessError as e:
-            print(f"--- FFMPEG AUDIO MERGE ERROR LOG ---\n{e.stderr}\n------------------------")
-            raise Exception(f"Fallo en mezcla final de audio FFmpeg: {e.stderr[:200]}")
+            try:
+                with open(err_audio_log, "r", encoding="utf-8", errors="replace") as f_read:
+                    err_text = f_read.read()
+            except:
+                err_text = "No se pudo leer el archivo de log."
+            safe_remove(err_audio_log)
+            print(f"--- FFMPEG AUDIO MERGE ERROR LOG ---\n{err_text}\n------------------------")
+            raise Exception(f"Fallo en mezcla final de audio FFmpeg: {err_text[:200]}")
 
         # FINAL CON GESTIÓN DE PERMISOS
         if status_callback: status_callback("💾 GUARDANDO RENDER MIX...", "#00FF41")
@@ -1098,11 +1238,20 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                 if counter > 10: break
 
         cmd_final = ["ffmpeg", "-y", "-threads", "2", "-i", body_ts, "-c", "copy", v_final]
+        err_final_log = os.path.join(cache_base, "ffmpeg_final_err.log")
         try:
-            subprocess.run(cmd_final, check=True, capture_output=True, text=True, errors='replace', **sub_kwargs)
+            with open(err_final_log, "w", encoding="utf-8", errors="replace") as f_err:
+                subprocess.run(cmd_final, check=True, stdout=subprocess.DEVNULL, stderr=f_err, **sub_kwargs)
+            safe_remove(err_final_log)
         except subprocess.CalledProcessError as e:
-            print(f"--- FFMPEG FINAL REMUX ERROR LOG ---\n{e.stderr}\n------------------------")
-            raise Exception(f"Fallo en copia final de video FFmpeg: {e.stderr[:200]}")
+            try:
+                with open(err_final_log, "r", encoding="utf-8", errors="replace") as f_read:
+                    err_text = f_read.read()
+            except:
+                err_text = "No se pudo leer el archivo de log."
+            safe_remove(err_final_log)
+            print(f"--- FFMPEG FINAL REMUX ERROR LOG ---\n{err_text}\n------------------------")
+            raise Exception(f"Fallo en copia final de video FFmpeg: {err_text[:200]}")
 
         # Guardar título y descripción en un archivo .txt complementario
         try:
@@ -1136,12 +1285,12 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         except Exception as e_dubs:
             print(f"Error en auto-generación de doblajes: {e_dubs}")
 
-        return True
+        return v_final
     except Exception as e:
         import traceback
         traceback.print_exc()
         if status_callback: status_callback(f"🛑 Error Mix: {str(e)[:50]}", "red")
-        return False
+        return None
 
 def auto_generate_translated_dubs(audio_path, music_path, vol_voice, vol_music, output_folder, safe_title, title="", description="", status_callback=None, project_dir=None):
     try:

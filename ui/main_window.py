@@ -16,6 +16,7 @@ from ui.tabs.concept_tab import ConceptTab
 from ui.tabs.visual_tab import VisualTab
 from ui.tabs.long_tab import LongTab
 from ui.tabs.voice_tab import VoiceTab
+from ui.tabs.comparator_tab import ComparatorTab
 from core.project_manager import ProjectManager
 from ui.tabs.cover_tab import CoverTab
 from ui.config_editor import ConfigEditor
@@ -84,6 +85,8 @@ class MainWindow(ctk.CTk):
         self.google_api_key = self.settings.get("google_api_key", "")
         self.groq_api_key = self.settings.get("groq_api_key", "")
         self.pexels_api_key = self.settings.get("pexels_api_key", "")
+        self.tiktok_client_key = self.settings.get("tiktok_client_key", "")
+        self.tiktok_client_secret = self.settings.get("tiktok_client_secret", "")
         self.llm_provider = self.settings.get("llm_provider", "gemini")
         
         # Inicialización de Core (Asegurar que existan las rutas)
@@ -118,7 +121,7 @@ class MainWindow(ctk.CTk):
 
     def preload_all_views(self):
         """Ejecuta la precarga y luego restaura la sesión guardada"""
-        modules = ["concept", "visuals", "cover", "voice_gen", "media", "long_form"]
+        modules = ["concept", "visuals", "cover", "voice_gen", "media", "long_form", "comparator"]
         for mod in modules:
             if mod not in self.view_cache:
                 self.show_view(mod, silent=True)
@@ -139,6 +142,8 @@ class MainWindow(ctk.CTk):
         self.settings["google_api_key"] = self.google_api_key
         self.settings["groq_api_key"] = self.groq_api_key
         self.settings["pexels_api_key"] = self.pexels_api_key
+        self.settings["tiktok_client_key"] = self.tiktok_client_key
+        self.settings["tiktok_client_secret"] = self.tiktok_client_secret
         self.settings["llm_provider"] = self.llm_provider
         with open(self.settings_file, "w") as f:
             json.dump(self.settings, f)
@@ -309,6 +314,8 @@ class MainWindow(ctk.CTk):
                 self.view_cache["voice_gen"] = VoiceTab(self.content_area, main_window=self)
             elif view_name == "long_form":
                 self.view_cache["long_form"] = LongTab(self.content_area, main_window=self)
+            elif view_name == "comparator":
+                self.view_cache["comparator"] = ComparatorTab(self.content_area, main_window=self)
             
             # Ubicar en el grid fijo (todas las capas existen simultáneamente)
             if view_name in self.view_cache:

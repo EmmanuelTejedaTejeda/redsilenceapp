@@ -63,9 +63,15 @@ def download_roblox_media(game_name, limit=10, media_type="images", output_dir=N
     
     is_gif = (media_type == "gifs" or media_type == "animations")
     if is_gif:
-        query = f"Roblox {game_name} horror gif"
+        if any(h in game_name.lower() for h in ["horror", "scary", "terror", "creepy"]):
+            query = f"{game_name} gif"
+        else:
+            query = f"{game_name} horror gif"
     else:
-        query = f"Roblox {game_name} horror gameplay screenshots"
+        if any(h in game_name.lower() for h in ["horror", "scary", "terror", "creepy"]):
+            query = f"{game_name} gameplay screenshots"
+        else:
+            query = f"{game_name} horror gameplay screenshots"
         
     if status_callback:
         status_callback(f"🔍 Buscando {media_type} de '{game_name}'...", "#FFD700")
@@ -104,7 +110,7 @@ def download_roblox_media(game_name, limit=10, media_type="images", output_dir=N
         # Reintento con consulta fallback simplificada si no se encontraron imágenes
         if not results:
             time.sleep(1.0)
-            query_fallback = f"Roblox {game_name} gameplay"
+            query_fallback = f"{game_name} gameplay"
             for attempt in range(max_retries):
                 try:
                     with DDGS() as ddgs:
@@ -173,6 +179,58 @@ def download_roblox_media(game_name, limit=10, media_type="images", output_dir=N
                 with open(filepath, "wb") as f:
                     f.write(response.read())
             if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+                # Si es una animación, la convertimos a MP4 para máxima compatibilidad
+                if is_gif:
+                    try:
+                        from PIL import Image
+                        import shutil
+                        import subprocess
+                        
+                        img = Image.open(filepath)
+                        if getattr(img, "is_animated", False) and img.n_frames > 1:
+                            if status_callback:
+                                status_callback(f"⚙️ Optimizando animación Roblox {count+1}/{limit}...", "#FFD700")
+                            
+                            # Extraer frames a carpeta temporal
+                            temp_frames_dir = os.path.abspath(os.path.join(output_dir, f"temp_frames_{count}_{int(time.time())}"))
+                            os.makedirs(temp_frames_dir, exist_ok=True)
+                            
+                            for frame_idx in range(img.n_frames):
+                                img.seek(frame_idx)
+                                frame_rgba = img.convert("RGBA")
+                                frame_path = os.path.join(temp_frames_dir, f"frame_{frame_idx:03d}.png")
+                                frame_rgba.save(frame_path)
+                                
+                            duration_ms = img.info.get("duration", 100)
+                            if duration_ms <= 0:
+                                duration_ms = 100
+                            fps = 1000.0 / duration_ms
+                            
+                            mp4_filepath = filepath.rsplit(".", 1)[0] + ".mp4"
+                            cmd_conv = [
+                                "ffmpeg", "-y", "-threads", "2",
+                                "-f", "image2",
+                                "-framerate", f"{fps:.2f}",
+                                "-i", os.path.join(temp_frames_dir, "frame_%03d.png"),
+                                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                                "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+                                "-an", mp4_filepath
+                            ]
+                            
+                            sub_kwargs = {}
+                            if os.name == 'nt':
+                                sub_kwargs['creationflags'] = 0x00000040
+                                
+                            subprocess.run(cmd_conv, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **sub_kwargs)
+                            shutil.rmtree(temp_frames_dir, ignore_errors=True)
+                            
+                            if os.path.exists(mp4_filepath) and os.path.getsize(mp4_filepath) > 0:
+                                try: os.remove(filepath)
+                                except: pass
+                                filepath = mp4_filepath
+                    except Exception as conv_err:
+                        print(f">>> [ROBLOX SOURCING] Error convirtiendo animación a MP4: {conv_err}")
+                
                 downloaded_paths.append({
                     "path": filepath,
                     "type": "video" if is_gif else "image",

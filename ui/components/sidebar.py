@@ -54,7 +54,8 @@ class Sidebar(ctk.CTkFrame):
             ("📸", "cover", "DISEÑO DE PORTADA"),
             ("🎙️", "voice_gen", "GENERACIÓN DE VOZ (TTS)"),
             ("🎬", "media", "NARRATIVA Y AUDIO ENGINE"),
-            ("📽️", "long_form", "VIDEOS LARGOS 16:9")
+            ("📽️", "long_form", "VIDEOS LARGOS 16:9"),
+            ("📊", "comparator", "BENCHMARK ESTRATÉGICO")
         ]
         
         for icon, view, tip in items:

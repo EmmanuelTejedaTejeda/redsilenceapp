@@ -12,6 +12,7 @@ import re
 try:
     from modules.video_render import render_final_video
     from modules.youtube_uploader import upload_video
+    from modules.tiktok_uploader import upload_video_tiktok
 except ImportError:
     pass
 
@@ -56,6 +57,7 @@ class MediaTab(ctk.CTkFrame):
             self.image_labels = {}
             self.last_render_path = ""
             self.thumbnail_queue = queue.Queue()
+            self.last_processed_story = ""
 
             self.setup_ui()
             
@@ -132,8 +134,6 @@ class MediaTab(ctk.CTkFrame):
         # --- DISEÑO SONORO (BGM) ---
         card_m = self.create_card(parent, "AMBIENTACIÓN (BGM)")
         self.var_music = ctk.BooleanVar(value=True)
-        ctk.CTkCheckBox(card_m, text="ACTIVO", variable=self.var_music, 
-                        fg_color=COLOR_ACCENT, border_width=2, font=("Inter", 10, "bold")).pack(anchor="w", padx=15, pady=5)
         
         self.combo_music = ctk.CTkComboBox(card_m, values=["Cargando..."], command=self.on_music_manual_select,
                                            fg_color="#050505", border_color="#181818", button_color="#111", 
@@ -150,7 +150,7 @@ class MediaTab(ctk.CTkFrame):
 
         # --- ESTILO DE SUBTÍTULOS ---
         card_sub = self.create_card(parent, "ESTILO DE SUBTÍTULOS")
-        self.combo_sub_style = ctk.CTkComboBox(card_sub, values=["TikTok / Hormozi", "Reddit History"],
+        self.combo_sub_style = ctk.CTkComboBox(card_sub, values=["TikTok / Hormozi", "Reddit History", "Roblox Gaming"],
                                                fg_color="#050505", border_color="#181818", button_color="#111", 
                                                text_color="white", font=("Inter", 11), height=35)
         self.combo_sub_style.pack(fill="x", padx=15, pady=(5, 15))
@@ -197,10 +197,15 @@ class MediaTab(ctk.CTkFrame):
                                         corner_radius=12, command=self.on_render_click)
         self.btn_render.pack(side="left")
         
-        self.btn_upload = ctk.CTkButton(action_bar, text="SUBIR A SHORTS", width=180, height=60,
+        self.btn_upload = ctk.CTkButton(action_bar, text="📤 SUBIR A YOUTUBE", width=160, height=60,
                                         fg_color="#002211", text_color="#00FF66", state="disabled", 
-                                        font=("Arial", 13, "bold"), corner_radius=12, command=self.on_upload_click)
+                                        font=("Arial", 12, "bold"), corner_radius=12, command=self.on_upload_click)
         self.btn_upload.pack(side="left", padx=(15, 0))
+        
+        self.btn_upload_tiktok = ctk.CTkButton(action_bar, text="🎵 SUBIR A TIKTOK", width=160, height=60,
+                                               fg_color="#1F001F", text_color="#FE2C55", state="disabled", 
+                                               font=("Arial", 12, "bold"), corner_radius=12, command=self.on_tiktok_upload_click)
+        self.btn_upload_tiktok.pack(side="left", padx=(15, 0))
 
         # --- SORT BAR (Pack above action bar) ---
         sort_bar = ctk.CTkFrame(parent, fg_color="transparent")
@@ -226,7 +231,7 @@ class MediaTab(ctk.CTkFrame):
         self.btn_gameplay.pack(side="left", padx=5)
         
         btn_r = {"height": 28, "font": ("Inter", 10, "bold"), "fg_color": "#00FF66", "hover_color": "#00C853", "text_color": "black"}
-        self.btn_roblox = ctk.CTkButton(tool_bar, text="👾 AUTO ROBLOX", command=self.open_roblox_dialog, **btn_r)
+        self.btn_roblox = ctk.CTkButton(tool_bar, text="⚡ AUTO GENERAL", command=self.open_roblox_dialog, **btn_r)
         self.btn_roblox.pack(side="left", padx=5)
         
         ctk.CTkButton(tool_bar, text="🖼️ PORTADA", command=self.select_cover, **btn_s).pack(side="left", padx=5)
@@ -359,7 +364,7 @@ class MediaTab(ctk.CTkFrame):
                         thumb_path = os.path.join(temp_dir, f"vthumb_{safe_name}_{os.path.getsize(path)}.jpg")
                         if not os.path.exists(thumb_path):
                             subprocess.run(["ffmpeg", "-y", "-i", path, "-ss", "0.5", "-vframes", "1", "-f", "image2", thumb_path], 
-                                         capture_output=True, creationflags=0x08000000)
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=0x08000000)
                         pil_img = Image.open(thumb_path)
                     else:
                         pil_img = Image.open(path)
@@ -555,15 +560,13 @@ class MediaTab(ctk.CTkFrame):
                     suggested_dur = dur
             except:
                 pass
-        import tkinter.messagebox as msgbox
-        if self.mixed_media:
-            if not msgbox.askyesno("Confirmar importación", "¿Deseas vaciar la línea de tiempo actual para importar los recursos de Roblox?"):
-                return
-        RobloxSourcingDialog(self, suggested_dur)
+        AutoGeneralDialog(self, suggested_dur)
 
     def run_roblox_sourcing_flow(self, game_name, duration, get_gameplay, get_images, get_gifs):
         self.btn_roblox.configure(state="disabled", text="PROCESANDO... ⏳")
-        self.lbl_status.configure(text="👾 INICIANDO DESCARGA AUTOMÁTICA DE MEDIOS ROBLOX...", text_color="#00FF66")
+        self.lbl_status.configure(text="⚡ INICIANDO DESCARGA AUTOMÁTICA DE MEDIOS GENERALES...", text_color="#00FF66")
+        self.mixed_media = []
+        self.refresh_grid()
         all_new_media = []
         try:
             download_dir = self.img_download_folder
@@ -571,7 +574,7 @@ class MediaTab(ctk.CTkFrame):
             if get_gameplay:
                 cache_dir = os.path.join(os.getcwd(), "cache", "gameplays")
                 os.makedirs(cache_dir, exist_ok=True)
-                query_str = f"Roblox {game_name} gameplay long no commentary"
+                query_str = f"{game_name} gameplay long no commentary"
                 clean_name = re.sub(r'[^a-zA-Z0-9_]', '', query_str[:30].replace(' ', '_').lower())
                 local_video_path = None
                 for file in os.listdir(cache_dir):
@@ -581,29 +584,29 @@ class MediaTab(ctk.CTkFrame):
                 if local_video_path and os.path.exists(local_video_path):
                     self.update_render_status("♻️ USANDO VIDEO DE GAMEPLAY EN CACHÉ LOCAL", "#00FF66")
                 else:
-                    self.update_render_status("🌐 Descargando gameplay de YouTube para Roblox...", "#FFD700")
+                    self.update_render_status(f"🌐 Descargando gameplay para '{game_name}'...", "#FFD700")
                     from modules.gameplay_sourcing import download_youtube_gameplay
                     local_video_path = download_youtube_gameplay(query_str, cache_dir, status_callback=self.update_render_status)
                 if local_video_path and os.path.exists(local_video_path):
-                    self.update_render_status("✂️ Segmentando gameplay de Roblox...", "#FF9100")
+                    self.update_render_status("✂️ Segmentando gameplay...", "#FF9100")
                     from modules.gameplay_sourcing import slice_video_segments
                     clips = slice_video_segments(local_video_path, duration, download_dir, aspect_ratio=self.video_format, status_callback=self.update_render_status)
                     if clips:
                         all_new_media.extend(clips)
             if get_images:
-                self.update_render_status("🖼️ Buscando y descargando imágenes de Roblox...", "#FFD700")
+                self.update_render_status(f"🖼️ Buscando y descargando imágenes de '{game_name}'...", "#FFD700")
                 from modules.roblox_sourcing import download_roblox_media
                 images = download_roblox_media(game_name, limit=8, media_type="images", output_dir=download_dir, status_callback=self.update_render_status)
                 if images:
                     all_new_media.extend(images)
             if get_gifs:
-                self.update_render_status("🎬 Buscando y descargando GIFs de sustos y animaciones...", "#FFD700")
+                self.update_render_status(f"🎬 Buscando y descargando GIFs de '{game_name}'...", "#FFD700")
                 from modules.roblox_sourcing import download_roblox_media
                 gifs = download_roblox_media(game_name, limit=4, media_type="gifs", output_dir=download_dir, status_callback=self.update_render_status)
                 if gifs:
                     all_new_media.extend(gifs)
             if not all_new_media:
-                raise Exception("No se pudo descargar ningún medio para este juego.")
+                raise Exception("No se pudo descargar ningún medio para este tema.")
             gameplays = [m for m in all_new_media if m.get("path", "").endswith(('.mp4', '.mov', '.avi', '.mkv', '.webm')) and "gif" not in m.get("path", "").lower()]
             statics = [m for m in all_new_media if m.get("type") == "image"]
             animated_gifs = [m for m in all_new_media if "gif" in m.get("path", "").lower()]
@@ -621,13 +624,13 @@ class MediaTab(ctk.CTkFrame):
             self.mixed_media = final_timeline
             self.after(0, self.refresh_grid)
             self.after(0, self.check_ready_state)
-            self.after(0, lambda: self.update_render_status("✨ ¡RECURSOS DE ROBLOX IMPORTADOS CON ÉXITO!", "#00FF66"))
+            self.after(0, lambda: self.update_render_status("✨ ¡RECURSOS MULTIMEDIA IMPORTADOS CON ÉXITO!", "#00FF66"))
         except Exception as e:
             import traceback
             traceback.print_exc()
-            self.after(0, lambda err=str(e): self.update_render_status(f"🛑 Error en Roblox Sourcing: {err[:40]}", "red"))
+            self.after(0, lambda err=str(e): self.update_render_status(f"🛑 Error en Sourcing: {err[:40]}", "red"))
         finally:
-            self.after(0, lambda: self.btn_roblox.configure(state="normal", text="👾 AUTO ROBLOX"))
+            self.after(0, lambda: self.btn_roblox.configure(state="normal", text="⚡ AUTO GENERAL"))
 
     def open_gameplay_dialog(self):
         import tkinter.messagebox as msgbox
@@ -832,11 +835,13 @@ class MediaTab(ctk.CTkFrame):
             if os.path.exists(potential_path):
                 self.last_render_path = potential_path
                 self.btn_upload.configure(state="normal", fg_color=COLOR_SUCCESS)
+                self.btn_upload_tiktok.configure(state="normal", fg_color="#1F001F")
                 if not self.audio_path or not self.mixed_media:
                     self.lbl_status.configure(text="📽️ RENDER DETECTADO (LISTO PARA SUBIR)", text_color=COLOR_SUCCESS)
             else:
                 if not hasattr(self, 'uploading') or not self.uploading:
                     self.btn_upload.configure(state="disabled", fg_color="#222")
+                    self.btn_upload_tiktok.configure(state="disabled", fg_color="#222")
 
     def animate_pulse_render(self):
         if not hasattr(self, 'render_btn_pulsing') or not self.render_btn_pulsing:
@@ -903,7 +908,7 @@ class MediaTab(ctk.CTkFrame):
         try:
             if os.name == 'nt':
                 subprocess.run(["taskkill", "/F", "/IM", "ffplay.exe", "/T"], 
-                               capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW)
         except: pass
 
     def play_preview(self):
@@ -941,7 +946,7 @@ class MediaTab(ctk.CTkFrame):
         try:
             if os.name == 'nt':
                 subprocess.run(["taskkill", "/F", "/IM", "ffplay.exe", "/T"], 
-                               capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW)
         except: pass
 
     def get_active_media(self):
@@ -994,7 +999,7 @@ class MediaTab(ctk.CTkFrame):
                 os.makedirs(local_renders_dir, exist_ok=True)
                 render_dest_folder = local_renders_dir
                 
-            success = render_final_video(
+            render_result = render_final_video(
                 audio_path=self.audio_path,
                 images_paths=active_list,
                 cover_path=self.cover_path,
@@ -1016,15 +1021,16 @@ class MediaTab(ctk.CTkFrame):
                 vol_sfx=vol_sfx
             )
             
-            if success:
+            if render_result:
                 self.update_render_status("✨ ¡RENDERIZADO EXITOSO!", COLOR_SUCCESS)
                 
-                # Ruta del render dentro del proyecto (o fallback en output_folder)
-                self.last_render_path = os.path.join(render_dest_folder, f"{safe_title}.mp4")
+                # Ruta del render real retornado por el motor
+                self.last_render_path = render_result
                 
                 # 2. Copiar el render al directorio de salida externo si está configurado y es diferente
                 if project_id and os.path.exists(self.last_render_path):
-                    external_path = os.path.join(output_folder, f"{safe_title}.mp4")
+                    generated_filename = os.path.basename(self.last_render_path)
+                    external_path = os.path.join(output_folder, generated_filename)
                     if os.path.abspath(self.last_render_path) != os.path.abspath(external_path):
                         try:
                             import shutil
@@ -1043,6 +1049,7 @@ class MediaTab(ctk.CTkFrame):
 
                 # Habilitar botones de acción
                 self.after(0, lambda: self.btn_upload.configure(state="normal", fg_color=COLOR_SUCCESS))
+                self.after(0, lambda: self.btn_upload_tiktok.configure(state="normal", fg_color="#1F001F"))
                 
                 # Crear botón dinámico para abrir el archivo si no existe
                 if not hasattr(self, 'btn_open_result'):
@@ -1131,9 +1138,19 @@ class MediaTab(ctk.CTkFrame):
         if not self.last_render_path or not os.path.exists(self.last_render_path):
             # Intentar re-detectar por si el usuario cambió el título
             title = self.entry_title.get().strip()
-            safe_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c==' ']).rstrip().replace(" ", "_")
+            safe_title = "".join([c for c in title if c.isalnum() or c==' ']).rstrip().replace(" ", "_")
             output_folder = getattr(self.main, "ruta_drive", os.path.join(os.getcwd(), "dist"))
-            self.last_render_path = os.path.join(output_folder, f"{safe_title}.mp4")
+            
+            # Buscar el archivo más reciente que coincida con safe_title*.mp4
+            import glob
+            search_pattern = os.path.join(output_folder, f"{safe_title}*.mp4")
+            found_files = glob.glob(search_pattern)
+            if found_files:
+                found_files.sort(key=os.path.getmtime, reverse=True)
+                self.last_render_path = found_files[0]
+                print(f">>> [UPLOAD] Detectado archivo coincidente reciente para subir: {self.last_render_path}")
+            else:
+                self.last_render_path = os.path.join(output_folder, f"{safe_title}.mp4")
 
         if not os.path.exists(self.last_render_path):
             self.update_render_status("❌ NO SE ENCONTRÓ EL ARCHIVO MP4", "red")
@@ -1141,6 +1158,7 @@ class MediaTab(ctk.CTkFrame):
         
         self.uploading = True
         self.btn_upload.configure(state="disabled", text="SUBIENDO... 🚀")
+        self.btn_upload_tiktok.configure(state="disabled")
         title = self.entry_title.get().strip() or "Terror Short"
         desc = self.txt_desc.get("0.0", "end").strip()
         tags = self.entry_tags.get().strip()
@@ -1158,21 +1176,74 @@ class MediaTab(ctk.CTkFrame):
             )
             
             if success:
-                self.update_render_status(f"✅ SUBIDO: youtube.com/watch?v={result}", COLOR_SUCCESS)
+                self.update_render_status(f"✅ SUBIDO YOUTUBE: youtube.com/watch?v={result}", COLOR_SUCCESS)
                 # Abrir en navegador
                 import webbrowser
                 webbrowser.open(f"https://www.youtube.com/watch?v={result}")
             else:
-                self.update_render_status(f"❌ ERROR SUBIDA: {result[:40]}", "red")
+                self.update_render_status(f"❌ ERROR SUBIDA YOUTUBE: {result[:40]}", "red")
                 if "No se encontró el archivo de credenciales" in result:
                      import tkinter.messagebox as msgbox
                      msgbox.showwarning("Faltan Credenciales", "Debes colocar 'client_secrets.json' en la carpeta 'config/' para subir a YouTube.")
                 
         except Exception as e:
-            self.update_render_status(f"UPLOAD ERROR: {e}", "red")
+            self.update_render_status(f"UPLOAD ERROR YOUTUBE: {e}", "red")
             
         self.uploading = False
-        self.after(0, lambda: self.btn_upload.configure(state="normal", text="📤 SUBIR A SHORTS"))
+        self.after(0, lambda: self.btn_upload.configure(state="normal", text="📤 SUBIR A YOUTUBE"))
+        self.after(0, lambda: self.btn_upload_tiktok.configure(state="normal", text="🎵 SUBIR A TIKTOK"))
+
+    def on_tiktok_upload_click(self):
+        if not self.last_render_path or not os.path.exists(self.last_render_path):
+            # Intentar re-detectar por si el usuario cambió el título
+            title = self.entry_title.get().strip()
+            safe_title = "".join([c for c in title if c.isalnum() or c==' ']).rstrip().replace(" ", "_")
+            output_folder = getattr(self.main, "ruta_drive", os.path.join(os.getcwd(), "dist"))
+            
+            import glob
+            search_pattern = os.path.join(output_folder, f"{safe_title}*.mp4")
+            found_files = glob.glob(search_pattern)
+            if found_files:
+                found_files.sort(key=os.path.getmtime, reverse=True)
+                self.last_render_path = found_files[0]
+            else:
+                self.last_render_path = os.path.join(output_folder, f"{safe_title}.mp4")
+
+        if not os.path.exists(self.last_render_path):
+            self.update_render_status("❌ NO SE ENCONTRÓ EL ARCHIVO MP4", "red")
+            return
+        
+        self.uploading = True
+        self.btn_upload.configure(state="disabled")
+        self.btn_upload_tiktok.configure(state="disabled", text="SUBIENDO... 🚀")
+        title = self.entry_title.get().strip() or "Terror Short"
+        
+        threading.Thread(target=self.run_tiktok_upload, args=(self.last_render_path, title), daemon=True).start()
+
+    def run_tiktok_upload(self, file_path, title):
+        try:
+            # Subir a TikTok
+            success, result = upload_video_tiktok(
+                file_path=file_path,
+                title=title,
+                status_callback=self.update_render_status,
+                upload_mode="publish"
+            )
+            
+            if success:
+                self.update_render_status(f"✅ SUBIDO TIKTOK: {result[:40]}", COLOR_SUCCESS)
+            else:
+                self.update_render_status(f"❌ ERROR TIKTOK: {result[:40]}", "red")
+                if "Falta configurar TikTok" in result:
+                    import tkinter.messagebox as msgbox
+                    msgbox.showwarning("Faltan Credenciales", "Debes configurar TikTok Client Key y Client Secret en los Ajustes.")
+                
+        except Exception as e:
+            self.update_render_status(f"TIKTOK UPLOAD ERROR: {e}", "red")
+            
+        self.uploading = False
+        self.after(0, lambda: self.btn_upload.configure(state="normal", text="📤 SUBIR A YOUTUBE"))
+        self.after(0, lambda: self.btn_upload_tiktok.configure(state="normal", text="🎵 SUBIR A TIKTOK"))
 
 
     # --- PROJECT MANAGEMENT ---
@@ -1259,6 +1330,31 @@ class MediaTab(ctk.CTkFrame):
                 self.lbl_audio_name.configure(text=f"AUDIO ACTIVO: {os.path.basename(self.audio_path)[:25]}", text_color=COLOR_SUCCESS)
                 self.btn_audio.configure(border_color=COLOR_SUCCESS)
                 self.check_ready_state()
+
+        # --- NEW: AUTO CONFIGURATION ON NEW STORY ---
+        current_story = getattr(self.main, "generated_story", "")
+        current_title = getattr(self.main, "generated_title", "")
+        
+        if current_story and current_story != self.last_processed_story:
+            self.last_processed_story = current_story
+            
+            # 1. Reroll silencioso de música
+            self.reroll_music(silent=True)
+            
+            # 2. Configurar estilo de subtítulos inteligente
+            script_lower = current_story.lower()
+            title_lower = current_title.lower()
+            roblox_game = getattr(self.main, "roblox_game_name", "")
+            
+            if roblox_game and "roblox" in roblox_game.lower():
+                self.combo_sub_style.set("Roblox Gaming")
+                print(f">>> [AUTO CONFIG] Seleccionado estilo de subtítulos 'Roblox Gaming' (Juego detectado: {roblox_game})")
+            elif "reddit" in script_lower or "reddit" in title_lower:
+                self.combo_sub_style.set("Reddit History")
+                print(">>> [AUTO CONFIG] Seleccionado estilo de subtítulos 'Reddit History' (Contexto Reddit detectado)")
+            else:
+                self.combo_sub_style.set("TikTok / Hormozi")
+                print(">>> [AUTO CONFIG] Seleccionado estilo de subtítulos 'TikTok / Hormozi' (Narrativa estándar)")
 
 class GameplaySourcingDialog(ctk.CTkToplevel):
     def __init__(self, parent_tab, default_duration):
@@ -1363,11 +1459,11 @@ class GameplaySourcingDialog(ctk.CTkToplevel):
         threading.Thread(target=self.tab.run_gameplay_sourcing, args=(search_str, dur, aspect_ratio), daemon=True).start()
 
 
-class RobloxSourcingDialog(ctk.CTkToplevel):
+class AutoGeneralDialog(ctk.CTkToplevel):
     def __init__(self, parent_tab, default_duration):
         super().__init__(parent_tab)
         self.tab = parent_tab
-        self.title("ASISTENTE MULTIMEDIA ROBLOX")
+        self.title("ASISTENTE MULTIMEDIA GENERAL")
         self.geometry("520x460")
         self.configure(fg_color="#0F0F0F")
         self.transient(parent_tab)
@@ -1388,36 +1484,36 @@ class RobloxSourcingDialog(ctk.CTkToplevel):
         
         self.setup_ui(default_duration)
         import threading
-        threading.Thread(target=self.async_detect_game, daemon=True).start()
+        threading.Thread(target=self.async_detect_theme, daemon=True).start()
         
     def setup_ui(self, default_duration):
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.pack(fill="x", padx=30, pady=(25, 15))
-        ctk.CTkLabel(header, text="ROBLOX MEDIA ASSISTANT", font=("Impact", 22), text_color="#00FF66").pack(side="left")
+        ctk.CTkLabel(header, text="GENERAL MEDIA ASSISTANT", font=("Impact", 22), text_color="#00FF66").pack(side="left")
         
         self.card = ctk.CTkFrame(self, fg_color="#141414", corner_radius=10, border_width=1, border_color="#222")
         self.card.pack(fill="both", expand=True, padx=30, pady=(0, 20))
         
-        ctk.CTkLabel(self.card, text="JUEGO DE ROBLOX A NARRAR:", font=("Arial", 11, "bold"), text_color="#888").pack(anchor="w", padx=20, pady=(15, 5))
-        self.entry_game_name = ctk.CTkEntry(self.card, fg_color="#050505", border_color="#222", font=("Arial", 12))
-        self.entry_game_name.pack(fill="x", padx=20, pady=(0, 15))
-        self.entry_game_name.configure(placeholder_text="Detectando juego desde el audio... ⏳")
-        self.entry_game_name.focus_set()
+        ctk.CTkLabel(self.card, text="TEMA O PALABRA CLAVE DE BÚSQUEDA:", font=("Arial", 11, "bold"), text_color="#888").pack(anchor="w", padx=20, pady=(15, 5))
+        self.entry_theme = ctk.CTkEntry(self.card, fg_color="#050505", border_color="#222", font=("Arial", 12))
+        self.entry_theme.pack(fill="x", padx=20, pady=(0, 15))
+        self.entry_theme.configure(placeholder_text="Detectando tema desde el audio... ⏳")
+        self.entry_theme.focus_set()
         
         ctk.CTkLabel(self.card, text="RECURSOS A OBTENER:", font=("Arial", 11, "bold"), text_color="#888").pack(anchor="w", padx=20, pady=(0, 5))
         
         self.var_gameplay = ctk.BooleanVar(value=True)
-        self.chk_gameplay = ctk.CTkCheckBox(self.card, text="🎮 Gameplay de fondo (YouTube)", variable=self.var_gameplay,
+        self.chk_gameplay = ctk.CTkCheckBox(self.card, text="🎮 Gameplay / Video de fondo (YouTube)", variable=self.var_gameplay,
                                             fg_color="#00FF66", border_width=2, font=("Arial", 11))
         self.chk_gameplay.pack(anchor="w", padx=25, pady=4)
         
         self.var_images = ctk.BooleanVar(value=True)
-        self.chk_images = ctk.CTkCheckBox(self.card, text="🖼️ Imágenes de gameplay (Buscador Web)", variable=self.var_images,
+        self.chk_images = ctk.CTkCheckBox(self.card, text="🖼️ Imágenes del tema (Buscador Web)", variable=self.var_images,
                                           fg_color="#00FF66", border_width=2, font=("Arial", 11))
         self.chk_images.pack(anchor="w", padx=25, pady=4)
         
         self.var_animations = ctk.BooleanVar(value=True)
-        self.chk_animations = ctk.CTkCheckBox(self.card, text="🎬 GIFs animados y sustos (Buscador Web)", variable=self.var_animations,
+        self.chk_animations = ctk.CTkCheckBox(self.card, text="🎬 GIFs animados del tema (Buscador Web)", variable=self.var_animations,
                                               fg_color="#00FF66", border_width=2, font=("Arial", 11))
         self.chk_animations.pack(anchor="w", padx=25, pady=4)
         
@@ -1431,17 +1527,14 @@ class RobloxSourcingDialog(ctk.CTkToplevel):
                                            font=("Arial", 12, "bold"), command=self.on_download)
         self.btn_download.pack(fill="x", padx=30, pady=(0, 25))
 
-    def async_detect_game(self):
-        # 1. Intentar deducir rápido del nombre del archivo si es descriptivo
-        game_name = self.tab.detect_roblox_game_name()
-        if game_name:
-            self.after(0, lambda: self.set_game_name(game_name))
+    def async_detect_theme(self):
+        theme_name = self.tab.detect_roblox_game_name()
+        if theme_name:
+            self.after(0, lambda: self.set_theme_name(theme_name))
             return
             
-        # 2. Si es timestamp, transcribir el audio en segundo plano usando Whisper API
         audio_path = self.tab.audio_path
         if audio_path and os.path.exists(audio_path):
-            # Obtener API key preferente para transcripción
             api_key = getattr(self.tab.main, "groq_api_key", self.tab.main.settings.get("groq_api_key", ""))
             provider = "groq"
             if not api_key:
@@ -1451,25 +1544,23 @@ class RobloxSourcingDialog(ctk.CTkToplevel):
             if api_key:
                 detected = self.tab.transcribe_and_detect_roblox_game(audio_path, api_key, provider)
                 if detected:
-                    self.after(0, lambda: self.set_game_name(detected))
+                    self.after(0, lambda: self.set_theme_name(detected))
                     return
                     
-        # 3. Fallback: dejar vacío y permitir escritura
-        self.after(0, lambda: self.entry_game_name.configure(placeholder_text="No se detectó. Escribe el nombre del juego (ej: Doors, The Mimic)..."))
+        self.after(0, lambda: self.entry_theme.configure(placeholder_text="No se detectó. Escribe el tema (ej: backrooms, minecraft)..."))
 
-    def set_game_name(self, name):
-        if self.entry_game_name.winfo_exists():
-            # Only set if the user hasn't typed anything yet
-            if not self.entry_game_name.get().strip():
-                self.entry_game_name.delete(0, "end")
-                self.entry_game_name.insert(0, name)
+    def set_theme_name(self, name):
+        if self.entry_theme.winfo_exists():
+            if not self.entry_theme.get().strip():
+                self.entry_theme.delete(0, "end")
+                self.entry_theme.insert(0, name)
         
     def on_download(self):
         import threading
         
-        game_name = self.entry_game_name.get().strip()
-        if not game_name:
-            self.entry_game_name.configure(border_color="red")
+        theme_name = self.entry_theme.get().strip()
+        if not theme_name:
+            self.entry_theme.configure(border_color="red")
             return
             
         dur_str = self.entry_dur.get().strip()
@@ -1492,7 +1583,7 @@ class RobloxSourcingDialog(ctk.CTkToplevel):
             
         self.destroy()
         
-        self.tab.main.roblox_game_name = game_name
+        self.tab.main.roblox_game_name = theme_name
         
-        threading.Thread(target=self.tab.run_roblox_sourcing_flow, args=(game_name, dur, get_gameplay, get_images, get_gifs), daemon=True).start()
+        threading.Thread(target=self.tab.run_roblox_sourcing_flow, args=(theme_name, dur, get_gameplay, get_images, get_gifs), daemon=True).start()
 

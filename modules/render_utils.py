@@ -196,7 +196,7 @@ def convert_to_word_by_word_srt(json_path, srt_path, status_callback=None, aspec
                     
             return True
 
-        else:
+        elif sub_style == "TikTok / Hormozi":
             # --- MODO TIKTOK / HORMOZI (CON ROTACIONES Y HIGHLIGHTS VIRALES Y EMOJIS) ---
             if aspect_ratio == "16:9":
                 play_res_x, play_res_y = 1920, 1080
@@ -216,14 +216,23 @@ def convert_to_word_by_word_srt(json_path, srt_path, status_callback=None, aspec
                 "dolor": "😭", "fantasma": "👻", "rostro": "👤", "monstruo": "👹",
                 "silencio": "🤫", "atrás": "👀", "detrás": "👀", "peligro": "⚠️",
                 "morir": "☠️", "asesino": "🔪", "tumba": "🪦", "cementerio": "🪦",
-                "alma": "👻", "espíritu": "👻"
+                "alma": "👻", "espíritu": "👻",
+                "cadáver": "☠️", "cadaver": "☠️", "muerto": "💀", "muerta": "💀",
+                "muertos": "💀", "oscura": "🌑", "oscuro": "🌑", "cuerpo": "🧟",
+                "susto": "🙀", "horror": "🧟", "creepy": "👹", "gritos": "😱",
+                "sangriento": "🩸", "peligroso": "⚠️", "casa": "🏠", "noche": "🌃",
+                "bosque": "🌲", "puerta": "🚪", "ventana": "🪟", "reloj": "⏰",
+                "teléfono": "☎️", "telefono": "☎️", "llave": "🔑", "gato": "🐱",
+                "perro": "🐶", "hijo": "👦", "madre": "👩", "padre": "👨",
+                "amigo": "🧑", "escuchar": "👂", "mirar": "👁️", "ver": "👁️",
+                "correr": "🏃", "llamar": "📞", "hablar": "🗣️"
             }
 
             with open(srt_path, "w", encoding="utf-8") as f_sub:
                 f_sub.write(f"[Script Info]\nScriptType: v4.00+\nPlayResX: {play_res_x}\nPlayResY: {play_res_y}\n\n")
                 f_sub.write("[V4+ Styles]\n")
                 f_sub.write("Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n")
-                f_sub.write(f"Style: TikTok,Arial Black,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,6,0,{alignment},50,50,{margin_v},1\n\n")
+                f_sub.write(f"Style: TikTok,Arial Black,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,0,{alignment},50,50,{margin_v},1\n\n")
                 
                 f_sub.write("[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
                 
@@ -236,12 +245,15 @@ def convert_to_word_by_word_srt(json_path, srt_path, status_callback=None, aspec
                     
                     color_tag = ""
                     emoji = ""
+                    
+                    # Buscar si hay un emoji correspondiente para esta palabra
+                    for kw, emj in viral_emojis.items():
+                        if kw in clean_w:
+                            emoji = " " + emj
+                            break
+
                     if clean_w in horror_keywords:
-                        color_tag = f"{{\\c&H0000FFFF&}}" # Amarillo
-                        for kw, emj in viral_emojis.items():
-                            if kw in clean_w:
-                                emoji = " " + emj
-                                break
+                        color_tag = f"{{\\c&H003300FF&}}" # Rojo brillante (#FF0033)
                     elif idx % 4 == 0:
                         color_tag = f"{{\\c&H00FFFF00&}}" # Cian
                         
@@ -252,9 +264,71 @@ def convert_to_word_by_word_srt(json_path, srt_path, status_callback=None, aspec
                     if color_tag:
                         full_text = f"{effect}{color_tag}{w_text}{{\\c&HFFFFFF&}}{emoji}"
                     else:
-                        full_text = f"{effect}{w_text}"
+                        full_text = f"{effect}{w_text}{emoji}"
                         
                     f_sub.write(f"Dialogue: 0,{start},{end},TikTok,,0,0,0,,{full_text}\n")
+                    
+            return True
+
+        elif sub_style == "Roblox Gaming":
+            # --- MODO ROBLOX GAMING: Estilo gaming limpio, sin parpadeo, con pop-in suave ---
+            if aspect_ratio == "16:9":
+                play_res_x, play_res_y = 1920, 1080
+                margin_v = 120
+                font_size = 75
+                alignment = 2
+            else:
+                play_res_x, play_res_y = 1080, 1920
+                margin_v = 450
+                font_size = 95
+                alignment = 2
+
+            # Palabras clave gaming-Roblox para resaltar en naranja neón (BGR: &H0040FFFF es naranja)
+            roblox_highlights = {
+                # Terror / misterio (cian neón)
+                "terror": "&H00FFFF00&", "miedo": "&H00FFFF00&", "sangre": "&H00FFFF00&",
+                "muerte": "&H00FFFF00&", "muerto": "&H00FFFF00&", "muerta": "&H00FFFF00&",
+                "fantasma": "&H00FFFF00&", "asesino": "&H00FFFF00&", "peligro": "&H00FFFF00&",
+                "sombra": "&H00FFFF00&", "oscuridad": "&H00FFFF00&", "silencio": "&H00FFFF00&",
+                # Impacto positivo / acción (naranja neón)
+                "nunca": "&H0040C8FF&", "jamás": "&H0040C8FF&", "nadie": "&H0040C8FF&",
+                "todo": "&H0040C8FF&", "todos": "&H0040C8FF&", "siempre": "&H0040C8FF&",
+                "gratis": "&H0040C8FF&", "secreto": "&H0040C8FF&", "viral": "&H0040C8FF&",
+                "increíble": "&H0040C8FF&", "increible": "&H0040C8FF&", "imposible": "&H0040C8FF&"
+            }
+
+            with open(srt_path, "w", encoding="utf-8") as f_sub:
+                f_sub.write(f"[Script Info]\nScriptType: v4.00+\nPlayResX: {play_res_x}\nPlayResY: {play_res_y}\n\n")
+                f_sub.write("[V4+ Styles]\n")
+                f_sub.write("Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n")
+                # Roblox Gaming: Arial Black bold, blanco, contorno negro grueso (Outline=8), sombra leve (Shadow=4)
+                # BackColour semitransparente negro para mayor legibilidad gaming
+                f_sub.write(f"Style: Roblox,Arial Black,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H99000000,-1,0,0,0,100,105,2,0,1,8,4,{alignment},50,50,{margin_v},1\n\n")
+                
+                f_sub.write("[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
+                
+                for idx, w in enumerate(all_words):
+                    start = format_timestamp(w["start"])
+                    end = format_timestamp(w["end"])
+                    w_text = w["word"].strip().replace('"', '').upper()
+                    
+                    clean_w = "".join([c for c in w_text if c.isalnum()]).lower()
+                    
+                    color_tag = ""
+                    if clean_w in roblox_highlights:
+                        color_tag = f"{{\\c{roblox_highlights[clean_w]}}}"
+                    elif clean_w in horror_keywords:
+                        color_tag = f"{{\\c&H00FFFF00&}}"  # Cian neón para terror
+                    
+                    # Gaming pop-in: Scale 120% → 100% en 120ms, sin rotación, limpio
+                    anim_tag = r"{\fscx120\fscy120\t(0,120,\fscx100\fscy100)}"
+                    
+                    if color_tag:
+                        full_text = f"{anim_tag}{color_tag}{w_text}{{\\c&HFFFFFF&}}"
+                    else:
+                        full_text = f"{anim_tag}{w_text}"
+                        
+                    f_sub.write(f"Dialogue: 0,{start},{end},Roblox,,0,0,0,,{full_text}\n")
                     
             return True
 

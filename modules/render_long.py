@@ -471,17 +471,31 @@ def render_chapter(chapter_index, chapter_data, output_mp4, enc_params, sub_kwar
         output_mp4
     ])
 
+    err_log_path = output_mp4.rsplit(".", 1)[0] + "_ffmpeg_err.log"
     try:
         # Ejecutar FFmpeg con la prioridad IDLE configurada en sub_kwargs
-        res = subprocess.run(cmd, check=True, capture_output=True, text=True, errors='replace', **sub_kwargs)
-        # Limpieza de temporales del capítulo (se conservan los subs para caché)
-        # safe_remove(json_path)
-        # safe_remove(ass_path)
+        with open(err_log_path, "w", encoding="utf-8", errors="replace") as f_err:
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=f_err, **sub_kwargs)
+        try:
+            if os.path.exists(err_log_path):
+                os.remove(err_log_path)
+        except:
+            pass
         return True
     except subprocess.CalledProcessError as e:
-        print(f"FFMPEG ERROR CAP {chapter_index}:\n{e.stderr}")
+        try:
+            with open(err_log_path, "r", encoding="utf-8", errors="replace") as f_read:
+                err_text = f_read.read()
+        except:
+            err_text = "No se pudo leer el archivo de log."
+        try:
+            if os.path.exists(err_log_path):
+                os.remove(err_log_path)
+        except:
+            pass
+        print(f"FFMPEG ERROR CAP {chapter_index}:\n{err_text}")
         if status_callback:
-            status_callback(f"❌ Error en Cap {chapter_index+1}: {str(e.stderr)[:60]}", "red")
+            status_callback(f"❌ Error en Cap {chapter_index+1}: {str(err_text)[:60]}", "red")
         return False
 
 def render_long_video_project(project_state, output_final_mp4, status_callback=None, groq_key=None, aspect_ratio="16:9", lut_name=None):

@@ -60,8 +60,8 @@ class ConfigEditor(ctk.CTkToplevel):
         self.content_area.grid(row=0, column=1, sticky="nsew", padx=30, pady=30)
         
         # We will mount frames here dynamically
-        self.frame_api = ctk.CTkFrame(self.content_area, fg_color="transparent")
-        self.frame_paths = ctk.CTkFrame(self.content_area, fg_color="transparent")
+        self.frame_api = ctk.CTkScrollableFrame(self.content_area, fg_color="transparent")
+        self.frame_paths = ctk.CTkScrollableFrame(self.content_area, fg_color="transparent")
         self.frame_prompts = ctk.CTkFrame(self.content_area, fg_color="transparent")
         
         self.init_api_ui()
@@ -163,6 +163,31 @@ class ConfigEditor(ctk.CTkToplevel):
         link_pexels = ctk.CTkLabel(card_pexels, text="🔗 Conseguir API Key de Pexels gratis", font=("Arial", 10, "underline"), text_color="#666", cursor="hand2")
         link_pexels.pack(anchor="w", padx=20, pady=(0, 20))
         link_pexels.bind("<Button-1>", lambda e: webbrowser.open("https://www.pexels.com/api/"))
+
+        # TikTok API
+        card_tiktok = ctk.CTkFrame(f, fg_color=COLOR_PANEL, corner_radius=10, border_width=1, border_color=COLOR_BORDER)
+        card_tiktok.pack(fill="x", pady=10)
+        
+        ctk.CTkLabel(card_tiktok, text="TIKTOK API V2 (Creador de Contenido)", font=FONT_LABEL, text_color="#FE2C55").pack(anchor="w", padx=20, pady=(20, 5))
+        
+        row_tt = ctk.CTkFrame(card_tiktok, fg_color="transparent")
+        row_tt.pack(fill="x", padx=20, pady=(0, 10))
+        
+        col1 = ctk.CTkFrame(row_tt, fg_color="transparent")
+        col1.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        ctk.CTkLabel(col1, text="TikTok Client Key:", font=("Arial", 10, "bold"), text_color="#888").pack(anchor="w", pady=(0, 2))
+        self.entry_tiktok_key = ctk.CTkEntry(col1, placeholder_text="Client Key...", height=40, fg_color="#090909", border_color="#333", font=FONT_MONO)
+        self.entry_tiktok_key.pack(fill="x")
+        
+        col2 = ctk.CTkFrame(row_tt, fg_color="transparent")
+        col2.pack(side="left", fill="x", expand=True, padx=(10, 0))
+        ctk.CTkLabel(col2, text="TikTok Client Secret:", font=("Arial", 10, "bold"), text_color="#888").pack(anchor="w", pady=(0, 2))
+        self.entry_tiktok_secret = ctk.CTkEntry(col2, placeholder_text="Client Secret...", height=40, fg_color="#090909", border_color="#333", font=FONT_MONO, show="*")
+        self.entry_tiktok_secret.pack(fill="x")
+        
+        link_tt = ctk.CTkLabel(card_tiktok, text="🔗 Ir al TikTok Developer Portal", font=("Arial", 10, "underline"), text_color="#666", cursor="hand2")
+        link_tt.pack(anchor="w", padx=20, pady=(0, 15))
+        link_tt.bind("<Button-1>", lambda e: webbrowser.open("https://developers.tiktok.com/"))
 
     # --- PROMPTS UI ---
     def get_template_files(self, category):
@@ -381,6 +406,12 @@ class ConfigEditor(ctk.CTkToplevel):
         pexels_key = getattr(self.main_window, "pexels_api_key", "")
         if pexels_key: self.entry_pexels.insert(0, pexels_key)
         
+        tiktok_key = getattr(self.main_window, "tiktok_client_key", "")
+        if tiktok_key: self.entry_tiktok_key.insert(0, tiktok_key)
+        
+        tiktok_secret = getattr(self.main_window, "tiktok_client_secret", "")
+        if tiktok_secret: self.entry_tiktok_secret.insert(0, tiktok_secret)
+        
         provider = getattr(self.main_window, "llm_provider", "gemini")
         self.seg_provider.set(provider)
         
@@ -438,6 +469,15 @@ class ConfigEditor(ctk.CTkToplevel):
         
         new_pexels = self.entry_pexels.get().strip()
         self.main_window.pexels_api_key = new_pexels
+        
+        new_tiktok_key = self.entry_tiktok_key.get().strip()
+        self.main_window.tiktok_client_key = new_tiktok_key
+        
+        new_tiktok_secret = self.entry_tiktok_secret.get().strip()
+        self.main_window.tiktok_client_secret = new_tiktok_secret
+        
+        self.main_window.settings["tiktok_client_key"] = new_tiktok_key
+        self.main_window.settings["tiktok_client_secret"] = new_tiktok_secret
         
         self.main_window.llm_provider = self.seg_provider.get()
         # Note: save_settings_to_file is called after updating dict below
