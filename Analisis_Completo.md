@@ -1,328 +1,145 @@
-# Análisis Técnico y Arquitectónico de SilencioRojoApp
+# Análisis Técnico y Arquitectónico de RedSilenceApp (Estructura Limpia)
 
-Este documento presenta una radiografía técnica exhaustiva, detallada y libre de especulación sobre la aplicación **SilencioRojoApp**. Describe la funcionalidad exacta de cada archivo de código fuente, sus interconexiones, variables y los algoritmos que la componen. Su objetivo es servir como memoria persistente para futuras consultas técnicas o de mantenimiento por parte de desarrolladores o sistemas de Inteligencia Artificial.
+Este documento presenta una radiografía técnica exhaustiva, detallada y libre de especulación sobre la aplicación **RedSilenceApp** después de la simplificación y reestructuración del proyecto, incluyendo los módulos de métricas, videos y el mapa de viralidad.
 
 ---
 
 ## 1. Arquitectura General del Sistema
-La aplicación está construida sobre una arquitectura modular orientada a eventos con interfaz gráfica de escritorio en **CustomTkinter** y procesamiento multimedia basado en **FFmpeg**.
+La aplicación es una herramienta de escritorio construida sobre una arquitectura modular orientada a eventos con interfaz gráfica de escritorio basada en **CustomTkinter** y persistencia en archivos JSON locales.
 
 ```mermaid
 graph TD
     main[main.pyw] --> UI[ui/main_window.py]
-    UI --> PM[core/project_manager.py]
-    UI --> Sidebar[ui/components/sidebar.py]
-    UI --> Tabs[Pestañas ui/tabs/]
-    UI --> Config[ui/config_editor.py]
-    UI --> Narr[ui/narrative_editor.py]
-    
-    Tabs --> Concept[ConceptTab]
-    Tabs --> Visuals[VisualTab]
-    Tabs --> Cover[CoverTab]
-    Tabs --> Voice[VoiceTab]
-    Tabs --> Media[MediaTab]
-    Tabs --> Long[LongTab]
-    
-    Concept --> Scraper[Reddit Scraper]
-    Media --> Sourcing[Sourcing: Pexels / DDG / YT-DLP]
-    Voice --> VG[modules/voice_generator.py]
-    
-    Media --> VR[modules/video_render.py]
-    Long --> RL[modules/render_long.py]
-    
-    VR --> RM[modules/render_mix.py]
-    RM --> RU[modules/render_utils.py]
-    RL --> RU
-    
-    RU --> FFmpeg[Subprocesos FFmpeg / FFplay]
-    RM --> YT[modules/youtube_uploader.py]
-    RM --> TT[modules/tiktok_uploader.py]
+    UI --> Utils[core/utils.py]
+    UI --> Settings[config/settings.json]
+    UI --> MetricsTab[ui/tabs/metrics_tab.py]
+    UI --> VideosTab[ui/tabs/videos_tab.py]
+    UI --> ViralMapTab[ui/tabs/viral_map_tab.py]
+    MetricsTab --> Analytics[modules/analytics_client.py]
+    VideosTab --> Analytics
+    ViralMapTab --> Analytics
+    ViralMapTab --> GraphAnalyzer[modules/graph_analyzer.py]
 ```
 
 ### Tecnologías Clave Utilizadas
-1. **Interfaz Gráfica:** `customtkinter` (interfaz oscura neon-horror), `tkinter` (diálogos del sistema).
-2. **Procesamiento de Audio y Video:** `FFmpeg` y `FFplay` invocados asíncronamente mediante `subprocess`, `PIL` (Pillow) para generación de tarjetas dinámicas de Reddit y conversor de imágenes.
-3. **Servicios de IA:** `google-generativeai` (Gemini 2.5/2.0), `google-genai` (SDK unificado de Google Gen AI para TTS), `groq` (Llama 3.3 y Whisper-large-v3).
-4. **Adquisición de Contenido:** `yt_dlp` para descargar gameplays de YouTube, `duckduckgo_search` y scrapers HTTP para imágenes/GIFs de Roblox, API de Pexels para videos de B-roll.
-5. **Autenticación y Publicación:** `google-api-python-client` y `google-auth-oauthlib` para la API de YouTube V3.
+1. **Interfaz Gráfica:** `customtkinter` (interfaz oscura estilo premium con acentos en rojo neón), `tkinter` (diálogos de selección de archivos y ventanas de advertencia).
+2. **Gráficos e Informes:** `matplotlib` (para renderizar curvas de rendimiento y grafos de co-ocurrencia en la interfaz) y un motor `Canvas` 2D alternativo como fallback sin dependencias externas.
+3. **Persistencia de Datos:** Lectura y escritura asíncrona de archivos de configuración JSON.
+4. **Clientes API de Google:** Integración de `youtubeAnalytics` (v2) y `youtube` (v3) mediante OAuth2 con flujos locales seguros.
+5. **Modelado y Teoría de Grafos:** `networkx` para la modelización y estructuración de relaciones de co-ocurrencia de palabras.
 
 ---
 
-## 2. Estructura Detallada de Archivos y Directorios
+## 2. Estructura de Archivos y Directorios
 
-El código está organizado en carpetas funcionales:
+El código está organizado de la siguiente manera:
 
 *   **`/` (Raíz):**
     *   `main.pyw`: Punto de entrada que inicializa y arranca la interfaz gráfica (`MainWindow`) sin consola visible en Windows.
-*   **`core/` (Utilidades del Sistema y Lógica de Datos):**
-    *   [project_manager.py](file:///d:/Descargas/SilencioRojoApp/core/project_manager.py): Maneja el estado, guardado automático y migración de la estructura de archivos de los proyectos.
-    *   [math_logic.py](file:///d:/Descargas/SilencioRojoApp/core/math_logic.py): Lógica matemática y sincronización visual.
-    *   [utils.py](file:///d:/Descargas/SilencioRojoApp/core/utils.py): Funciones de sistema (portapapeles persistente, foco forzado de ventanas).
-*   **`modules/` (Motores de Procesamiento y Clientes API):**
-    *   [gemini_client.py](file:///d:/Descargas/SilencioRojoApp/modules/gemini_client.py): Cliente de generación de texto para Google Gemini (`gemini-2.5-flash`).
-    *   [groq_client.py](file:///d:/Descargas/SilencioRojoApp/modules/groq_client.py): Cliente de generación de texto para Groq (`llama-3.3-70b-versatile`).
-    *   [voice_generator.py](file:///d:/Descargas/SilencioRojoApp/modules/voice_generator.py): Sintetizador de voz TTS de Gemini (Voz Charon, 24kHz, 16-bit Mono WAV).
-    *   [pexels_client.py](file:///d:/Descargas/SilencioRojoApp/modules/pexels_client.py): Cliente para descargar videos de stock de la API de Pexels.
-    *   [roblox_sourcing.py](file:///d:/Descargas/SilencioRojoApp/modules/roblox_sourcing.py): Búsqueda y descarga de capturas y GIFs de Roblox a través de DuckDuckGo.
-    *   [gameplay_sourcing.py](file:///d:/Descargas/SilencioRojoApp/modules/gameplay_sourcing.py): Descargador de videos de fondo y segmentador de clips mediante `yt-dlp`.
-    *   [youtube_uploader.py](file:///d:/Descargas/SilencioRojoApp/modules/youtube_uploader.py): Automatizador de subida de videos a YouTube con programación automática.
-    *   [tiktok_uploader.py](file:///d:/Descargas/SilencioRojoApp/modules/tiktok_uploader.py): Automatizador de subida de videos a TikTok v2 mediante la API oficial, soportando OAuth2 (PKCE) y subida fragmentada por bloques (Direct Post e Inbox Draft).
-    *   [render_utils.py](file:///d:/Descargas/SilencioRojoApp/modules/render_utils.py): Utilidades de renderizado (detección de codificadores por hardware, transcriptor Groq Whisper, conversor ASS, generador de tarjetas Reddit, generador de tablas LUT).
-    *   [render_mix.py](file:///d:/Descargas/SilencioRojoApp/modules/render_mix.py): Motor de renderizado para videos cortos (Shorts) en formato vertical.
-    *   [render_long.py](file:///d:/Descargas/SilencioRojoApp/modules/render_long.py): Motor de renderizado para videos largos multipágina y multicapítulo.
-    *   [video_render.py](file:///d:/Descargas/SilencioRojoApp/modules/video_render.py): Enrutador unificado que delega la renderización final al motor `render_mix`.
-    *   [video_compositor.py](file:///d:/Descargas/SilencioRojoApp/modules/video_compositor.py): Mezclador de transparencias con ImageIO (actualmente en desuso, reemplazado por filtros FFmpeg nativos).
-    *   [video_benchmark.py](file:///d:/Descargas/SilencioRojoApp/modules/video_benchmark.py): Módulo de análisis comparativo (benchmark) para descargar audio de YouTube, transcribir localmente con Whisper y comparar con la competencia mediante IA.
+*   **`core/` (Utilidades del Sistema):**
+    *   [utils.py](file:///d:/Descargas/Desarrollo%20de%20aplicaciones/supergenerador/core/utils.py): Funciones de sistema (portapapeles persistente, foco forzado de ventanas).
 *   **`ui/` (Interfaz Gráfica de Usuario):**
-    *   [main_window.py](file:///d:/Descargas/SilencioRojoApp/ui/main_window.py): Ventana principal que administra el ciclo de vida de la aplicación, el guardado de sesión y la navegación de vistas.
-    *   [config_editor.py](file:///d:/Descargas/SilencioRojoApp/ui/config_editor.py): Diálogo flotante para editar API keys, rutas del sistema y plantillas prompts con editor de texto interactivo con coloreado de sintaxis.
-    *   [narrative_editor.py](file:///d:/Descargas/SilencioRojoApp/ui/narrative_editor.py): Diálogo para modificar las variables aleatorias de la narrativa (ganchos, monstruos, atmósfera, cierres).
-    *   [image_converter.py](file:///d:/Descargas/SilencioRojoApp/ui/image_converter.py): Conversor masivo de imágenes de PNG a JPG de alta calidad.
-    *   [visual_prompt_viewer.py](file:///d:/Descargas/SilencioRojoApp/ui/visual_prompt_viewer.py): Visor incremental no bloqueante para copiar prompts individuales de generación de imágenes.
-    *   **`ui/components/` (Widgets Reutilizables):**
-        *   [sidebar.py](file:///d:/Descargas/SilencioRojoApp/ui/components/sidebar.py): Barra lateral fija de 60px para navegación rápida entre pestañas.
-    *   **`ui/tabs/` (Pestañas de la Ventana Principal):**
-        *   [concept_tab.py](file:///d:/Descargas/SilencioRojoApp/ui/tabs/concept_tab.py): Generador de ideas de guiones narrativos, con raspador integrado para subreddits de terror.
-        *   [visual_tab.py](file:///d:/Descargas/SilencioRojoApp/ui/tabs/visual_tab.py): Creador de prompts para imágenes basados en el tiempo de duración estimado.
-        *   [cover_tab.py](file:///d:/Descargas/SilencioRojoApp/ui/tabs/cover_tab.py): Creador de prompts para la portada del Short.
-        *   [voice_tab.py](file:///d:/Descargas/SilencioRojoApp/ui/tabs/voice_tab.py): Panel de pruebas para generación manual de audio TTS con la voz de Gemini Charon.
-        *   [media_tab.py](file:///d:/Descargas/SilencioRojoApp/ui/tabs/media_tab.py): Línea de tiempo interactiva de Shorts, descarga automática de gameplays/Roblox, previsualizaciones de BGM, doblaje y subida de videos.
-        *   [long_tab.py](file:///d:/Descargas/SilencioRojoApp/ui/tabs/long_tab.py): Panel de control para videos largos (16:9), segmentación de guiones en capítulos y compilación con caché inteligente.
-        *   [comparator_tab.py](file:///d:/Descargas/SilencioRojoApp/ui/tabs/comparator_tab.py): Panel de benchmarking narrativo. Descarga audios de YouTube, calcula métricas de WPM y silencios, y genera reportes de auditoría de IA.
-*   **`config/` (Ajustes, Datos Narrativos y Prompts Maestros):**
-    *   `settings.json`: Almacena API keys del usuario, rutas locales de medios, motor activo y plantillas seleccionadas.
-    *   `narrative_vars.json`: Almacena la base de datos de ganchos, criaturas, ambientes y cierres.
-    *   [prompts.py](file:///d:/Descargas/SilencioRojoApp/config/prompts.py): Resuelve y expone los prompts prompts maestros dinámicamente.
-    *   **`config/prompts/`:** Carpeta dividida en categorías (`story`, `visuals`, `cover`, `voice`) que contiene los archivos de texto (`.txt`) correspondientes a las plantillas maestras de prompts de IA.
+    *   [main_window.py](file:///d:/Descargas/Desarrollo%20de%20aplicaciones/supergenerador/ui/main_window.py): Ventana principal que administra el ciclo de vida de la aplicación, carga la configuración de los canales y gestiona la navegación entre vistas.
+    *   **`ui/tabs/` (Pestañas de la Interfaz):**
+        *   [metrics_tab.py](file:///d:/Descargas/Desarrollo%20de%20aplicaciones/supergenerador/ui/tabs/metrics_tab.py): Panel gráfico para visualizar las métricas y gráficos integrados con fallback en tk.Canvas.
+        *   [videos_tab.py](file:///d:/Descargas/Desarrollo%20de%20aplicaciones/supergenerador/ui/tabs/videos_tab.py): Panel para visualizar e interactuar con la lista de videos subidos de cada canal, cargar transcripciones asíncronamente y abrir detalles.
+        *   [viral_map_tab.py](file:///d:/Descargas/Desarrollo%20de%20aplicaciones/supergenerador/ui/tabs/viral_map_tab.py): Panel gráfico interactivo que visualiza el mapa de co-ocurrencia y viralidad de palabras de las transcripciones.
+*   **`modules/` (Motores de Procesamiento y Clientes API):**
+    *   [analytics_client.py](file:///d:/Descargas/Desarrollo%20de%20aplicaciones/supergenerador/modules/analytics_client.py): Módulo para realizar solicitudes a la API de YouTube Analytics, extraer videos subidos, refrescar tokens, descargar transcripciones y simular datos.
+    *   [graph_analyzer.py](file:///d:/Descargas/Desarrollo%20de%20aplicaciones/supergenerador/modules/graph_analyzer.py): Analizador de texto que limpia, tokeniza, normaliza y procesa relaciones de co-ocurrencia de palabras clave.
+*   **`config/` (Configuraciones):**
+    *   `settings.json`: Almacena el listado de canales registrados por el usuario con sus respectivas APIs o archivos de credenciales.
 
 ---
 
 ## 3. Análisis de Módulos Centrales (Core)
 
-### `core/project_manager.py`
-Administra el almacenamiento físico del estado de la aplicación.
-*   **`__init__(projects_dir="projects")`:** Inicializa el directorio de almacenamiento y ejecuta la migración automática de archivos antiguos.
-*   **`migrate_old_projects()`:**
-    1.  Toma archivos `.json` sueltos en `projects/` y los mueve a subcarpetas en base a su ID (Ej: `projects/<project_id>/state.json`).
-    2.  Busca carpetas de doblaje antiguas sueltas en `projects/` que coincidan con los nombres de proyectos y las reubica bajo `projects/<project_id>/dubs/`.
-    3.  Mueve la caché antigua de videos largos ubicada en `projects/videos_largos/` a `cache/videos_largos/`, limpiando directorios vacíos.
-*   **`create_project(title)`:** Limpia el título quitando caracteres especiales y genera un `current_project_id` formateado como `<timestamp>_<title_with_underscores>`. Crea la carpeta en disco de forma inmediata.
-*   **`save_project(data, project_id=None)`:** Escribe la estructura de datos en formato JSON identado con codificación `utf-8` en `projects/<project_id>/state.json`. Agrega metadatos como la versión del estado (`_version: "1.0"`) y el timestamp de modificación (`_last_modified`).
-*   **`load_project(project_id)`:** Retorna la deserialización JSON del archivo de estado del proyecto. Incorpora compatibilidad de retroceso para leer archivos `.json` sueltos antiguos si es necesario.
-*   **`list_projects()`:** Escanea `projects/` para listar las subcarpetas que contienen `state.json`. Ordena las carpetas basándose en la fecha de modificación del archivo `state.json` (más reciente primero).
-
-### `core/math_logic.py`
-*   **`calculate_visual_segments(audio_duration_seconds)`:** Implementa la "Regla de los 3 segundos": estima cuántas imágenes se necesitan para cubrir la duración de un video de forma fluida. Retorna $\lceil \text{duración} / 3.0 \rceil$.
-
 ### `core/utils.py`
 *   **`get_resource_path(relative_path)`:** Devuelve la ruta absoluta del recurso. Si la aplicación fue empaquetada mediante PyInstaller, busca dentro de la carpeta temporal asignada en `sys._MEIPASS`, de lo contrario usa `os.path.abspath(".")`.
-*   **`copy_to_clipboard_persistent(text)`:** Copia texto al portapapeles del sistema operativo de forma permanente (sobrevive al cierre del programa). En Windows ejecuta un subproceso de PowerShell en segundo plano con el comando `Set-Clipboard -Value $input` enviando el texto en codificación `utf-8` para mantener compatibilidad con caracteres Unicode. Si PowerShell falla, usa `clip.exe` como fallback (reemplazando caracteres especiales incompatibles mediante codificación `cp1252`).
-*   **`force_focus(window)`:** Estrategia para mover ventanas al primer plano en Windows. Llama a `window.lift()`, `window.focus_force()`, establece temporalmente el atributo `-topmost` a `True`, y programa un retraso de 200 ms mediante `window.after` para desactivar el `-topmost` y no bloquear la experiencia de usuario.
+*   **`copy_to_clipboard_persistent(text)`:** Copia texto al portapapeles de Windows de forma permanente usando PowerShell como canal seguro para Unicode.
+*   **`force_focus(window)`:** Fuerza que una ventana se mueva al primer plano de Windows aplicando temporalmente la propiedad `-topmost` y liberándola tras 200 ms.
 
 ---
 
-## 4. Clientes API y Motores de Servicios (IA & Sourcing)
+## 4. Gestión de Configuración y Canales
 
-### `modules/gemini_client.py`
-Envía peticiones de texto a la API oficial de Google Generative AI.
-*   **`validate_api_key(api_key)`:** Verifica que la API key no esté vacía y tenga una longitud mínima de 30 caracteres.
-*   **`generate_content(prompt, api_key, model_name="gemini-2.5-flash")`:** Configura el cliente con `genai.configure(api_key)`. Utiliza `genai.GenerativeModel` con parámetros específicos: `temperature=0.9` (promover creatividad narrativa) y `max_output_tokens=32000` (soporte para listas de prompts extensas).
+### `config/settings.json`
+Almacena el listado de canales configurados. Su estructura JSON es la siguiente:
+```json
+{
+  "channels": [
+    {
+      "name": "Nombre del Canal",
+      "platform": "YouTube | TikTok",
+      "api_key": "Clave API (si aplica)",
+      "credential_file": "Ruta al archivo de credenciales .json o .pickle"
+    }
+  ]
+}
+```
 
-### `modules/groq_client.py`
-Utiliza el cliente de Groq para inferencia rápida de texto.
-*   **`generate_content(prompt, api_key, model_name="llama-3.3-70b-versatile")`:** Realiza llamadas de chat completion instantáneas con `temperature=0.9` y un límite controlado de `max_completion_tokens=4000`.
+### Flujo de Inicialización de Vistas en `ui/main_window.py`
+*   Al iniciar, el constructor de `MainWindow` lee `config/settings.json`.
+*   **Si la lista de canales está vacía**: Limpia la pantalla y carga la vista **"Agregar Canales"** (`show_channel_setup_view`).
+    *   El usuario puede ingresar el nombre del canal, la plataforma y la API key o archivo local de credenciales.
+    *   El botón "Continuar al Panel Principal" se mantiene deshabilitado hasta que haya al menos un canal registrado.
+*   **Si ya existen canales configurados**: Carga directamente la vista de **"Panel Principal" / Dashboard** (`show_dashboard_view`).
+    *   Muestra un panel con barra lateral de navegación. Por defecto inicializa de forma persistente y perezosa las vistas de las pestañas (`VideosTab`, `MetricsTab`) y del panel Home, guardándolas en el diccionario `self.dashboard_views`.
+    *   **Tarjetas de Canales con Logos Circulares**: Cada tarjeta dibuja en su centro un contenedor circular estilizado con borde neón del color de la plataforma. En segundo plano, se lanza de manera asíncrona `load_profile_pic_async` que obtiene la URL del logo de la caché local de métricas. Si el canal es de simulación (mock), o si la descarga falla (sin conexión, error SSL o timeout), la aplicación genera localmente un avatar circular estilizado con la inicial del canal y un color neón vibrante de fondo. Si la imagen es descargada, la almacena en disco en `config/cache/profile_pics/`, aplicando una máscara elíptica de Pillow para recortarla circularmente a 68x68 píxeles antes de mostrarla. En todos los casos se asegura la persistencia de la referencia al objeto `CTkImage` para evitar que la recolección de basura de Tkinter la haga invisible.
+    *   **Navegación Persistente en Memoria**: Al pivotar entre pestañas en el Sidebar o mediante *quick jumps*, se oculta la pestaña previa (`pack_forget()`) y se visualiza la seleccionada (`pack()`). Esto elimina reconstrucciones de la interfaz, logrando transiciones instantáneas sin parpadeo y conservando los datos ya renderizados.
+    *   Sincroniza la propiedad `active_channel_name` de `MainWindow` con los menús desplegables de las pestañas internas de forma que al hacer clic en los accesos rápidos de una tarjeta se preselecciona automáticamente ese canal en la vista correspondiente.
+    *   Al agregar o eliminar canales en la pantalla de Ajustes, se notifica de forma inmediata a las pestañas activas llamando a `refresh_channel_list()` para sincronizar dinámicamente sus dropdowns.
 
-### `modules/voice_generator.py`
-Gestiona la generación de voz sintética (TTS) usando los modelos de audio de Gemini.
-*   **`generate_voice(text, api_key, voice_instructions_path, output_path, model_name="gemini-2.5-flash-preview-tts")`:**
-    *   Lee las instrucciones de entonación y estilo del archivo en `voice_instructions_path`.
-    *   Prepara el cuerpo del prompt uniendo las instrucciones con el guion limpio a leer.
-    *   Usa el nuevo SDK `google-genai` instanciando `genai.Client(api_key)`.
-    *   Configura la generación indicando la modalidad de respuesta de audio (`response_modalities=["AUDIO"]`) y aplicando la voz preconfigurada **Charon** en `types.VoiceConfig`.
-    *   Extrae los bytes de audio en crudo a partir de `response.candidates[0].content.parts[...].inline_data.data`.
-    *   Escribe y guarda los bytes en el disco duro estructurando un archivo `.wav` limpio codificado a **24kHz, 16-bit PCM Mono** utilizando la librería nativa `wave` de Python.
-
-### `modules/pexels_client.py`
-Permite obtener B-rolls (videos secundarios) de stock para insertarlos sobre los momentos clave de terror.
-*   **`search_pexels_video(query, api_key, orientation="portrait")`:** Envía una solicitud HTTP GET autorizada con la clave de Pexels a la API de búsqueda, solicitando orientación vertical (`portrait`). Aplica una mezcla aleatoria (`random.shuffle`) sobre los resultados obtenidos para evitar videos repetitivos y selecciona preferentemente enlaces de calidad "hd" en formato "mp4".
-*   **`download_video_file(video_url, output_path)`:** Descarga el archivo de video de forma segura escribiendo bloques en memoria de 512 KB para evitar el desbordamiento de RAM con videos grandes.
-*   **`extract_keywords_from_prompt(scene_text, api_key, provider="gemini")`:** Envía el prompt de escena a un modelo LLM (Gemini o Groq Llama 3) con instrucciones de actuar como editor de video y resumir el texto en una consulta de 1 o 2 palabras clave en inglés (ej: "scary shadow", "dripping faucet").
-
-### `modules/roblox_sourcing.py`
-Adquiere capturas de pantalla y GIFs animados del juego de Roblox correspondiente.
-*   **`get_vqd(query)`:** Realiza una petición inicial a `duckduckgo.com` para obtener el token dinámico de sesión `vqd` requerido por su API interna de búsqueda de imágenes.
-*   **`search_images(query, vqd, search_gifs=False)`:** Petición HTTP manual a la API `duckduckgo.com/i.js` con el token de sesión, aplicando filtros especiales si se buscan GIFs.
-*   **`download_roblox_media(...)`:**
-    *   Determina la consulta de búsqueda según el juego (Ej: `"Roblox <game_name> horror gif"` para animaciones).
-    *   Utiliza la librería oficial `duckduckgo_search.DDGS` de forma asíncrona. Aplica reintentos y esperas de incremento exponencial (2s, 4s, 8s) si detecta bloqueos de límite de tráfico (errores 403 / Ratelimit).
-    *   Si la librería falla, utiliza la función fallback clásica de raspado HTTP manual (`search_images`).
-    *   Descarga las imágenes a disco en `assets/images/`. Si detecta que un recurso de animación es un GIF o un WebP animado camuflado con extensión `.gif`, utiliza la librería **Pillow** en Python para extraer de forma asíncrona todos sus fotogramas y compila con **FFmpeg** un archivo de vídeo `.mp4` real compatible H.264 (ajustando las dimensiones a valores pares). El archivo original se elimina y el video resultante se añade a la línea de tiempo, previniendo fallos de decodificación en FFmpeg al no soportar de forma nativa los WebPs animados.
-
-### `modules/gameplay_sourcing.py`
-Obtiene gameplays genéricos de fondo (como Subway Surfers o Minecraft Parkour) para acompañar la historia en Shorts de alta retención.
-*   **`download_youtube_gameplay(query_or_url, output_dir, status_callback=None)`:** Utiliza `yt_dlp` para buscar y descargar la pista de video de YouTube. Usa filtros de formato estrictos para limitar la descarga a una resolución máxima de 720p en contenedor MP4 (`'bestvideo[height<=720][ext=mp4]/best[height<=720][ext=mp4]/best'`), lo que agiliza el render y reduce el ancho de banda.
-*   **`slice_video_segments(...)`:** Corta el video base descargado en segmentos aleatorios de 5 a 12 segundos usando FFmpeg.
-    *   Aplica un filtro complejo de rediseño vertical de aspecto: divide el flujo en dos (`split`), desenfoca la pista de fondo con `boxblur=20:10` y escala la pista frontal para que quepa en el centro de la pantalla vertical sin recortes laterales excesivos (`overlay=y=(H-h)/2`).
-    *   Codifica los clips a 720p sin audio (`-an`) a través de H.264 usando el preset ultra-rápido de FFmpeg (`-preset ultrafast`) y un factor de compresión alto (`-crf 28`).
-
-### `modules/youtube_uploader.py`
-*   **`get_authenticated_service(...)`:** Autentica la conexión OAuth2 con YouTube. Lee el cliente desde `config/client_secrets.json` y almacena los tokens dinámicos refrescables en `config/token.pickle` para evitar inicios de sesión repetidos.
-*   **`upload_video(file_path, title, description, keywords="", status_callback=None)`:**
-    *   Calcula el horario de publicación objetivo de forma automática: **6:15 PM** de lunes a viernes, o **10:00 AM** si es sábado o domingo. Si la hora del día actual ya superó el objetivo, lo programa para el día siguiente.
-    *   Agrega la etiqueta obligatoria `#Shorts` al título y descripción.
-    *   Construye el cuerpo de metadatos del video insertando la categoría de Entretenimiento ("24"), el idioma español, marca el video para contenido no infantil, y activa el campo `selfDeclaredMadeForSyntheticContent: True` para indicar a YouTube que fue creado con Inteligencia Artificial.
-    *   Sube el video en trozos manejando el callback de progreso de red y abre el enlace del video finalizado al terminar.
-
-### `modules/tiktok_uploader.py`
-*   **`generate_pkce()`**: Genera el `code_verifier` y `code_challenge` encriptados bajo SHA256 para el flujo seguro PKCE requerido por TikTok.
-*   **`get_authenticated_token(status_callback=None)`**: Inicia un servidor web HTTP temporal en el puerto local 8080 para capturar la redirección del navegador con el código de autenticación de TikTok, el cual posteriormente intercambia por el par de tokens (`access_token` y `refresh_token`). Almacena los tokens en `config/tiktok_token.json` y gestiona su expiración y refresco de forma automática.
-*   **`upload_video_tiktok(file_path, title, status_callback=None, upload_mode="publish")`**:
-    *   Inicializa la sesión de subida en TikTok para la publicación directa (modo `publish`) o en la bandeja de entrada como borrador (modo `inbox`).
-    *   Lee secuencialmente el video y realiza múltiples peticiones HTTP `PUT` enviando bloques de 5MB con la cabecera `Content-Range` correspondiente al pre-signed URL del almacenamiento temporal de TikTok (GCS).
-    *   Ejecuta un bucle de sondeo (polling) consultando el estado de procesamiento del video cada 5 segundos hasta comprobar su publicación definitiva o identificar fallos de codificación/moderación.
 
 ---
 
-## 5. Motores de Renderizado Audiovisual (Filtros y FFmpeg)
+## 5. Módulo de Inferencia y Métricas API
 
-### `modules/render_utils.py`
-*   **`detect_hardware_encoder(output_folder)`:** Prueba de forma nativa qué codificadores gráficos de hardware están disponibles en el equipo del usuario. Ejecuta comandos de prueba FFmpeg de 0.1 segundos con una fuente de color constante, evaluando secuencialmente NVIDIA NVENC (`h264_nvenc`), AMD AMF (`h264_amf`), e Intel QSV (`h264_qsv`). Si alguno funciona, guarda los parámetros de codificación específicos en un archivo de caché local `cache/detected_encoder.json` para agilizar los siguientes renders. Si todos fallan, asigna el codificador de software clásico (`libx264 ultrafast`).
-*   **`convert_to_word_by_word_srt(json_path, srt_path, ...)`:** Toma el JSON de palabras de Whisper y genera un archivo de subtítulos de formato ASS (`.ass`). Soporta tres estilos visuales altamente refinados:
-    1.  **TikTok / Hormozi (Alto impacto):** Texto centralizado en Arial Black gigante con contorno de 4px, rotaciones alternadas de 4 y -4 grados por palabra (`{\frz4...}` / `{\frz-4...}`), efecto pop-in de escala rápida, resalta palabras clave de terror en rojo brillante (#FF0033)/cian, y añade emojis correspondientes en las palabras que coinciden (ej: 🩸, 💀, 👻, 🏠, 🚪).
-    2.  **Reddit History:** Texto centrado-inferior seguro para Shorts, sin emojis ni rotaciones inclinadas. Aplica colores de contraste (amarillo neón y verde neón) y una animación bounce de pop-in de 125% a 100% de escala en los primeros 150 ms (`{\fscx125\fscy125\t(0,150,\fscx100\fscy100)}`).
-    3.  **Roblox Gaming:** Tipografía limpia en Arial Black con contorno negro ultra grueso (8px), sombra sutil (4px) y fondo negro semi-transparente (`BackColour=&H99000000`) para garantizar legibilidad óptima sobre gameplays saturados de color, aplicando una escala de 120% a 100% en 120ms (`{\fscx120\fscy120\t(0,120,\fscx100\fscy100)}`).
-*   **`extract_sfx_events(json_path)`:** Escanea el texto transcrito buscando palabras de misterio y retorna marcas de tiempo asociadas a SFX específicos en `assets/audio/sfx/` (ej: "grito" -> `scream.mp3`, "puerta" -> `door.mp3`, "pasos" -> `footsteps.mp3`, "corazón" -> `heartbeat.mp3`).
-*   **`generate_reddit_card(title, output_path, aspect_ratio="9:16")`:** Dibuja dinámicamente con PIL una tarjeta de publicación de Reddit AskReddit en modo oscuro. Configura la tipografía Arial Bold, calcula el alto dinámico según la cantidad de texto (con saltos de línea inteligentes), dibuja el logotipo oficial, metadatos y botones de pie de página (Upvotes y comentarios). El resultado se guarda como PNG transparente para superponerlo en el video.
-*   **`generate_default_luts()` y `write_lut()`:** Genera de forma algorítmica archivos LUT 3D (`.cube`) a partir de funciones de color específicas:
-    1.  **Gore Rojo:** `(min(1.0, r * 1.4), g * 0.6, b * 0.6)`.
-    2.  **Terror Frío:** `(r * 0.65, min(1.0, g * 1.05), min(1.0, b * 1.35))`.
-    3.  **Misterio Oscuro:** Aplica una curva sigmoidea $3x^2 - 2x^3$ atenuada al 0.85 para saturar oscuros.
-    4.  **Vintage VHS:** Matriz de conversión sepia adaptada con leves incrementos de brillo mínimo.
+### `modules/analytics_client.py`
+*   **`get_authenticated_services()`**: Inicializa los clientes OAuth para `youtubeAnalytics` (v2) y `youtube` (v3). Soporta expiración de tokens y auto-refresco asíncrono.
+*   **`parse_iso8601_duration()`**: Utiliza expresiones regulares para convertir duraciones en formato estándar ISO 8601 a segundos de forma segura.
+*   **`calculate_video_score()`**: Implementa la lógica de puntuación adaptativa para Shorts, Videos Largos y Directos. Aplica un suavizado Bayesiano en el denominador del ratio de interacción ($Views + 50$) para evitar inflar tasas en videos con muy pocas vistas. Si los datos de retención de la API de Analytics aún no están disponibles (duración de vista promedio igual a 0 en videos muy nuevos), calcula el score basándose en la interacción suavizada. Una vez consolidados los datos de retención, utiliza una fórmula ponderada: Retención de audiencia (AVP/tiempo absoluto, 55%) e Interacción (Likes, Comentarios, Compartidos, 45%), más un Bonus adicional por suscriptores ganados (hasta +10 pts extra), aplicando luego un multiplicador de credibilidad por volumen de vistas (logarítmico, alcanzando $1.0$ a partir de ~10,000 vistas) y sumando un Reach Bonus logarítmico basado en el volumen total de vistas (hasta +20 pts extra, capado todo en 100 pts), asignando un rango competitivo (S+, S, A, B, C, D) y su correspondiente color neón.
+*   **`fetch_channel_data_and_analytics()`**: Obtiene la información básica del canal y sus métricas de los últimos 30 días de la API. Implementa un sistema de caché con expiración de 2 horas para evitar llamadas redundantes a la API de YouTube Analytics pero permitiendo actualizaciones frecuentes a lo largo del día.
+*   **`load_metadata_cache()` / `save_metadata_cache()` y `load_metrics_cache()` / `save_metrics_cache()`**: Funciones de soporte para cargar y guardar las cachés locales en los archivos JSON de la carpeta `config/cache/`.
+*   **`fetch_video_transcript(video_id)`**: Recupera de forma perezosa la transcripción oficial o autogenerada de subtítulos de YouTube en formato texto para un video, utilizando la API ligera `youtube-transcript-api` (instanciando la clase `YouTubeTranscriptApi` y extrayendo de forma robusta los subtítulos a partir de objetos o diccionarios del transcript). Ignora y elimina archivos de caché antiguos que contengan errores transitorios previos para forzar un reintento. Solo almacena en caché transcripciones exitosas o errores permanentes (subtítulos desactivados o no encontrados), omitiendo la persistencia de errores temporales (como videos privados o programados) para que se reintenten de forma automática en consultas posteriores.
+*   **`fetch_channel_videos()`**: Consulta la API de YouTube Data v3 y la API de YouTube Analytics v2 de forma conjunta para extraer la lista de subidas del canal (hasta 500 videos paginados de a 50 por petición para asegurar la captura de videos largos, históricos y transmisiones en vivo), sus duraciones, descripciones, etiquetas e índices analíticos de los últimos 90 días, calculando dinámicamente el score y rango de cada video. Utiliza una caché de lista procesada (`config/cache/videos_list_cache.json`) que expira tras 2 horas de su creación para garantizar frescura en las métricas cambiantes, y una caché local de metadatos estáticos (duración, título, urls, descripción, tags) con política de expiración diaria. Soporta un parámetro `force_reload=True` para invalidar la caché en disco y forzar consultas frescas desde cero, omitiendo la caché de metadatos estáticos para corregir clasificaciones antiguas erróneas, repoblar descripciones/etiquetas, y eliminar los archivos de transcripción en caché correspondientes a los videos del canal para permitir una recarga limpia y completa de subtítulos. Los videos se clasifican como `"shorts"` si su duración es <= 60s, si el título contiene `"#shorts"`, o si tienen una duración de entre 60 y 180 segundos y se valida que no redirigen a la página normal de reproducción mediante una comprobación rápida de cabecera HTTP HEAD (aplicando un contexto SSL no verificado para evitar problemas con certificados SSL locales y un timeout de 5 segundos).
+*   **`get_mock_channel_analytics()`**: Genera métricas simuladas de alta fidelidad para pruebas.
+*   **`get_mock_channel_videos()`**: Genera una lista simulada de videos con estadísticas ficticias realistas y calcula sus scores/rangos algorítmicos. Mapea portadas ficticias para simulación.
 
-### `modules/render_mix.py`
-El motor de renderizado para videos cortos (Shorts).
-1.  **Trim de Silencio:** Recorta silenciados al inicio del audio mediante el filtro `silenceremove=start_periods=1:start_duration=0:start_threshold=-40dB`.
-2.  **Audio Speed Ramping:** Si el texto de un segmento de Whisper contiene palabras de terror, el motor ralentiza el tempo a `0.90x` para aumentar la tensión. Si es texto de relleno, lo acelera a `1.08x` para retención. Los segmentos se concatenan con el filtro `atempo` y los timestamps del JSON de subtítulos se recalculan proporcionalmente.
-3.  **Descarga de B-rolls:** Si hay una API Key de Pexels configurada, busca B-rolls utilizando los nombres de los elementos en pantalla identificados en el guion, los descarga y calcula sus intervalos para superponerlos sobre el video sin colisionar con otros clips.
-4.  **Cálculo de Tiempos y Cortes Asimétricos:** Distribuye de forma asimétrica la duración de los clips en el timeline. Hay un 18% de probabilidad de generar "flash cuts" rápidos (duración de 0.12s a 0.20s), y el resto son cortes irregulares normales, reservando 0.25s fijos para clips subliminales.
-5.  **Render de Clips en Paralelo (`process_chunk`):** Procesa los clips en paralelo a través de un pool de hilos (`ThreadPoolExecutor` limitado a un máximo de 2 trabajadores).
-    *   **Gestión de GIFs Animados:** Si un clip tiene la extensión `.gif`, utiliza la opción de entrada de FFmpeg `-ignore_loop 0` en lugar de `-stream_loop -1` (que causa bloqueos en el demuxer de GIFs de FFmpeg en Windows). Esto mantiene la animación del GIF en reproducción continua y permite que sea procesado como un flujo de video.
-    *   **Efectos Subliminales:** Aplica desenfoque dinámico (`boxblur=2:1`) y parpadeo rápido de brillo (`eq=brightness='0.2*sin(30*PI*t)'`).
-    *   **Glitches y Temblor de Terror:** Si el clip se cruza con una palabra clave de terror en el guion, activa un filtro de sacudida y glitch visual cromático (`negate` y `noise`) sincronizado con la palabra.
-    *   **Ken Burns y Zoompan:** Aplica paneos horizontales y verticales. Si el clip dura más de la media, aplica un re-encuadre automático del 1.1x al 1.35x al llegar al 60% de su duración (Jump Cut de tensión) utilizando la variable de tiempo de salida `time` en lugar de `in_time` para evitar errores de evaluación matemática (`NAN`) en entradas con timestamps inestables (como GIFs en bucle).
-    *   **Ganchos Visuales:** Para el clip inicial (`i == 0`), inyecta un strobe blanco y negro al inicio. Si el estilo es Reddit, superpone la tarjeta AskReddit generada con una animación slide-up exponencial (`overlay=y='((H-h)/2+(H-(H-h)/2)*exp(-8*t))*lt(t,0.6)...'`). Si es Roblox, añade un cartel estático estilo gaming naranja/blanco.
-    *   **Mezcla de Estilo VHS:** Mezcla una textura de ruido de VHS analógico (`vhs_overlay.mp4`) en modo screen con una opacidad baja del 8% (`blend=all_mode=screen:all_opacity=0.08`).
-6.  **Paso 1: Composición de Video:** Concatenación de clips usando filtros `xfade` (transiciones aleatorias de 0.5s como pixelado, zoom, barrido radial, etc.) y quema los subtítulos ASS (`subtitles=filename='...'`). El video resultante se genera como un flujo de transporte MPEG-TS temporal (`mpegts`).
-7.  **Paso 2: Composición de Audio:**
-    *   Aplica normalización de volumen (`loudnorm=I=-16`) e inyecta la narración de voz.
-    *   Crea un canal paralelo de voz y aplica compresión sidechain (ducking) sobre la música de fondo (`sidechaincompress=threshold=0.04:ratio=6`), reduciendo la música un 70% cuando habla el narrador.
-    *   Coloca efectos de transición (risers, impacts, glitches) coordinados con las transiciones `xfade` de video.
-    *   Inyecta un sonido de impacto o tensión ("screamer" / "despertador") a la mitad del video (48% de la duración) seleccionado aleatoriamente de un pool compuesto por efectos de transición y de horror (`real_glitch`, `real_boom`, `real_impact`, `real_whoosh`, `scream`, `whisper`, `heartbeat`, `breathing`). Para garantizar la consistencia de volumen y evitar que audios largos alteren la mezcla, se recortan estrictamente a 2.5 segundos con un fade-out de 1.0 segundo de duración en la salida.
-    *   Mezcla los SFX de palabras clave y el sonido original de los clips de video activos.
-    *   Concatena y guarda todo en el archivo final `.mp4`.
-9.  **Optimización de Memoria en Subprocesos (FFmpeg):** Para evitar que el heap de Python se agote acumulando bitácoras de renderizado extensas en la variable de captura, el motor redirige el stderr de FFmpeg a archivos de log físicos en disco (`cache/ffmpeg_video_err.log`, etc.) y descarta el stdout mediante `subprocess.DEVNULL`. Estos logs se leen únicamente si el subproceso falla, garantizando el consumo de RAM en 0 bytes para logs en renders exitosos.
-8.  **Auto Doblajes Traducidos:** Llama a la función `auto_generate_translated_dubs` para traducir el guion a Francés, Italiano y Alemán. Genera audios sintéticos mediante Edge-TTS con las voces `HenriNeural`, `DiegoNeural` y `ConradNeural` respectively. Posteriormente, ajusta la velocidad del audio traducido mediante el filtro `atempo` para que dure exactamente lo mismo que la narración original en español, traduce los metadatos de texto y mezcla el audio doblado resultante con la música de fondo.
+### `ui/tabs/metrics_tab.py`
+*   **`MetricsTab` (Clase)**: Pestaña que interactúa con el cliente de analíticas para mostrar los KPI de rendimiento, tasa de interacción y gráfico de evolución temporal con soporte de renderizado dual (Matplotlib / tk.Canvas).
+    *   **Caché en Memoria y Pereza**: Almacena el canal cargado actual en `self.loaded_channel_name`. Si el usuario navega a esta sección y el canal activo no ha cambiado, no realiza ninguna petición a la API y reutiliza los datos en memoria. Si el canal activo difiere, actualiza el selector dropdown y solicita la información al cliente API (el cual implementa el caché en disco).
+    *   **Indicador de Carga Inteligente**: Si existe caché diaria válida en disco para el canal antes de iniciar el hilo secundario, la pantalla de carga se personaliza mostrando `"Cargando desde caché local..."` para mayor transparencia del usuario.
+    *   **Actualización Dinámica**: Soporta `refresh_channel_list()` para sincronizar los canales si hay cambios en los ajustes globales.
 
-### `modules/render_long.py`
-Optimizado para renderizar videos largos en formato horizontal (16:9).
-*   **`convert_to_phrase_ass(...)`:** Agrupa palabras en frases de 3 a 6 palabras basándose en pausas de tiempo mayores a 0.35s o signos de puntuación. Aplica intermitencia de visualización para evitar que la pantalla se sature.
-*   **`render_chapter(...)`:**
-    *   Si el capítulo es mayor a 0, dibuja una **Title Card** (pantalla de título) de 7.0 segundos con fondo negro, estática de video (`noise=alls=18:allf=t`), zumbido de misterio a 55Hz, y el título en mayúsculas rojas grandes.
-    *   Aplica el efecto de movimiento Ken Burns sobre las imágenes asignadas (pan, tilt, o desplazamientos diagonales) variando el movimiento de forma cíclica según el índice del recurso.
-    *   Aplica un fundido final a negro de 1.2 segundos al terminar el capítulo (dramatismo).
-    *   **Optimización de Memoria (FFmpeg):** Escribe las bitácoras de error de FFmpeg directamente en un log de disco (`[capítulo]_ffmpeg_err.log`) y redirige stdout a `DEVNULL` para evitar caídas de memoria (`MemoryError`) durante la codificación.
-*   **`render_long_video_project(...)`:**
-    *   Renderiza cada capítulo de forma secuencial (`max_workers=1`) para proteger el procesador y evitar bloqueos en hardware modesto.
-    *   Implementa caché inteligente de render: calcula la firma/metadatos de cada capítulo (guion, título, audios de voz e imágenes con sus fechas de modificación y tamaños). Si el capítulo no ha sufrido cambios, reutiliza el chunk pre-renderizado `chapter_X.mp4` evitando codificar de nuevo.
-    *   Une los capítulos de forma instantánea y sin pérdida usando la directiva `concat` de FFmpeg sin re-codificación de video (`-c:v copy`).
-    *   Extrae las pistas de audio de cada capítulo y aplica un diseño de sonido fluido: introduce crossfades de 1.5s entre las músicas de fondo de cada bloque y realiza sidechaining general sobre la narración completa del video.
+### `ui/tabs/videos_tab.py`
+*   **`VideosTab` (Clase)**: Pestaña dedicada al listado de contenidos de forma estructurada, segmentada e independiente por canal.
+    *   **Selección de Canal**: Menú desplegable para cambiar de canal.
+    *   **Segmentación por Tipo (`CTkSegmentedButton`)**: Control visual premium para filtrar los contenidos cargados en tres pestañas de segmentación: **Shorts**, **Videos Largos** y **Directos**. Si una sección no tiene contenidos, muestra un mensaje explicativo adaptativo (ej. "No se encontraron directos para este canal").
+    *   **Clasificación en Backend**: El backend consulta `liveStreamingDetails`, `duration`, la presencia del hashtag `"#shorts"` en el título y realiza una comprobación rápida de redirección mediante una petición HTTP HEAD en videos de duración intermedia (60s a 180s) para clasificar automáticamente cada subida en la categoría adecuada (Shorts, Videos Largos o Directos).
+    *   **Puntuación Inteligente Ponderada**: Adapta la fórmula de retención (AVP) según el tipo de video:
+        *   *Shorts*: Escala de 50% a 100% de retención.
+        *   *Videos Largos*: Escala de 25% a 50% de retención (ajustada a la naturaleza del contenido de larga duración).
+        *   *Directos*: Evaluados en base a tiempo absoluto de retención promedio por espectador (2 a 10 minutos).
+    *   **Controles de Ordenamiento**: Menú desplegable para organizar los videos por "Fecha (Recientes)", "Título (A-Z)" y "Puntuación (Mayor a Menor)" dentro del segmento seleccionado.
+    *   **Caché en Memoria y Pereza**: Almacena el canal cargado actual en `self.loaded_channel_name`. Si se navega a la sección de videos y el canal cargado coincide con el activo, evita cualquier consulta de API o indicador de carga, mostrando los videos ya renderizados al instante.
+    *   **Indicador de Carga Inteligente**: Si la app se inicia de cero y la caché en disco (2h) está disponible, la pantalla de carga temporal muestra el mensaje `"Cargando desde caché local..."` antes de inyectar las tarjetas desde el disco.
+    *   **Botón de Fórmula (`ⓘ Fórmula`)**: Abre una ventana modal emergente (`CTkToplevel`) centrada que detalla la fórmula matemática adaptativa de puntuación y los rangos de clasificación.
+    *   **Visualización (Portadas Reales)**: Tarjetas de video estilizadas que muestran el índice o posición del video (`#1`, `#2`, etc.) en el extremo izquierdo y cargan la miniatura/portada real de forma asíncrona. La interfaz limita el renderizado a los primeros **50 videos** del segmento seleccionado para evitar sobrecargar CustomTkinter. Además, utiliza un ejecutor de hilos controlado (`ThreadPoolExecutor` con un máximo de 2 hilos simultáneos) para cargar y procesar las portadas de forma secuencial y suave, previniendo cuellos de botella de GIL y saturación del bucle de eventos que congelaban la ventana de la aplicación.
+    *   **Asincronía**: Carga de metadatos e imágenes mediante hilos de fondo y comunicación segura con el hilo de Tkinter (`after()`), evitando bloqueos en la interfaz gráfica.
+    *   **Botón y Ventana de Detalles**: Cada tarjeta de video cuenta con un botón `"DETALLES"` que abre un modal flotante (`CTkToplevel`) centrado. Este visor muestra las estadísticas clave del video, las etiquetas (tags), la descripción completa en una caja de texto de lectura, y arranca un hilo secundario para descargar de forma asíncrona la transcripción del audio de YouTube (evitando congelar la UI y mostrándola en cuanto se guarda en la caché local de disco).
 
----
+### `ui/tabs/viral_map_tab.py`
+*   **`ViralMapTab` (Clase)**: Nueva pestaña dedicada al análisis visual de la viralidad mediante redes de co-ocurrencia.
+    *   **Lienzo de Redes Embebido**: Integra una figura de Matplotlib embebida mediante `FigureCanvasTkAgg` en el marco de la UI. Dibuja dinámicamente un grafo de red utilizando los nodos y aristas de `networkx` aplicando un layout de resortes estable con dispersión adaptable (`k` dinámico) e iteraciones optimizadas para prevenir superposiciones.
+    *   **Diseño Neón Horror Premium**: Dibuja los nodos como anillos oscuros con bordes de degradado neón mediante una normalización min-max dinámica de los scores activos (desde rojo oscuro `#55000C` hasta rojo neón ardiente `#FF003C`). Los tamaños de los nodos se escalan sublinealmente (basado en la raíz cuadrada de la frecuencia) para evitar solapamientos masivos. Las etiquetas de texto de cada nodo tienen un efecto de silueta (borde) negro grueso de 3.5 px para garantizar lectura legible sobre cualquier fondo, y las aristas se dibujan en rojo neón transparente con grosor proporcional al grado de co-ocurrencia.
+    *   **Tabla de Palabras Clave**: Muestra en el panel derecho scrollable un listado ordenado de los términos más virales, indicando su frecuencia de aparición y su score promedio con su correspondiente rango y color.
+    *   **Filtros Interactivos**: Incluye un `CTkSegmentedButton` para cambiar entre segmentos (Shorts, Videos Largos, Directos, Todos) y un `CTkSlider` para filtrar por frecuencia mínima de aparición.
+    *   **Procesamiento Asíncrono**: Realiza la computación matemática en un hilo de fondo y delega el redibujado de Matplotlib al hilo principal de Tkinter vía `.after()`, evitando bloqueos.
 
-## 6. Interfaz Gráfica (Frontend - CustomTkinter)
+### `modules/graph_analyzer.py`
+*   **`tokenize(text)`**: Limpia textos eliminando números, caracteres especiales y signos de puntuación, filtrando palabras de longitud corta (<= 2) y excluyendo una lista de más de 120 palabras vacías (*stop words*) en español e inglés.
+*   **`get_video_keywords(video)`**: Combina el título y las etiquetas oficiales del video, agregando los 10 términos más frecuentes de la descripción y transcripción (leída de la caché local) para obtener un listado balanceado de palabras clave por video.
+*   **`generate_viral_graph_data(videos)`**: Filtra videos por tipo, procesa sus palabras clave, acumula frecuencias y puntuaciones promedio, e identifica enlaces de co-ocurrencia. Construye y devuelve un grafo no dirigido de `networkx.Graph` y un listado ordenado por score promedio.
 
-### `ui/main_window.py`
-Ventana principal y núcleo de la interfaz.
-*   **Ciclo de Carga:** Configura la estética, inicializa variables de estado y el `ProjectManager`. En el arranque inicializa de forma asíncrona un sistema de precarga y calentamiento de vistas (`preload_all_views`) instanciando todos los paneles en segundo plano y manteniéndolos listos en memoria.
-*   **Control del Z-Order (Z-Index):** Para cambiar de vista, el método `show_view` llama a `.lift()` sobre la pestaña seleccionada dentro de su grid de diseño. Esto permite cambios de panel instantáneos y fluidos sin necesidad de destruir/reconstruir widgets.
-*   **Auto Save:** Inicia un bucle recursivo de fondo cada 30 segundos (`auto_save_loop`) que recupera el estado interno actual de cada pestaña activa y lo guarda en `projects/<project_id>/state.json`.
 
-### `ui/config_editor.py`
-Permite editar ajustes guardados en `config/settings.json`.
-*   **Syntax Highlighting en Prompts:** Monitorea la edición en los campos de prompt a través del evento `<KeyRelease>` y aplica expresiones regulares sobre el texto crudo para colorear marcas dinámicas (headers `[...]` en azul, variables `{...}` en magenta, texto entre comillas en naranja, y claves del sistema en azul claro).
-
-### `ui/narrative_editor.py`
-*   Permite al usuario editar la lista de ganchos, monstruos, atmósfera y cierres. Actualiza los valores en memoria dentro de `config/prompts` y los guarda de forma persistentemente en `config/narrative_vars.json`.
-
-### `ui/image_converter.py`
-*   **`convert_files()`:** Escanea las imágenes PNG seleccionadas. Dado que el formato JPEG no posee canal de transparencia (Alpha), el conversor crea un lienzo en blanco del mismo tamaño, superpone la imagen PNG utilizando su canal alpha como máscara (`img.split()[-1]`), y guarda el resultado a formato JPEG con un factor de calidad alto del 95%.
-
-### `ui/visual_prompt_viewer.py`
-*   **`parse_prompts()`:** Procesa la cadena de texto de prompts generada por el LLM. Utiliza expresiones regulares para identificar saltos de bloque (Ej: `1.`, `Imagen 1:`, `Prompt 1:`) y separa la información descriptiva del prompt de generación de imagen real.
-*   **Población Incremental:** Evita congelamientos en la GUI al cargar listas grandes. Su método `_add_next_chunk` renderiza las tarjetas de visualización en lotes de 3 en 3, programando el siguiente lote de forma recursiva a través del callback `after(10, self._add_next_chunk)`.
-
----
-
-## 7. Análisis Detallado de Pestañas (Tabs)
-
-### `ui/tabs/concept_tab.py`
-Entrada de ideas y estructuración literaria.
-*   **Scraper de Reddit:** Abre un diálogo flotante que realiza peticiones HTTP GET a las fuentes JSON públicas de subreddits seleccionados (Ej: `https://www.reddit.com/r/creepypasta/hot.json?limit=12`). Extrae los posts que no estén fijados y que contengan texto, mostrando sus puntuaciones y permitiendo importarlos directamente como semilla del guion.
-*   **Generador:** El botón de materializar guion selecciona aleatoriamente un gancho, una criatura, una atmósfera y un cierre de la base de datos de caos narrativo. Reemplaza los comodines `{TRAMA}`, `{GANCHO}`, `{MONSTRUO}`, `{ATMOSFERA}` y `{CIERRE}` de la plantilla prompt seleccionada (ej: `reddit_stories.txt`) y añade una regla estricta de palabras según la duración elegida (30s, 45s o 60s). Al finalizar la generación, extrae las secciones de guion limpio, títulos y descripción sincronizándolos automáticamente en las siguientes pestañas.
-
-### `ui/tabs/visual_tab.py`
-*   Calcula el número de imágenes estimadas al vuelo mientras el usuario escribe la duración en segundos del video. El prompt inyecta el guion generado anteriormente y solicita la descripción de cada escena. Al recibir la respuesta, extrae por expresión regular la variable `VARIABLE DE ENTIDAD` (ADN visual del monstruo) y la guarda en el estado global.
-
-### `ui/tabs/cover_tab.py`
-*   Genera el prompt de generación de imagen para la portada / miniatura del Short. Integra automáticamente la sinopsis de la historia y el ADN visual del monstruo recopilados de las pestañas anteriores.
-
-### `ui/tabs/voice_tab.py`
-*   Permite a los creadores generar de forma independiente audios a partir de guiones textuales usando el TTS de Gemini Charon. En Windows, permite reproducir el archivo `.wav` generado sin salir del programa invocando de manera asíncrona la librería nativa del sistema operativo `winsound.PlaySound` con los flags `SND_FILENAME | SND_ASYNC`.
-
-### `ui/tabs/media_tab.py`
-Consola de producción principal.
-*   **Ambientación Musical Permanente (BGM):** La música de fondo ahora es obligatoria para todos los Shorts y se encuentra forzada por defecto. Se ha retirado el checkbox físico de la UI, pero se mantiene la lógica interna del estado activa para preservar el flujo de mezcla de audio.
-*   **Auto Gameplay:** Abre un diálogo de descarga. Busca y descarga videos de jugabilidad largos sin comentarios (ej: parkour de Minecraft) usando `yt-dlp` a resolución máxima de 720p, y los segmenta en clips mudos de 5 a 12s para cubrir la duración de la narración de voz.
-*   **Auto General (Sourcing Personalizado):** Reemplaza el anterior motor fijo de Roblox por un buscador multimedia interactivo y general. Al hacer clic en "AUTO GENERAL", abre el asistente `AutoGeneralDialog` que permite al usuario configurar o escribir su propio tema o palabra clave de búsqueda (ej. "Backrooms", "Minecraft", "Creepypasta", o cualquier juego de Roblox). Realiza detección inteligente inicial del tema leyendo el nombre del archivo de audio o el guion de la sesión y permite descargar e integrar automáticamente gameplays de YouTube, imágenes y GIFs del tema al timeline del video corto en un solo paso.
-*   **Automatización Reactiva (`focus_set`):** Al obtener el foco, si la pestaña detecta un nuevo guion generado en la sesión, activa automáticamente:
-    1.  **Reroll de Música**: Selecciona de manera aleatoria una nueva pista de música BGM para evitar que videos consecutivos suenen igual.
-    2.  **Subtítulos Inteligentes**: Analiza el guion y el título para preseleccionar de forma automática el estilo de subtítulos idóneo (`Roblox Gaming` para Roblox, `Reddit History` si es de Reddit, y `TikTok / Hormozi` para narrativas estándar).
-*   **Traducción e Hilos de Render:** Permite traducir bajo demanda la narración actual en español a Francés, Italiano y Alemán. Los renders y subidas de videos se ejecutan en hilos daemon independientes (`threading.Thread`) para evitar congelamientos en la UI.
-*   **Carga de Miniaturas Asíncronas:** Al actualizar la línea de tiempo, se crea un hilo que genera miniaturas de los videos y fotos de forma segura en disco con llamadas FFmpeg de bajo rendimiento. Las miniaturas se colocan en una cola que es leída de forma segura por el hilo principal a través de un bucle periódico `after(100, self.process_thumbnail_queue)` para aplicar los gráficos en los widgets de la interfaz gráfica sin interrumpir los clics del usuario.
-
-### `ui/tabs/long_tab.py`
-Gestor avanzado de videos horizontales largos.
-*   **Segmentación:** Envía la historia completa a Gemini para segmentarla en capítulos lógicos de 30 a 90 segundos. El resultado se parsea desde un bloque JSON estructurado de forma estricta.
-*   **Gestor de Tarjetas:** Genera dinámicamente un editor dedicado para cada capítulo detectado en el guion. Cada tarjeta contiene un campo de edición de texto propio con sincronización en tiempo real en la lista de datos del proyecto, selectores de voz TTS individuales para cada capítulo, gestores de medios visuales locales y selector aleatorio de pista musical para BGM por bloque. El render se realiza secuencialmente utilizando el motor `render_long.py`.
-
-### `ui/tabs/comparator_tab.py`
-Pestaña de benchmarking narrativo y auditoría de viralidad.
-*   **Doble Origen (Descarga y Archivos Locales):** Admite tanto URLs de YouTube (que se descargan como audio ligero vía `yt-dlp` en segundo plano) como rutas de archivos multimedia locales (`.mp4`, `.mkv`, `.mp3`, etc.) importados a través del botón **📂 LOCAL**. Para los archivos locales se omite la descarga de red y se procesan directamente.
-*   **Caché Inteligente por Hash:** Para evitar colisiones en la caché entre archivos locales que compartan el mismo nombre pero estén en distintas carpetas, se genera un identificador único aplicando un hash MD5 de 8 caracteres sobre la ruta absoluta (`local_[hash]_[filename]`).
-*   **Cálculo de Ritmo (Pacing):** Analiza el flujo de palabras para medir la velocidad de habla (WPM) y el conteo de silencios dramáticos (>0.4 segundos), ayudando a clasificar el tono (Ej. Pausado/Tenebroso vs Rápido/Dinámico).
-*   **Prevención de Congelamiento de GUI:** Para evitar congelar el hilo principal de Tkinter con textos gigantes (como gameplays largos), si la transcripción supera los 15,000 caracteres se muestra truncada en la interfaz gráfica con un aviso de advertencia.
-*   **Guardado y Autoapertura en TXT:** Al finalizar o cargar de caché una transcripción, se guarda en disco un archivo `.txt` bajo `cache/benchmark/` y se abre automáticamente de forma asíncrona usando Notepad (`os.startfile`). El usuario puede abrir este archivo manualmente en cualquier momento haciendo clic en el botón "📂 ABRIR TXT" en la cabecera correspondiente.
-*   **Comparativa por IA y Soporte de Ediciones:** Compara los guiones y métricas de ritmo de "Mi Video" con uno de "Referencia" de la competencia a través de Gemini o Groq. Si la caja de texto muestra el aviso de truncamiento, la IA lee la transcripción completa directamente desde el archivo `.txt` en disco, lo que permite integrar los cambios y ediciones manuales que el usuario haya guardado mediante el Bloc de Notas.
-
----
-
-## 8. Gestión de Recursos y Temporales
-
-### Rutas de Caché
-La aplicación genera una jerarquía de carpetas temporales bajo `cache/` para agilizar los procesos y evitar descargas de red repetidas:
-*   `cache/detected_encoder.json`: Guarda los parámetros optimizados de render por hardware del equipo del usuario.
-*   `cache/ass/<project_id>/`: Subtítulos temporales avanzados en formato `.ass`.
-*   `cache/json/<project_id>/`: Resultados de transcripciones de audio (Groq Whisper JSON) y cachés temporales de transcriptor.
-*   `cache/audio/<project_id>/`: Audios de voz recortados o modificados mediante Speed Ramping.
-*   `cache/thumbnails/<project_id>/`: Miniaturas de imágenes y fotogramas clave de video de 110x110px generados para la línea de tiempo.
-*   `cache/chunks/<project_id>/`: Clips de video individuales renderizados en la etapa intermedia.
-*   `cache/gameplays/`: Videos largos de YouTube de gameplay descargados por `yt-dlp` para reutilizar como fondo.
-*   `cache/videos_largos/<project_name>/chunks/`: Chunks de capítulos y metadatos JSON (`chapter_X_meta.json`) para caché inteligente de videos largos.
-
-### Assets del Sistema
-Ubicados en la carpeta `assets/` del workspace:
-*   `assets/video/fx/vhs_overlay.mp4`: Capa de superposición analógica.
-*   `assets/video/luts/`: Contiene las tablas de mapeo de color tridimensionales (.cube) Gore Rojo, Terror Frío, Misterio Oscuro y VHS.
-*   `assets/audio/transitions/`: Efectos de sonido para transiciones de video (`real_riser.mp3`, `real_impact.mp3`, `real_glitch.mp3`, `real_boom.mp3`, `real_whoosh.mp3`).
-*   `assets/audio/sfx/`: Sonidos para efectos ambientales integrados automáticamente por palabras clave (`scream.mp3`, `door.mp3`, `footsteps.mp3`, `heartbeat.mp3`, `whisper.mp3`, `wind.mp3`, `breathing.mp3`).
-*   `assets/audio/music/`: Biblioteca de música de fondo para Shorts y videos largos.
