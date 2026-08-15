@@ -1,15 +1,21 @@
 # Cache and Temp folders
 cache/
+cache/**/*
 temp_render/
+downloads/*
 __pycache__/
 *.pyc
+*.log
+.pytest_cache/
 
 # Virtual environments
 venv/
 .venv/
 
-# User configurations or saves
-projects/cache/
+# Renders y descargas temporales
+projects/renders/*.mp4
+projects/renders/*.txt
+projects/renders/*.json
 *.mp4
 *.wav
 *.mp3
@@ -18,6 +24,15 @@ projects/cache/
 *.jpeg
 *.cube
 
+# Secrets & Credentials
+credenciales/
+*.pickle
+config/token*.json
+config/token*.pickle
+config/groq_settings.json
+
 # Scratch files
+scratch/*
 scratch_test/
 *.tmp
+

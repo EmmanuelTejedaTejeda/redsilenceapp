@@ -8,40 +8,61 @@ from google.auth.transport.requests import Request
 
 # Scopes oficiales para YouTube Data API y YouTube Analytics API
 SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload",
     "https://www.googleapis.com/auth/youtube.readonly",
     "https://www.googleapis.com/auth/yt-analytics.readonly"
 ]
+
+import threading
+OAUTH_LOCK = threading.Lock()
 
 def get_authenticated_services(client_secrets_path, token_path):
     """
     Autentica con Google OAuth2 y retorna los clientes para YouTube Analytics (v2) y YouTube Data (v3).
     """
-    credentials = None
-    if os.path.exists(token_path):
-        try:
-            with open(token_path, "rb") as token:
-                credentials = pickle.load(token)
-        except Exception as e:
-            print(f"Error cargando token de caché: {e}")
-            credentials = None
-            
-    if not credentials or not credentials.valid:
-        if credentials and credentials.expired and credentials.refresh_token:
+    with OAUTH_LOCK:
+        credentials = None
+        if os.path.exists(token_path):
             try:
-                credentials.refresh(Request())
+                with open(token_path, "rb") as token:
+                    credentials = pickle.load(token)
             except Exception as e:
-                print(f"Error al refrescar token, requiriendo re-autenticación: {e}")
+                print(f"Error cargando token de caché: {e}")
                 credentials = None
+                
+        if not credentials or not credentials.valid:
+            if credentials and credentials.expired and credentials.refresh_token:
+                try:
+                    credentials.refresh(Request())
+                except Exception as e:
+                    print(f"Error al refrescar token, requiriendo re-autenticación: {e}")
+                    credentials = None
 
-        if not credentials:
-            if not os.path.exists(client_secrets_path):
-                raise FileNotFoundError(f"No se encuentra el archivo de credenciales de cliente: {client_secrets_path}")
-            flow = InstalledAppFlow.from_client_secrets_file(client_secrets_path, SCOPES)
-            credentials = flow.run_local_server(port=0)
-            
-        # Guardar credenciales para la próxima sesión
-        with open(token_path, "wb") as token:
-            pickle.dump(credentials, token)
+            if not credentials:
+                if not os.path.exists(client_secrets_path):
+                    raise FileNotFoundError(f"No se encuentra el archivo de credenciales de cliente: {client_secrets_path}")
+                
+                import webbrowser
+                import subprocess
+                _orig_open = webbrowser.open
+                
+                def safe_open(url, *args, **kwargs):
+                    try:
+                        subprocess.Popen(f'start "" "{url}"', shell=True)
+                        return True
+                    except:
+                        return _orig_open(url, *args, **kwargs)
+                        
+                webbrowser.open = safe_open
+                try:
+                    flow = InstalledAppFlow.from_client_secrets_file(client_secrets_path, SCOPES)
+                    credentials = flow.run_local_server(port=0)
+                finally:
+                    webbrowser.open = _orig_open
+                
+            # Guardar credenciales para la próxima sesión
+            with open(token_path, "wb") as token:
+                pickle.dump(credentials, token)
             
     analytics_service = build("youtubeAnalytics", "v2", credentials=credentials)
     youtube_service = build("youtube", "v3", credentials=credentials)
@@ -67,17 +88,145 @@ def save_metrics_cache(cache):
     except Exception as e:
         print(f"Error guardando caché de métricas: {e}")
 
-def fetch_channel_data_and_analytics(client_secrets_path, token_path):
+def determine_channel_niche(channel_name, description, topic_categories):
     """
-    Obtiene los datos del canal (nombre, suscriptores, foto de perfil) y 
+    Determina el nicho del canal usando:
+    1. Groq (Llama 3) si hay clave configurada.
+    2. Heurística local (Wikipedia topics en topicCategories + palabras clave en descripción).
+    """
+    # Intentar cargar la clave de Groq
+    groq_api_key = ""
+    settings_path = os.path.join("config", "groq_settings.json")
+    if os.path.exists(settings_path):
+        try:
+            with open(settings_path, "r", encoding="utf-8") as f:
+                settings = json.load(f)
+                groq_api_key = settings.get("groq_api_key", "").strip()
+        except Exception:
+            pass
+
+    # Si hay clave de Groq, usar Llama para una clasificación específica
+    if groq_api_key:
+        try:
+            import urllib.request
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            
+            categories_str = ", ".join([cat.split("/")[-1].replace("_", " ") for cat in topic_categories])
+            
+            prompt_system = (
+                "Eres un clasificador de canales de YouTube experto. Clasifica el nicho específico de un canal "
+                "basándote en su nombre, descripción y categorías principales de YouTube. Devuelve ÚNICAMENTE "
+                "el nicho en un formato muy corto de 1 a 3 palabras en español, capitalizado. No agregues "
+                "explicaciones, puntuación ni texto adicional. Ejemplo de respuestas válidas: 'Misterio y Terror', "
+                "'Finanzas Personales', 'Desarrollo Personal', 'Gaming y Vlogs', 'Tecnología y Código'."
+            )
+            
+            prompt_user = (
+                f"Nombre del canal: {channel_name}\n"
+                f"Descripción: {description[:500]}\n"
+                f"Categorías de YouTube: {categories_str}"
+            )
+            
+            models = ["llama-3.1-8b-instant", "llama-3.3-70b-specdec", "llama3-8b-8192", "llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama3-70b-8192"]
+            niche = None
+            for model in models:
+                try:
+                    data = {
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": prompt_system},
+                            {"role": "user", "content": prompt_user}
+                        ],
+                        "temperature": 0.1,
+                        "max_tokens": 10
+                    }
+                    
+                    req = urllib.request.Request(
+                        url,
+                        data=json.dumps(data).encode("utf-8"),
+                        headers={
+                            "Content-Type": "application/json",
+                            "Authorization": f"Bearer {groq_api_key}"
+                        },
+                        method="POST"
+                    )
+                    
+                    with urllib.request.urlopen(req, timeout=5) as response:
+                        res_data = json.loads(response.read().decode("utf-8"))
+                        niche = res_data["choices"][0]["message"]["content"].strip().strip('"').strip("'").strip(".")
+                        if niche and len(niche) < 40:
+                            return niche
+                except Exception as model_err:
+                    err_str = str(model_err)
+                    # Si es error 403 (llave inválida), salimos inmediatamente
+                    if "403" in err_str or "Forbidden" in err_str or "Unauthorized" in err_str:
+                        break
+                    continue
+        except Exception as e:
+            print(f"Error clasificando con Groq: {e}. Usando fallback heurístico.")
+
+    # FALLBACK 1: Heurística basada en las URLs de Wikipedia de topicCategories
+    gaming_topics = ["video_game", "gaming", "action-adventure_game", "role-playing_video_game", "strategy_video_game", "simulation_video_game", "sports_game"]
+    music_topics = ["music", "pop_music", "rock_music", "hip_hop_music", "electronic_music", "jazz", "soul_music"]
+    tech_topics = ["technology", "computing", "software", "internet", "electronics"]
+    finance_topics = ["business", "finance", "economics", "investment"]
+    sports_topics = ["sport", "association_football", "basketball", "tennis", "american_football", "baseball"]
+    travel_topics = ["travel", "tourism", "lifestyle_(sociology)"]
+    food_topics = ["food", "cooking", "recipe"]
+    film_topics = ["film", "television_program", "entertainment"]
+
+    # Revisar categorías de Wikipedia
+    for cat in topic_categories:
+        cat_lower = cat.lower()
+        if any(t in cat_lower for t in gaming_topics):
+            return "Videojuegos / Gaming"
+        if any(t in cat_lower for t in music_topics):
+            return "Música"
+        if any(t in cat_lower for t in tech_topics):
+            return "Tecnología"
+        if any(t in cat_lower for t in finance_topics):
+            return "Finanzas y Negocios"
+        if any(t in cat_lower for t in sports_topics):
+            return "Deportes"
+        if any(t in cat_lower for t in travel_topics):
+            return "Viajes y Vlogs"
+        if any(t in cat_lower for t in food_topics):
+            return "Cocina y Gastronomía"
+        if any(t in cat_lower for t in film_topics):
+            return "Cine y Entretenimiento"
+
+    # FALLBACK 2: Heurística basada en palabras clave en la descripción y nombre del canal
+    desc_and_name = (channel_name + " " + description).lower()
+    
+    niche_keywords = {
+        "Misterio y Terror": ["terror", "misterio", "miedo", "paranormal", "horror", "creepy", "fantasmas", "leyendas", "suspenso"],
+        "Videojuegos / Gaming": ["gaming", "gameplay", "juegos", "videojuegos", "minecraft", "gamer", "playstation", "xbox", "nintendo"],
+        "Finanzas y Negocios": ["finanzas", "dinero", "inversion", "invertir", "ahorro", "negocios", "emprender", "acciones", "bolsa", "cripto"],
+        "Tecnología y Código": ["tecnología", "codigo", "programación", "python", "software", "desarrollo", "gadgets", "tech", "hardware"],
+        "Cocina y Gastronomía": ["cocina", "receta", "comida", "cocinar", "gastronomia", "chef", "postres", "ingredientes"],
+        "Viajes y Estilo de vida": ["viajes", "viajar", "vlog", "turismo", "aventura", "mochilero", "estilo de vida", "lifestyle"],
+        "Deportes y Fitness": ["deporte", "futbol", "soccer", "entrenamiento", "fitness", "gimnasio", "gym", "baloncesto", "atletismo"],
+        "Educación y Ciencia": ["educacion", "ciencia", "aprender", "tutorial", "historia", "cultura", "curiosidades", "sabias que"]
+    }
+
+    for niche_name, keywords in niche_keywords.items():
+        if any(kw in desc_and_name for kw in keywords):
+            return niche_name
+
+    # FALLBACK FINAL
+    return "General / Entretenimiento"
+
+def fetch_channel_data_and_analytics(client_secrets_path, token_path, force_reload=False):
+    """
+    Obtiene los datos del canal (nombre, suscriptores, foto de perfil, nicho) y 
     las métricas de los últimos 30 días de YouTube Analytics, con caché diaria.
     """
     try:
         analytics, youtube = get_authenticated_services(client_secrets_path, token_path)
         
-        # 1. Obtener información básica del canal autenticado (id, snippet, statistics)
+        # 1. Obtener información básica del canal autenticado (id, snippet, statistics, topicDetails)
         channel_response = youtube.channels().list(
-            part="snippet,statistics",
+            part="snippet,statistics,topicDetails",
             mine=True
         ).execute()
         
@@ -89,13 +238,13 @@ def fetch_channel_data_and_analytics(client_secrets_path, token_path):
         
         # Comprobar si existe caché reciente (duración máxima: 2 horas)
         metrics_cache = load_metrics_cache()
-        if channel_id in metrics_cache:
+        if not force_reload and channel_id in metrics_cache:
             cached_data = metrics_cache[channel_id]
             cache_time = cached_data.get("timestamp")
             is_valid = False
             if cache_time:
                 now = datetime.datetime.now().timestamp()
-                if now - cache_time < 7200: # 2 horas (7200 segundos)
+                if now - cache_time < 86400: # 1 día (86400 segundos)
                     is_valid = True
             else:
                 # Fallback retrocompatible
@@ -103,13 +252,28 @@ def fetch_channel_data_and_analytics(client_secrets_path, token_path):
                 if cached_data.get("cached_at") == today_str:
                     is_valid = True
             if is_valid:
+                summary = cached_data["summary"]
+                # Actualización retroactiva para inyectar nicho en caché antigua si no existe
+                if "niche" not in summary:
+                    description = channel_item["snippet"].get("description", "")
+                    topic_details = channel_item.get("topicDetails", {})
+                    topic_categories = topic_details.get("topicCategories", [])
+                    niche = determine_channel_niche(channel_item["snippet"]["title"], description, topic_categories)
+                    summary["niche"] = niche
+                    metrics_cache[channel_id]["summary"] = summary
+                    save_metrics_cache(metrics_cache)
                 print(f"Cargando métricas del canal {channel_id} desde caché local de disco.")
-                return cached_data["summary"]
+                return summary
         
         # Si no hay caché o es antigua, realizar las consultas completas
         channel_name = channel_item["snippet"]["title"]
         subscribers = channel_item["statistics"].get("subscriberCount", "0")
         profile_pic_url = channel_item["snippet"]["thumbnails"]["default"]["url"]
+        description = channel_item["snippet"].get("description", "")
+        topic_details = channel_item.get("topicDetails", {})
+        topic_categories = topic_details.get("topicCategories", [])
+        
+        niche = determine_channel_niche(channel_name, description, topic_categories)
         
         # 2. Consultar YouTube Analytics de los últimos 30 días
         end_date = datetime.date.today() - datetime.timedelta(days=1)
@@ -161,6 +325,7 @@ def fetch_channel_data_and_analytics(client_secrets_path, token_path):
             "channel_name": channel_name,
             "subscribers": subscribers,
             "profile_pic": profile_pic_url,
+            "niche": niche,
             "total_views": total_views,
             "total_likes": total_likes,
             "total_comments": total_comments,
@@ -181,12 +346,20 @@ def fetch_channel_data_and_analytics(client_secrets_path, token_path):
         return summary
         
     except Exception as e:
+        err_msg = str(e)
+        if "insufficientPermissions" in err_msg or "scopes" in err_msg or "403" in err_msg:
+            if token_path and os.path.exists(token_path):
+                try:
+                    os.remove(token_path)
+                    print(f"Token eliminado por scopes insuficientes al obtener métricas: {token_path}")
+                except:
+                    pass
         print(f"Error al obtener métricas reales de YouTube Analytics: {e}")
         raise e
 
 def get_mock_channel_analytics(channel_name="Canal de Simulación"):
     """
-    Retorna métricas simuladas de alta calidad para pruebas o desarrollo sin conexión.
+    Retorna métricas simuladas de alta calidad para pruebas o desarrollo sin conexión con nicho simulado.
     """
     import random
     
@@ -225,11 +398,26 @@ def get_mock_channel_analytics(channel_name="Canal de Simulación"):
     total_minutes = sum(d["estimatedMinutesWatched"] for d in daily_data)
     avg_dur = sum(d["averageViewDuration"] for d in daily_data) / len(daily_data)
     
+    # Determinar nicho simulado según el nombre del canal
+    name_lower = channel_name.lower()
+    if "silencio" in name_lower or "rojo" in name_lower or "terror" in name_lower or "misterio" in name_lower:
+        mock_niche = "Misterio y Terror"
+    elif "gaming" in name_lower or "juego" in name_lower or "gamer" in name_lower:
+        mock_niche = "Videojuegos / Gaming"
+    elif "finanzas" in name_lower or "dinero" in name_lower or "invertir" in name_lower:
+        mock_niche = "Finanzas y Negocios"
+    elif "tech" in name_lower or "tecnología" in name_lower or "código" in name_lower or "python" in name_lower:
+        mock_niche = "Tecnología y Código"
+    else:
+        niches = ["Misterio y Terror", "Videojuegos / Gaming", "Finanzas y Negocios", "Tecnología y Código", "Viajes y Vlogs", "Cocina y Gastronomía"]
+        mock_niche = niches[abs(hash(channel_name)) % len(niches)]
+
     summary = {
         "channel_id": "MOCK_CHANNEL_ID",
         "channel_name": channel_name,
         "subscribers": "14,820",
         "profile_pic": f"https://picsum.photos/100/100?random={abs(hash(channel_name)) % 100}",
+        "niche": mock_niche,
         "total_views": total_views,
         "total_likes": total_likes,
         "total_comments": total_comments,
@@ -262,7 +450,7 @@ def calculate_video_score(views, likes, comments, shares, subs_gained, avg_durat
     para evitar penalizaciones injustas.
     """
     if views <= 0:
-        return 0, "D", "#555555"
+        return 0, "D", "#ff9f43"
         
     # 1. Puntos de Interacción (Peso: 45% en fórmula consolidada, o 100% si no hay retención)
     # Fórmula ponderada: (Likes + 5*Comments + 10*Shares) / (Views + 50) [Suavizado Bayesiano para evitar tasas infladas en pocas vistas]
@@ -344,22 +532,22 @@ def calculate_video_score(views, likes, comments, shares, subs_gained, avg_durat
     # Asignar Rango
     if final_score >= 95:
         rank = "S+"
-        color = "#FF0055"  # Neon Red Hot
-    elif final_score >= 90:
+        color = "#ffd700"  # Dorado Viral
+    elif final_score >= 88:
         rank = "S"
-        color = "#FF0000"  # Neon Red
+        color = "#ff0055"  # Carmesí Neón
     elif final_score >= 75:
         rank = "A"
-        color = "#00FF66"  # Neon Green
+        color = "#9d4edd"  # Púrpura Eléctrico
     elif final_score >= 60:
         rank = "B"
-        color = "#0099FF"  # Blue
-    elif final_score >= 45:
+        color = "#00f2fe"  # Cyan Neón
+    elif final_score >= 40:
         rank = "C"
-        color = "#FFCC00"  # Yellow
+        color = "#00e676"  # Verde Esmeralda
     else:
         rank = "D"
-        color = "#555555"  # Gray
+        color = "#ff9f43"  # Ámbar Calido
         
     return final_score, rank, color
 
@@ -381,6 +569,25 @@ def save_metadata_cache(cache):
             json.dump(cache, f, indent=2, ensure_ascii=False)
     except Exception as e:
         print(f"Error guardando caché de metadatos: {e}")
+
+def load_generation_metadata():
+    cache_path = os.path.join("config", "cache", "generation_metadata.json")
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error cargando caché de parámetros de generación: {e}")
+    return {}
+
+def save_generation_metadata(cache):
+    cache_path = os.path.join("config", "cache", "generation_metadata.json")
+    try:
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"Error guardando caché de parámetros de generación: {e}")
 
 def load_videos_list_cache():
     cache_path = os.path.join("config", "cache", "videos_list_cache.json")
@@ -511,7 +718,7 @@ def fetch_channel_videos(client_secrets_path, token_path, force_reload=False):
                 is_valid = False
                 if cache_time:
                     now = datetime.datetime.now().timestamp()
-                    if now - cache_time < 7200: # 2 horas (7200 segundos)
+                    if now - cache_time < 86400: # 1 día (86400 segundos)
                         is_valid = True
                 else:
                     # Fallback retrocompatible
@@ -779,10 +986,53 @@ def fetch_channel_videos(client_secrets_path, token_path, force_reload=False):
                 video_type=v_type
             )
             
+            # Calcular tasas de retención y skip si los datos de Analytics ya están procesados por Google
+            if avg_duration > 0 and duration > 0:
+                retention_rate = round((avg_duration / duration) * 100, 2)
+                skip_rate = round(max(0.0, min(100.0, 100.0 - retention_rate)), 2)
+                is_estimated = False
+            else:
+                # Datos aún no procesados por YouTube Analytics o video sin vistas. 
+                # Hacemos un cálculo aproximado de alta fidelidad basado en duración física e interacciones
+                if views > 0:
+                    like_ratio = likes / views
+                    comment_ratio = comments / views
+                    
+                    if v_type == "shorts":
+                        # 1. Tasa de elección (Choice Rate / Se quedaron para mirar)
+                        # Modelo exponencial calibrado para Shorts: base del 30% más incremento amortiguado
+                        import math
+                        choice_rate = 30.0 + 45.0 * (1.0 - math.exp(-8.0 * like_ratio)) + (comment_ratio * 150.0)
+                        choice_rate = max(15.0, min(95.0, choice_rate))
+                        skip_rate = round(max(0.0, min(100.0, 100.0 - choice_rate)), 2)
+                        
+                        # 2. Porcentaje promedio reproducido (Retención)
+                        # En Shorts, la duración física influye inversamente en la retención promedio
+                        ret_base = 95.0 - (duration * 1.2)
+                        estimated_ret = ret_base + (like_ratio * 200.0) + (comment_ratio * 500.0) - 3.5
+                        retention_rate = round(max(10.0, min(150.0, estimated_ret)), 2)
+                    else:
+                        # Para videos largos
+                        choice_rate = 25.0 + (like_ratio * 150.0) + (comment_ratio * 400.0)
+                        choice_rate = max(10.0, min(90.0, choice_rate))
+                        skip_rate = round(max(0.0, min(100.0, 100.0 - choice_rate)), 2)
+                        
+                        ret_base = 50.0 - (duration * 0.05) # Decaimiento más suave por duración
+                        estimated_ret = ret_base + (like_ratio * 150.0) + (comment_ratio * 300.0)
+                        retention_rate = round(max(5.0, min(85.0, estimated_ret)), 2)
+                else:
+                    retention_rate = 30.0 if v_type == "shorts" else 15.0
+                    skip_rate = 70.0 if v_type == "shorts" else 85.0
+                
+                is_estimated = True
+            
             v["views"] = views
             v["score"] = score
             v["rank"] = rank
             v["rank_color"] = color
+            v["retention_rate"] = retention_rate
+            v["skip_rate"] = skip_rate
+            v["retention_is_estimated"] = is_estimated
             
         # Guardar en la caché de lista procesada con marca de tiempo actual
         try:
@@ -813,6 +1063,14 @@ def fetch_channel_videos(client_secrets_path, token_path, force_reload=False):
                 
         return videos
     except Exception as e:
+        err_msg = str(e)
+        if "insufficientPermissions" in err_msg or "scopes" in err_msg or "403" in err_msg:
+            if token_path and os.path.exists(token_path):
+                try:
+                    os.remove(token_path)
+                    print(f"Token eliminado por scopes insuficientes al obtener videos: {token_path}")
+                except:
+                    pass
         print(f"Error al obtener videos reales del canal: {e}")
         raise e
 
@@ -876,6 +1134,13 @@ def get_mock_channel_videos(channel_name="Canal de Simulación"):
             video_type=video_type
         )
         
+        # Calcular tasas de retención y skip
+        if duration > 0:
+            retention_rate = round((avg_duration / duration) * 100, 2)
+        else:
+            retention_rate = 0.0
+        skip_rate = round(max(0.0, min(100.0, 100.0 - retention_rate)), 2)
+        
         videos.append({
             "video_id": video_id,
             "title": title,
@@ -888,6 +1153,9 @@ def get_mock_channel_videos(channel_name="Canal de Simulación"):
             "rank_color": color,
             "type": video_type,
             "duration": duration,
+            "retention_rate": retention_rate,
+            "skip_rate": skip_rate,
+            "retention_is_estimated": False,
             "description": f"Esta es una descripción simulada de prueba para '{title}'. Contiene elementos de horror, misterio y leyendas urbanas.",
             "tags": [video_type, "horror", "silenciorojo", "miedo", "paranormal"]
         })
@@ -900,9 +1168,18 @@ def get_channel_id_by_name(channel_name):
         try:
             with open(cache_path, "r", encoding="utf-8") as f:
                 cache = json.load(f)
+                # 1. Intentar coincidencia exacta primero (insensible a mayúsculas y espacios)
                 for cid, cdata in cache.items():
                     cached_name = cdata.get("summary", {}).get("channel_name", "")
                     if cached_name.lower().strip() == channel_name.lower().strip():
+                        return cid
+                
+                # 2. Si falla, intentar coincidencia parcial (limpiando caracteres especiales y verificando inclusión)
+                for cid, cdata in cache.items():
+                    cached_name = cdata.get("summary", {}).get("channel_name", "")
+                    c_name_clean = "".join([c for c in cached_name.lower() if c.isalnum()])
+                    input_name_clean = "".join([c for c in channel_name.lower() if c.isalnum()])
+                    if input_name_clean and c_name_clean and (input_name_clean in c_name_clean or c_name_clean in input_name_clean):
                         return cid
         except Exception as e:
             print(f"Error resolviendo ID de canal por nombre: {e}")
@@ -924,7 +1201,7 @@ def has_valid_videos_cache(channel_name):
                     cached_entry = cache[cid]
                     cache_time = cached_entry.get("timestamp")
                     if cache_time:
-                        return (datetime.datetime.now().timestamp() - cache_time) < 7200
+                        return (datetime.datetime.now().timestamp() - cache_time) < 86400
                     # Fallback retrocompatible
                     today_str = datetime.date.today().strftime("%Y-%m-%d")
                     return cached_entry.get("cached_at") == today_str
@@ -948,7 +1225,7 @@ def has_valid_metrics_cache(channel_name):
                     cached_entry = cache[cid]
                     cache_time = cached_entry.get("timestamp")
                     if cache_time:
-                        return (datetime.datetime.now().timestamp() - cache_time) < 7200
+                        return (datetime.datetime.now().timestamp() - cache_time) < 86400
                     # Fallback retrocompatible
                     today_str = datetime.date.today().strftime("%Y-%m-%d")
                     return cached_entry.get("cached_at") == today_str
