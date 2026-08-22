@@ -295,18 +295,27 @@ function connectSSEProgress(channelName) {
 
     currentEventSource = new EventSource(`${API_BASE}/shorts/progress/${channelName}`);
 
+    let currentPct = 0;
+
     currentEventSource.onmessage = (event) => {
         const data = JSON.parse(event.data);
         
-        if (progressBar) progressBar.style.width = `${data.percentage || 0}%`;
-        if (progressPercent) progressPercent.textContent = `${data.percentage || 0}%`;
+        if (data.percentage !== undefined && data.percentage !== null) {
+            const p = parseInt(data.percentage, 10);
+            if (!isNaN(p) && p >= 0) {
+                currentPct = p;
+            }
+        }
+        
+        if (progressBar) progressBar.style.width = `${currentPct}%`;
+        if (progressPercent) progressPercent.textContent = `${currentPct}%`;
         if (statusLabel && data.status) {
             statusLabel.textContent = data.status;
         }
 
         if (logConsole) {
             const entry = document.createElement("div");
-            entry.textContent = `[${data.percentage || 0}%] ${data.status || ''}`;
+            entry.textContent = `[${currentPct}%] ${data.status || ''}`;
             if (data.color) {
                 entry.style.color = data.color;
             }
@@ -519,7 +528,9 @@ async function loadServerAudios(autoSelectFileName = null) {
     if (!container) return;
 
     try {
-        const res = await fetch(`${API_BASE}/assets/narrations?t=${Date.now()}`);
+        const channelSelect = document.getElementById("global-channel-dropdown");
+        const channelName = channelSelect ? channelSelect.value : "";
+        const res = await fetch(`${API_BASE}/assets/narrations?t=${Date.now()}&channel_name=${encodeURIComponent(channelName)}`);
         if (!res.ok) {
             container.innerHTML = `<p class="text-dim" style="text-align: center; padding: 15px; font-size: 12px;">Error cargando audios</p>`;
             return;
@@ -1105,47 +1116,9 @@ function setupModalsAndSEO() {
 
     const btnGenerateVoice = document.getElementById("btn-generate-voice");
     if (btnGenerateVoice) {
-        btnGenerateVoice.addEventListener("click", async () => {
-            const scriptText = document.getElementById("shorts-script")?.value || "";
-            if (!scriptText.trim()) {
-                return alert("Por favor, ingresa o genera un guion primero en el Paso 1.");
-            }
-            const voiceSelect = document.getElementById("shorts-voice-model");
-            const voiceVal = voiceSelect ? voiceSelect.value : "Fritz-PlayAI";
-            
-            const channelSelect = document.getElementById("global-channel-dropdown");
-            const channelName = channelSelect ? channelSelect.value : "";
-            
-            btnGenerateVoice.disabled = true;
-            btnGenerateVoice.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generando...';
-            
-            try {
-                const res = await fetch(`${API_BASE}/shorts/synthesize-voice`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        script_text: scriptText,
-                        voice_name: voiceVal,
-                        channel_name: channelName
-                    })
-                });
-                
-                const data = await res.json();
-                if (res.ok && data.status === "success") {
-                    modalVoice.classList.remove("active");
-                    modalVoice.style.display = "none";
-                    await loadServerAudios(data.filename);
-                } else {
-                    alert("Error en síntesis: " + (data.detail || "Error desconocido"));
-                }
-            } catch (e) {
-                console.error(e);
-                alert("Error de conexión al sintetizar voz.");
-            } finally {
-                btnGenerateVoice.disabled = false;
-                btnGenerateVoice.innerHTML = '<i class="fa-solid fa-circle-play"></i> Sintetizar Voz';
-            }
-        });
+        if (btnGenerateVoice) {
+            btnGenerateVoice.style.display = "none";
+        }
     }
 
     const btnUploadLocalAudio = document.getElementById("btn-upload-local-audio");
@@ -1225,10 +1198,12 @@ function setupModalsAndSEO() {
             btnAIGenerateTrama.disabled = true;
             
             try {
+                const channelSelect = document.getElementById("global-channel-dropdown");
+                const channelName = channelSelect ? channelSelect.value : "";
                 const res = await fetch(`${API_BASE}/shorts/generate-trama-from-script`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ script: currentScript })
+                    body: JSON.stringify({ script: currentScript, channel_name: channelName })
                 });
                 
                 if (res.ok) {
@@ -1436,8 +1411,9 @@ async function generateSeoMetadata(forceManual = false) {
         });
         const data = await res.json();
         if (res.ok && data.status === "success") {
-            if (titleInput) titleInput.value = data.title;
-            if (descTextarea) descTextarea.value = data.description;
+            const chosenTitle = data.title || (data.titles && data.titles.length > 0 ? data.titles[0] : "");
+            if (titleInput) titleInput.value = chosenTitle;
+            if (descTextarea) descTextarea.value = data.description || "";
             saveWizardState();
             if (forceManual) {
                 alert("¡Título y descripción SEO generados con éxito!");
@@ -1685,6 +1661,13 @@ function setupYouTubeUpload() {
         btnUpload.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Subiendo a YouTube...`;
         
         try {
+            const channelSelect = document.getElementById("global-channel-dropdown");
+            const channelName = channelSelect ? channelSelect.value : "";
+            
+            if (channelName) {
+                connectSSEProgress(channelName);
+            }
+
             const res = await fetch(`${API_BASE}/youtube/upload`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -1692,7 +1675,8 @@ function setupYouTubeUpload() {
                     video_path: currentRenderedVideoPath,
                     title: titleVal,
                     description: descVal,
-                    keywords: "Shorts"
+                    keywords: "Shorts",
+                    channel_name: channelName
                 })
             });
             
@@ -1835,3 +1819,8 @@ function updateSubtitlesStylePreview() {
         previewText.innerHTML = `¿OTRA <span style="color: ${colorHighlight};">MISTERIOSA</span> NOCHE?${emoji}`;
     }
 }
+
+window.loadServerAudios = loadServerAudios;
+window.loadTimelineClips = loadTimelineClips;
+window.loadLastRenderedVideoPreview = loadLastRenderedVideoPreview;
+

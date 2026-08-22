@@ -30,8 +30,10 @@ def download_youtube_gameplay(query_or_url, output_dir, status_callback=None):
         'no_warnings': True,
         'noplaylist': True,
         'nopart': True,  # Escribe directamente en el archivo final sin usar .part en Windows
-        'download_ranges': lambda info, ctx: [{'start_time': 0, 'end_time': 300}],  # Limita la descarga a los primeros 5 minutos para ahorrar ancho de banda y espacio
-        'force_keyframes_at_cuts': True,
+        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+        }
     }
     
     if status_callback:

@@ -570,8 +570,8 @@ def save_metadata_cache(cache):
     except Exception as e:
         print(f"Error guardando caché de metadatos: {e}")
 
-def load_generation_metadata():
-    cache_path = os.path.join("config", "cache", "generation_metadata.json")
+def load_generation_metadata(filepath: str = None):
+    cache_path = filepath or os.path.join("config", "cache", "generation_metadata.json")
     if os.path.exists(cache_path):
         try:
             with open(cache_path, "r", encoding="utf-8") as f:
@@ -580,8 +580,8 @@ def load_generation_metadata():
             print(f"Error cargando caché de parámetros de generación: {e}")
     return {}
 
-def save_generation_metadata(cache):
-    cache_path = os.path.join("config", "cache", "generation_metadata.json")
+def save_generation_metadata(cache, filepath: str = None):
+    cache_path = filepath or os.path.join("config", "cache", "generation_metadata.json")
     try:
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         with open(cache_path, "w", encoding="utf-8") as f:

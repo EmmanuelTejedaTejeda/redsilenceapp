@@ -11,14 +11,38 @@ from googleapiclient.errors import HttpError
 # Alcances (Scopes) requeridos para subir videos
 SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
 
-def get_authenticated_service(client_secrets_file='config/client_secrets.json', token_file='config/token.pickle'):
-    """Autentica al usuario y retorna el servicio de la API de YouTube."""
+import re
+from api.deps import get_settings
+
+def get_authenticated_service(channel_name=None, client_secrets_file=None, token_file=None):
+    """Autentica al usuario para el canal activo especificado y retorna el servicio de la API de YouTube."""
+    settings = get_settings()
+    channel_name = channel_name or settings.get("active_channel")
+    channels = settings.get("channels", [])
+    ch_info = next((c for c in channels if c.get("name", "").lower() == (channel_name or "").lower()), None)
+    
+    clean_ch = re.sub(r'[^a-zA-Z0-9_]', '', (channel_name or "default").replace(' ', '_').lower())
+    
+    if not token_file:
+        token_dir = os.path.join("config", "tokens")
+        os.makedirs(token_dir, exist_ok=True)
+        token_file = os.path.join(token_dir, f"{clean_ch}_token.pickle")
+        
+    if not client_secrets_file:
+        if ch_info and ch_info.get("credential_file") and os.path.exists(ch_info["credential_file"]):
+            client_secrets_file = ch_info["credential_file"]
+        else:
+            client_secrets_file = 'config/client_secrets.json'
+
     creds = None
     
-    # El archivo token.pickle almacena los tokens de acceso y actualización del usuario
+    # El archivo token_file almacena los tokens de acceso y actualización del canal
     if os.path.exists(token_file):
         with open(token_file, 'rb') as token:
-            creds = pickle.load(token)
+            try:
+                creds = pickle.load(token)
+            except Exception:
+                creds = None
             
     # Si no hay credenciales válidas disponibles, pedir al usuario que inicie sesión.
     if not creds or not creds.valid:
@@ -27,23 +51,25 @@ def get_authenticated_service(client_secrets_file='config/client_secrets.json', 
                 creds.refresh(Request())
             else:
                 if not os.path.exists(client_secrets_file):
-                     raise FileNotFoundError(f"No se encontró el archivo de credenciales: {client_secrets_file}")
+                     raise FileNotFoundError(f"No se encontró el archivo de credenciales para '{channel_name}': {client_secrets_file}")
                 
                 flow = InstalledAppFlow.from_client_secrets_file(client_secrets_file, SCOPES)
                 creds = flow.run_local_server(port=0)
         except Exception as e:
             # Si el refresco falla (invalid_grant / expirado), borrar y forzar re-login
             if os.path.exists(token_file): os.remove(token_file)
+            if not os.path.exists(client_secrets_file):
+                 raise FileNotFoundError(f"No se encontró el archivo de credenciales para '{channel_name}': {client_secrets_file}")
             flow = InstalledAppFlow.from_client_secrets_file(client_secrets_file, SCOPES)
             creds = flow.run_local_server(port=0)
             
-        # Guardar las credenciales para la próxima ejecución
+        # Guardar las credenciales aisladas para este canal
         with open(token_file, 'wb') as token:
             pickle.dump(creds, token)
 
     return build('youtube', 'v3', credentials=creds)
 
-def upload_video(file_path, title, description, keywords="", status_callback=None):
+def upload_video(file_path, title, description, keywords="", channel_name=None, status_callback=None):
     """
     Sube un video a YouTube con:
     - Categoría: Entretenimiento (24)
@@ -56,7 +82,7 @@ def upload_video(file_path, title, description, keywords="", status_callback=Non
     try:
         from datetime import datetime, timedelta
         
-        youtube = get_authenticated_service()
+        youtube = get_authenticated_service(channel_name=channel_name)
         
         # --- LÓGICA DE PROGRAMACIÓN DINÁMICA ---
         now = datetime.now()
@@ -111,16 +137,20 @@ def upload_video(file_path, title, description, keywords="", status_callback=Non
             media_body=MediaFileUpload(file_path, chunksize=256 * 1024, resumable=True)
         )
 
+        print(f"🚀 [YOUTUBE UPLOAD] Iniciando subida de '{title}' para el canal '{channel_name}'...")
         if status_callback: status_callback("🚀 SUBIENDO A YOUTUBE...", "#FFD700")
 
         response = None
         while response is None:
             status, response = insert_request.next_chunk()
-            if status and status_callback:
+            if status:
                 progress = int(status.progress() * 100)
-                status_callback(f"🚀 SUBIENDO: {progress}%", "#FFD700")
+                print(f"🚀 [YOUTUBE UPLOAD] {progress}% completado...")
+                if status_callback:
+                    status_callback(f"🚀 Subiendo a YouTube: {progress}% completado", "#FFD700")
 
         video_id = response.get("id")
+        print(f"🎉 [YOUTUBE UPLOAD] ¡Subida exitosa! Video ID: {video_id}")
         return True, video_id
 
     except HttpError as e:

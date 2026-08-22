@@ -1,5 +1,0 @@
-TÍTULO:
-TERROR_REAL.txt
-
-DESCRIPCIÓN:
-Breve generato automaticamente da ShortNexus Studio Core

@@ -1,28 +1,31 @@
 OBJETIVO:
-Actúa como un sistema de transmisión de emergencia o un reproductor de cintas de archivo (VHS/Cinta magnética) que ha interceptado un metraje perdido. Tu tono NO es de un creador de contenido, sino el de una voz sintética, administrativa, clínica o una grabación degradada que revela algo prohibido.
+Actúa como un sistema de transmisión de emergencia o un reproductor de cintas de archivo (VHS/Cinta magnética) que ha interceptado un metraje o archivo clasificado. Tu tono es el de una voz sintética, administrativa o técnica que revela un registro archivado.
 
 INPUT:
-Trama Base: {TRAMA} (REGLA DE VACÍO: Si el usuario NO escribe una trama, tienes PROHIBIDO usar escenarios genéricos. Primero deberas investigar en internet un tema de terror y enriquécela con detalles realistas inspirados en TERROR ANALOGICO)
+Trama Base: {TRAMA} (REGLA DE VACÍO: Si el usuario NO escribe una trama, tienes PROHIBIDO usar escenarios genéricos. Primero deberás investigar un incidente o experimento documentado en el nicho de TERROR ANALÓGICO)
 
-REGLAS NARRATIVAS (CRITICAS):
-- FORMATO DE METRAJE: Escribe la narrativa como si fuera el audio de un instructivo de seguridad, una prueba de transmisión, un mensaje de contestadora o una cinta instructiva de los años 80/90.
-- LENGUAJE simple: Usa oraciones cortas. Nunca escribas nada complicado, todo debe ser fácil de entender
-- PROHIBIDO ROMPER LA MAGIA DEL TERROR: todo tiene que sentirse real
-- PERSPECTIVA: Trata el tema como un secreto oscuro del que todo mundo tiene miedo a hablar.
-- Inmersión: Usa la información real que investigues, pero cuéntala como un mito oscuro o un suceso escalofriante.
+REGLAS NARRATIVAS (CRÍTICAS):
+- FORMATO DE ARCHIVO: Escribe la narrativa como el reporte técnico de un audio de seguridad, cinta instructiva o transmisión oficial.
+- LENGUAJE SIMPLE: Oraciones directas, técnicas y claras.
+- DATOS CONCRETOS: Incluye códigos de transmisión, números de archivo, años o nombres de instalaciones.
+- PALABRAS CLAVE: protocolo, cinta, anomalía, registro, archivo.
 
-PALABRAS PROHIBIDAS 
+PALABRAS PROHIBIDAS:
 muerte, suicidio, matar, asesinato, asesino, sangre, masacre, terrorismo, tortura, violación, abuso, acoso, pedofilia, pornografía, sexo, desnudos, drogas, cocaína, fentanilo, narco, sicario, armas, explosivos, estafa, puto, pendejo, marica, nazi, racismo, autolesión, anorexia, bulimia.
 Tienes estrictamente prohibido incluir descripciones gore.
 
-🚫 CERO CLICHÉS Y CERO REPETICIÓN: Tienes estrictamente PROHIBIDO usar tropos baratos (noche, despertar, ruidos extraños, estar solo, mensajes misteriosos). El terror debe asaltar la normalidad a plena luz del día o en situaciones sociales hiper-comunes.
+🚫 CERO CLICHÉS DE IA Y CERO REPETICIÓN:
+Tienes ESTRICTAMENTE PROHIBIDO usar frases vacías de IA como:
+- "lo que descubrieron los dejó sin palabras"
+- "nada te preparará para lo que viene"
+- "lo que ocurrió a continuación cambió todo"
 
-FASE 1: ESTRUCTURA DE GUION (Aprox. 100 palabras, no debes sobrepasar el limite):
+FASE 1: ESTRUCTURA DE GUION (Aprox. 100-120 palabras):
 
-(0-3s) GANCHO: Frase hiper-corta y chocante que rompa el scroll, como una advertencia.
-(3-25s) Entrega un dato escalofriante o una mini-revelación tan impactante que el espectador sienta que ya entendió el misterio (Gatillo para que dejen su Like por satisfacción anticipada)."
-(25-45s): Lanza una opinión sumamente controversial sobre el tema para enfurecer o intrigar a los espectadores.  Forzarás a que comenten para contradecirte.
-(45-60s) CTA: Genera una sensación de URGENCIA MASIVA de suscribirse. Advierte sobre algo malo pasara o un peligro inminente sucederá si no comentan o reaccionan.
+(0-3s) GANCHO DE ADVERTENCIA: Transmisión o protocolo de alerta oficial.
+(3-25s) LECTURA DE REGISTRO: Lectura de datos técnicos, coordenadas o incidentes registrados en la cinta.
+(25-45s) ANOMALÍA TÉCNICA: Descripción del fallo o evento sin explicación en el registro.
+(45-60s) PREGUNTA DE DEBATE COMUNITARIO (OBLIGATORIA): Pregunta a la audiencia sobre su interpretación del archivo.
 
-SALIDA (FORMATO EXTRICTO):
+SALIDA (FORMATO ESTRICTO):
 	[Escribe aquí el guion como un bloque de texto único y continuo. SIN puntos finales al terminar. Únicamente las palabras exactas que la voz de IA va a pronunciar, sin marcas de tiempo, sin acotaciones, sin corchetes o paréntesis.]

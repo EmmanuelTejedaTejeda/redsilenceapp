@@ -1,10 +1,9 @@
-// ShortNexus Studio - Punto de Entrada Principal (ES6 Module)
-import { API_BASE } from './api.js?v=10';
-import { initChannelsModule } from './channels_settings.js?v=10';
-import { initShortsWizardModule } from './shorts_wizard.js?v=10';
-import { initAnalyticsModule } from './analytics_dashboard.js?v=10';
-import { initViralMapModule, generateViralAuditReport } from './viral_map.js?v=10';
-import { initSubtitlesStudioModule } from './subtitles_studio.js?v=10';
+import { API_BASE } from './api.js?v=18';
+import { initChannelsModule } from './channels_settings.js?v=18';
+import { initShortsWizardModule } from './shorts_wizard.js?v=18';
+import { initAnalyticsModule } from './analytics_dashboard.js?v=18';
+import { initViralMapModule, generateViralAuditReport } from './viral_map.js?v=18';
+import { initSubtitlesStudioModule } from './subtitles_studio.js?v=18';
 
 document.addEventListener("DOMContentLoaded", async () => {
     console.log("🚀 ShortNexus Studio Web App Inicializada");
@@ -57,6 +56,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Escuchar evento custom de cambio de canal para refrescar módulos y tema
     window.addEventListener("channelChanged", async () => {
         await updateActiveChannelThemeAndModules();
+        if (typeof window.loadServerAudios === "function") window.loadServerAudios();
+        if (typeof window.loadTimelineClips === "function") window.loadTimelineClips();
+        if (typeof window.loadLastRenderedVideoPreview === "function") window.loadLastRenderedVideoPreview();
     });
 
     // Botón de Auditoría con IA
@@ -184,6 +186,11 @@ async function openFoldersModal() {
             const data = await res.json();
             const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ""; };
             
+            const titleEl = document.getElementById("folders-modal-channel-title");
+            if (titleEl && data.channel_name) {
+                titleEl.textContent = data.channel_name;
+            }
+
             setVal("modal-folder-audio", data.audio_folder_path);
             setVal("modal-folder-music", data.music_folder_path);
             setVal("modal-folder-images", data.images_folder_path);

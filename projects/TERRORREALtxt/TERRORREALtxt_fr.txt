@@ -1,5 +1,0 @@
-TÍTULO:
-TERROR_REAL.txt
-
-DESCRIPCIÓN:
-Court métrage généré automatiquement par ShortNexus Studio Core

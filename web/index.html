@@ -361,16 +361,16 @@
                     <div class="step-content" id="step-4">
                         
                         <!-- Barra de progreso ultra compacta y minimalista -->
-                        <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 12px; border: 1px solid var(--color-border); background: rgba(15,15,15,0.6); padding: 8px 16px; border-radius: 10px; width: 100%; box-sizing: border-box;">
-                            <i class="fa-solid fa-circle-notch fa-spin-slow" style="color: var(--color-accent); font-size: 11px;"></i>
-                            <span id="compile-status-label" style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #fff; letter-spacing: 0.5px; white-space: nowrap;">Esperando orden de compilación...</span>
+                        <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 12px; border: 1px solid var(--color-border); background: rgba(15,15,15,0.75); padding: 10px 16px; border-radius: 10px; width: 100%; box-sizing: border-box; backdrop-filter: blur(8px);">
+                            <i class="fa-solid fa-circle-notch fa-spin-slow" style="color: var(--color-accent); font-size: 12px;"></i>
+                            <span id="compile-status-label" style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #fff; letter-spacing: 0.5px; white-space: nowrap; max-width: 250px; overflow: hidden; text-overflow: ellipsis;">Esperando orden de compilación...</span>
                             
-                            <!-- Barra de progreso lineal ultra delgada -->
-                            <div id="compile-progress-bar-wrapper" style="flex: 1; background-color: rgba(0,0,0,0.4); border-radius: 6px; height: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05); position: relative;">
-                                <div id="compile-progress-bar-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--color-accent), #ff1a1a); border-radius: 6px; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 0 8px rgba(229,9,20,0.85);"></div>
+                            <!-- Barra de progreso lineal roja dinámica -->
+                            <div id="compile-progress-bar-wrapper" style="flex: 1; background-color: rgba(0,0,0,0.5); border-radius: 8px; height: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); position: relative;">
+                                <div id="compile-progress-bar-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #e50914, #ff3b3b); border-radius: 8px; transition: width 0.3s ease-out; box-shadow: 0 0 12px rgba(229,9,20,0.85);"></div>
                             </div>
                             
-                            <div id="compile-percentage-text" style="font-size: 11px; font-weight: 900; color: var(--color-accent); font-family: monospace; min-width: 30px; text-align: right;">0%</div>
+                            <div id="compile-percentage-text" style="background: rgba(229, 9, 20, 0.15); border: 1px solid rgba(229, 9, 20, 0.4); padding: 2px 10px; border-radius: 12px; font-family: monospace; font-size: 11px; font-weight: 800; color: #ff4d4d; min-width: 45px; text-align: center;">0%</div>
                         </div>
 
                         <!-- Grilla de 3 columnas responsiva y limpia -->
@@ -522,53 +522,52 @@
 
             <!-- SECCIÓN: MÉTRICAS AVANZADAS -->
             <section id="tab-metrics" class="tab-section">
-                <header class="section-header">
-                    <h1>MÉTRICAS AVANZADAS</h1>
-                    <p>Estadísticas en tiempo real obtenidas mediante YouTube Analytics API.</p>
-                </header>
-
-                <div class="tools-bar">
-                    <button class="btn btn-secondary" id="btn-reload-metrics">
+                <header class="section-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding-bottom: 4px;">
+                    <div>
+                        <h1 style="font-size: 1.25rem; margin: 0;"><i class="fa-solid fa-chart-line text-accent"></i> MÉTRICAS AVANZADAS</h1>
+                        <p style="font-size: 0.75rem; margin: 2px 0 0 0;">Estadísticas en tiempo real obtenidas mediante YouTube Analytics API.</p>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" id="btn-reload-metrics" style="height: 28px; font-size: 10px; padding: 0 10px;">
                         <i class="fa-solid fa-rotate"></i> Actualizar Métricas
                     </button>
+                </header>
+
+                <!-- Panel de KPIs -->
+                <div class="kpi-grid" style="margin-bottom: 10px; gap: 10px;">
+                    <div class="kpi-card" style="padding: 8px 12px; gap: 10px;">
+                        <div class="kpi-icon icon-red" style="width: 34px; height: 34px; font-size: 15px; min-width: 34px;"><i class="fa-solid fa-users"></i></div>
+                        <div class="kpi-info">
+                            <h3 id="kpi-subscribers" style="font-size: 18px; margin: 0;">0</h3>
+                            <span style="font-size: 10px;">Suscriptores</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card" style="padding: 8px 12px; gap: 10px;">
+                        <div class="kpi-icon icon-green" style="width: 34px; height: 34px; font-size: 15px; min-width: 34px;"><i class="fa-solid fa-eye"></i></div>
+                        <div class="kpi-info">
+                            <h3 id="kpi-views" style="font-size: 18px; margin: 0;">0</h3>
+                            <span style="font-size: 10px;">Vistas Totales</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card" style="padding: 8px 12px; gap: 10px;">
+                        <div class="kpi-icon icon-blue" style="width: 34px; height: 34px; font-size: 15px; min-width: 34px;"><i class="fa-solid fa-video"></i></div>
+                        <div class="kpi-info">
+                            <h3 id="kpi-videos" style="font-size: 18px; margin: 0;">0</h3>
+                            <span style="font-size: 10px;">Videos Subidos</span>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Panel de Kpis -->
-                <div class="kpi-grid">
-                    <div class="kpi-card">
-                        <div class="kpi-icon icon-red"><i class="fa-solid fa-users"></i></div>
-                        <div class="kpi-info">
-                            <h3 id="kpi-subscribers">0</h3>
-                            <span>Suscriptores</span>
-                        </div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-icon icon-green"><i class="fa-solid fa-eye"></i></div>
-                        <div class="kpi-info">
-                            <h3 id="kpi-views">0</h3>
-                            <span>Vistas Totales</span>
-                        </div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-icon icon-blue"><i class="fa-solid fa-video"></i></div>
-                        <div class="kpi-info">
-                            <h3 id="kpi-videos">0</h3>
-                            <span>Videos Subidos</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Gráficos -->
-                <div class="step-grid">
-                    <div class="panel-card chart-card">
-                        <h3><i class="fa-solid fa-chart-area"></i> TENDENCIA DE VISUALIZACIONES (Últimos 30 días)</h3>
-                        <div class="chart-container">
+                <!-- Gráficos y Videos Más Virales Lado a Lado (Grid 2 Columnas) -->
+                <div class="metrics-grid">
+                    <div class="panel-card chart-card-panel" style="padding: 10px 14px;">
+                        <h3 style="font-size: 11px; margin-bottom: 6px;"><i class="fa-solid fa-chart-area text-accent"></i> TENDENCIA DE VISUALIZACIONES (Últimos 30 días)</h3>
+                        <div class="chart-container" style="height: 220px;">
                             <canvas id="views-time-chart"></canvas>
                         </div>
                     </div>
-                    <div class="panel-card">
-                        <h3><i class="fa-solid fa-star"></i> VIDEOS MÁS VIRALES</h3>
-                        <div class="top-list" id="metrics-top-videos-list">
+                    <div class="panel-card top-videos-card-panel" style="padding: 10px 14px; display: flex; flex-direction: column;">
+                        <h3 style="font-size: 11px; margin-bottom: 6px;"><i class="fa-solid fa-star text-accent"></i> VIDEOS MÁS VIRALES</h3>
+                        <div class="top-list" id="metrics-top-videos-list" style="flex: 1; gap: 4px; overflow-y: auto;">
                             <!-- Los videos top se renderizarán aquí -->
                         </div>
                     </div>
@@ -928,37 +927,33 @@
                         </div>
 
                         <!-- Botones de Acción -->
-                        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 25px;">
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                                <button class="btn btn-primary" id="btn-sub-studio-save">
-                                    <i class="fa-solid fa-floppy-disk"></i> Guardar Estilo
-                                </button>
-                                <button class="btn btn-secondary" id="btn-sub-studio-delete" style="background: rgba(255, 77, 77, 0.1); border: 1px solid rgba(255, 77, 77, 0.2); color: #ff4d4d;">
-                                    <i class="fa-solid fa-trash-can"></i> Borrar Estilo
-                                </button>
-                            </div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                                <button class="btn btn-secondary" id="btn-sub-studio-import">
-                                    <i class="fa-solid fa-file-import"></i> Importar JSON
-                                </button>
-                                <button class="btn btn-secondary" id="btn-sub-studio-export">
-                                    <i class="fa-solid fa-file-export"></i> Exportar JSON
-                                </button>
-                            </div>
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px;">
+                            <button class="btn btn-primary btn-sm" id="btn-sub-studio-save" style="font-size: 10px; height: 28px; padding: 0 4px;">
+                                <i class="fa-solid fa-floppy-disk"></i> Guardar
+                            </button>
+                            <button class="btn btn-secondary btn-sm" id="btn-sub-studio-delete" style="font-size: 10px; height: 28px; padding: 0 4px; background: rgba(255, 77, 77, 0.1); border: 1px solid rgba(255, 77, 77, 0.2); color: #ff4d4d;">
+                                <i class="fa-solid fa-trash-can"></i> Borrar
+                            </button>
+                            <button class="btn btn-secondary btn-sm" id="btn-sub-studio-import" style="font-size: 10px; height: 28px; padding: 0 4px;">
+                                <i class="fa-solid fa-file-import"></i> Importar
+                            </button>
+                            <button class="btn btn-secondary btn-sm" id="btn-sub-studio-export" style="font-size: 10px; height: 28px; padding: 0 4px;">
+                                <i class="fa-solid fa-file-export"></i> Exportar
+                            </button>
                         </div>
                     </div>
 
                     <!-- EMULADOR SMARTPHONE 9:16 (DERECHA) -->
                     <div class="panel-card glass-panel subtitles-preview-panel" style="display: flex; flex-direction: column; align-items: center;">
-                        <div class="panel-section-title" style="width: 100%;">
+                        <div class="panel-section-title" style="width: 100%; margin-bottom: 6px;">
                             <h3><i class="fa-solid fa-mobile-screen-button text-accent"></i> VISTA PREVIA EN TIEMPO REAL</h3>
                             <span class="panel-subtitle">Simulador realista de Short 9:16</span>
                         </div>
 
                         <!-- Selector de fondo simulado del celular -->
-                        <div class="form-group" style="width: 100%; margin-bottom: 12px;">
-                            <label style="font-size: 10px; margin-bottom: 3px;">Fondo del Celular</label>
-                            <select id="sub-studio-bg-select" style="padding: 5px; font-size: 11px;">
+                        <div class="form-group" style="width: 100%; margin-bottom: 4px;">
+                            <label style="font-size: 9px; margin-bottom: 2px;">Fondo del Celular</label>
+                            <select id="sub-studio-bg-select" style="padding: 2px 6px; font-size: 10px; height: 26px;">
                                 <option value="parkour">Parkour Minecraft (Gaming)</option>
                                 <option value="obby">Roblox Obby (Gaming)</option>
                                 <option value="creepy">Bosque Misterioso (Terror)</option>
@@ -1005,19 +1000,19 @@
                         </div>
 
                         <!-- Simulador de Transición por Comas -->
-                        <div class="sim-text-controller" style="width: 100%; margin-top: 15px;">
+                        <div class="sim-text-controller" style="width: 100%; margin-top: 6px;">
                             <div class="form-group" style="margin: 0;">
-                                <label style="font-size: 10px; display: flex; justify-content: space-between;">
-                                    <span>Texto de Prueba (comas separan las frases)</span>
+                                <label style="font-size: 9px; display: flex; justify-content: space-between; margin-bottom: 2px;">
+                                    <span>Texto de Prueba (comas separan frases)</span>
                                     <span style="color: var(--color-accent); font-weight: bold;">Simulador por comas</span>
                                 </label>
-                                <textarea id="sub-studio-test-input" rows="2" style="width: 100%; font-size: 11px; padding: 6px; resize: none; background: rgba(0,0,0,0.4);">¿OTRA MISTERIOSA NOCHE?, SENTÍ MIEDO DE MIRAR, DETRÁS DEL ESPEJO 😱, UN SECRETO IMPOSIBLE 🎮</textarea>
+                                <textarea id="sub-studio-test-input" rows="1" style="width: 100%; font-size: 10px; padding: 4px 6px; height: 26px; resize: none; background: rgba(0,0,0,0.4);">¿OTRA MISTERIOSA NOCHE?, SENTÍ MIEDO DE MIRAR, DETRÁS DEL ESPEJO 😱, UN SECRETO IMPOSIBLE 🎮</textarea>
                             </div>
-                            <div style="display: flex; gap: 10px; margin-top: 8px;">
-                                <button class="btn btn-primary btn-sm" id="btn-sub-studio-sim-play" style="flex: 1; background: linear-gradient(135deg, #00803c, #00c853); border-color: #00803c;">
+                            <div style="display: flex; gap: 8px; margin-top: 4px;">
+                                <button class="btn btn-primary btn-sm" id="btn-sub-studio-sim-play" style="flex: 1; height: 26px; font-size: 10px; background: linear-gradient(135deg, #00803c, #00c853); border-color: #00803c;">
                                     <i class="fa-solid fa-play"></i> Iniciar Simulación
                                 </button>
-                                <button class="btn btn-secondary btn-sm" id="btn-sub-studio-sim-stop" style="width: 80px;" disabled>
+                                <button class="btn btn-secondary btn-sm" id="btn-sub-studio-sim-stop" style="width: 70px; height: 26px; font-size: 10px;" disabled>
                                     <i class="fa-solid fa-stop"></i> Detener
                                 </button>
                             </div>
@@ -1124,11 +1119,22 @@
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label><i class="fa-solid fa-palette"></i> Color del Tema</label>
-                                <div class="color-picker-input-wrapper">
-                                    <input type="color" id="new-channel-theme-color" value="#e50914">
-                                    <span class="color-picker-hint">Identidad visual</span>
-                                </div>
+                                <label><i class="fa-solid fa-language"></i> Idioma del Canal</label>
+                                <select id="new-channel-language">
+                                    <option value="es">Español (ES)</option>
+                                    <option value="en">English (EN)</option>
+                                    <option value="fr">Français (FR)</option>
+                                    <option value="de">Deutsch (DE)</option>
+                                    <option value="pt">Português (PT)</option>
+                                    <option value="it">Italiano (IT)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fa-solid fa-palette"></i> Color del Tema</label>
+                            <div class="color-picker-input-wrapper">
+                                <input type="color" id="new-channel-theme-color" value="#e50914">
+                                <span class="color-picker-hint">Identidad visual</span>
                             </div>
                         </div>
                         <div class="form-group">
@@ -1170,6 +1176,10 @@
                     <button class="btn btn-success" id="btn-new-prompt" style="width: 100%;">
                         <i class="fa-solid fa-plus"></i> Nuevo Prompt
                     </button>
+
+                    <button class="btn btn-accent" id="btn-generate-story-prompt" style="width: 100%; background: linear-gradient(135deg, #e50914, #ff5e62); color: white;">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Generar Prompt de Historia
+                    </button>
                     
                     <button class="btn btn-secondary" id="btn-import-prompts" style="width: 100%;">
                         <i class="fa-solid fa-file-import"></i> Importar Prompts (.txt)
@@ -1207,6 +1217,46 @@
                             <i class="fa-solid fa-trash-can"></i> Eliminar
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Configuración de Canal -->
+    <div class="modal-overlay" id="edit-channel-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 9999; align-items: center; justify-content: center;">
+        <div class="modal-container" style="background: rgba(18, 18, 24, 0.95); border: 1px solid var(--color-border); border-radius: 16px; width: 90%; max-width: 500px; padding: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); color: #fff;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border); padding-bottom: 14px; margin-bottom: 18px;">
+                <h2 style="font-size: 16px; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-gear text-accent"></i> CONFIGURAR CANAL - <span id="edit-channel-name-title" style="color: #00ffcc;">--</span></h2>
+                <button class="close-modal-btn" id="close-edit-channel-modal-btn" style="background: none; border: none; color: #fff; font-size: 20px; cursor: pointer;">&times;</button>
+            </div>
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+                <div class="form-group">
+                    <label style="font-size: 12px; font-weight: 700; color: var(--color-text-dim); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;"><i class="fa-solid fa-masks-theater text-accent"></i> Temática / Nicho del Canal</label>
+                    <input type="text" id="edit-channel-theme" placeholder="Ej: Finanzas Personales, Dinero y Negocios" style="width: 100%; padding: 10px 12px; background: rgba(0,0,0,0.5); border: 1px solid var(--color-border); border-radius: 8px; color: #fff; font-size: 13px;">
+                    <span style="font-size: 10px; color: #8a8d9b; margin-top: 4px; display: block;">Groq AI usará esta temática para personalizar los prompts y guiones virales de este canal.</span>
+                </div>
+                <div class="form-group">
+                    <label style="font-size: 12px; font-weight: 700; color: var(--color-text-dim); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;"><i class="fa-solid fa-globe" style="color: #00ffcc;"></i> Idioma del Canal</label>
+                    <select id="edit-channel-language" style="width: 100%; padding: 10px 12px; background: rgba(0,0,0,0.5); border: 1px solid var(--color-border); border-radius: 8px; color: #fff; font-size: 13px;">
+                        <option value="es">Español (ES)</option>
+                        <option value="en">English (EN)</option>
+                        <option value="fr">Français (FR)</option>
+                        <option value="de">Deutsch (DE)</option>
+                        <option value="pt">Português (PT)</option>
+                        <option value="it">Italiano (IT)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="font-size: 12px; font-weight: 700; color: var(--color-text-dim); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;"><i class="fa-solid fa-palette"></i> Color Identificador del Canal</label>
+                    <input type="color" id="edit-channel-color" value="#e50914" style="width: 100%; height: 38px; border-radius: 8px; cursor: pointer; border: 1px solid var(--color-border); background: transparent;">
+                </div>
+                <div style="display: flex; gap: 12px; margin-top: 10px;">
+                    <button class="btn btn-accent" id="btn-save-channel-settings" style="flex: 1; font-weight: 700; height: 38px; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                        <i class="fa-solid fa-floppy-disk"></i> Guardar Cambios
+                    </button>
+                    <button class="btn btn-secondary" id="btn-cancel-channel-settings" style="flex: 1; height: 38px; border-radius: 8px;">
+                        Cancelar
+                    </button>
                 </div>
             </div>
         </div>
@@ -1418,7 +1468,7 @@
     <div class="modal" id="folders-settings-modal">
         <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header">
-                <h2><i class="fa-solid fa-folder-open"></i> AJUSTES DE CARPETAS DEL SISTEMA</h2>
+                <h2><i class="fa-solid fa-folder-open"></i> AJUSTES DE CARPETAS - <span id="folders-modal-channel-title" style="color: #00ffcc;">--</span></h2>
                 <button class="close-modal-btn" id="close-folders-modal-btn">&times;</button>
             </div>
             <div class="modal-body" style="display: flex; flex-direction: column; gap: 15px; padding: 20px;">
@@ -1537,37 +1587,9 @@
             <div class="modal-body" style="flex-direction: column; gap: 20px; padding: 20px 0 0 0;">
                 <p style="font-size: 13px; color: var(--color-text-dim); line-height: 1.5; margin: 0;">Configura la voz por IA para narrar el guion escrito en el Paso 1, o sube un archivo de audio previamente grabado desde tu equipo.</p>
                 
-                <div class="form-group">
-                    <label>Instrucciones de Voz (Text-to-Speech)</label>
-                    <select id="shorts-voice-inst">
-                        <option value="voice_instructions.txt">Cargando instrucciones...</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label>Voz Groq PlayAI</label>
-                    <select id="shorts-voice-model">
-                        <option value="Fritz-PlayAI">Fritz (Masculina, oscura)</option>
-                        <option value="Atlas-PlayAI">Atlas (Masculina, grave)</option>
-                        <option value="Briggs-PlayAI">Briggs (Masculina, ronca)</option>
-                        <option value="Cillian-PlayAI">Cillian (Masculina, dramática)</option>
-                        <option value="Mason-PlayAI">Mason (Masculina, neutra)</option>
-                        <option value="Mitch-PlayAI">Mitch (Masculina, fuerte)</option>
-                        <option value="Mikail-PlayAI">Mikail (Masculina, intensa)</option>
-                        <option value="Arista-PlayAI">Arista (Femenina, clara)</option>
-                        <option value="Celeste-PlayAI">Celeste (Femenina, suave)</option>
-                        <option value="Cheyenne-PlayAI">Cheyenne (Femenina, joven)</option>
-                        <option value="Indigo-PlayAI">Indigo (Femenina, misteriosa)</option>
-                        <option value="Quinn-PlayAI">Quinn (Femenina, fresca)</option>
-                    </select>
-                </div>
-                
                 <div style="display: flex; gap: 12px; margin-top: 10px; width: 100%;">
-                    <button class="btn btn-primary" id="btn-generate-voice" style="flex: 1; background: linear-gradient(135deg, var(--color-accent), #8b0000); border: none; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                        <i class="fa-solid fa-circle-play"></i> Sintetizar Voz
-                    </button>
-                    <button class="btn btn-secondary" id="btn-upload-local-audio" style="flex: 1; background: linear-gradient(135deg, #1f1f1f, #2d2d2d); border: 1px solid var(--color-border); color: var(--color-text-main); font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                        <i class="fa-solid fa-file-audio"></i> Subir Audio
+                    <button class="btn btn-primary" id="btn-upload-local-audio" style="width: 100%; background: linear-gradient(135deg, var(--color-accent), #8b0000); border: none; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <i class="fa-solid fa-file-audio"></i> Subir Archivo de Narración
                     </button>
                 </div>
                 <input type="file" id="local-audio-input" accept=".wav,.mp3,.m4a,.ogg" style="display:none;">
@@ -1576,6 +1598,6 @@
     </div>
     
     <!-- Scripts lógicos de la aplicación (ES6 Modules) -->
-    <script type="module" src="js/main.js?v=10"></script>
+    <script type="module" src="js/main.js?v=18"></script>
 </body>
 </html>

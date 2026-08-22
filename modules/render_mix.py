@@ -167,7 +167,7 @@ def apply_audio_speed_ramping(audio_path, json_data, temp_dir):
         return audio_path, json_data
 
 def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, description, vhs_enabled, music_path=None, status_callback=None, groq_key=None, aspect_ratio="9:16", lut_name=None, sub_style="Reddit History", reddit_card_title=None, pacing="Dinámico [2.0s]", vol_voice=100.0, vol_music=40.0, vol_sfx=100.0, **kwargs):
-    enable_subtitles = kwargs.get("enable_subtitles", False)
+    enable_subtitles = kwargs.get("enable_subtitles", True)
     sub_kwargs = {}
     # Telemetry start
     telemetry = TelemetryLogger(log_path=os.path.join(os.getcwd(), "render_telemetry.log"))
@@ -270,16 +270,18 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         cached_ramped_audio_path = None
         cached_ramped_duration = None
         
+        trans_lang = kwargs.get("language", "es") or "es"
         if enable_subtitles:
             if os.path.exists(cache_file) and os.path.exists(final_json_path):
                 try:
                     with open(cache_file, "r") as f: 
                         cache_data = json.load(f)
                     
-                    # Verificar si el archivo original coincide en ruta, mtime y tamaño
+                    # Verificar si el archivo original coincide en ruta, mtime, tamaño e idioma
                     if (cache_data.get("original_audio_path") == input_audio_abspath and 
                         cache_data.get("original_mtime") == input_audio_mtime and
-                        cache_data.get("original_size") == input_audio_size):
+                        cache_data.get("original_size") == input_audio_size and
+                        cache_data.get("language") == trans_lang):
                         
                         # La transcripción original en caché es válida
                         use_cache = True
@@ -300,7 +302,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                     print(f"Error leyendo cache de subtítulos: {e}")
 
             if use_cache:
-                if status_callback: status_callback("♻️ USANDO SUBTÍTULOS EN CACHÉ", "#00E676")
+                if status_callback: status_callback(f"♻️ USANDO SUBTÍTULOS EN CACHÉ ({trans_lang.upper()})", "#00E676")
                 try:
                     with open(final_json_path, "r", encoding="utf-8") as f:
                         result = json.load(f)
@@ -324,32 +326,33 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                                 "audio_path": audio_full_path,
                                 "duration": audio_dur,
                                 "sub_style": sub_style,
-                                "aspect_ratio": aspect_ratio
+                                "aspect_ratio": aspect_ratio,
+                                "language": trans_lang
                             }, f)
                 except Exception as e:
                     print(f"Error al cargar recursos de caché: {e}")
                     use_cache = False
 
             if not use_cache:
-                if status_callback: status_callback("🧠 GENERANDO SUBTÍTULOS (GROQ)...", "#FFD700")
+                if status_callback: status_callback(f"🧠 GENERANDO SUBTÍTULOS GROQ ({trans_lang.upper()})...", "#FFD700")
                 try:
                     result = None
                     # Intentar transcribir con Groq si hay API Key disponible
                     if groq_key:
                         try:
                             from modules.render_utils import transcribe_with_groq
-                            result = transcribe_with_groq(audio_full_path, groq_key, language="es")
+                            result = transcribe_with_groq(audio_full_path, groq_key, language=trans_lang)
                         except Exception as g_err:
                             print(f"Error transcribiendo con Groq (se intentará Whisper local): {g_err}")
                     
                     # Si falló Groq o no había API Key, usar Whisper local
                     if not result:
-                        if status_callback: status_callback("🧠 Groq falló o no configurado. Usando Whisper local...", "orange")
+                        if status_callback: status_callback(f"🧠 Groq falló o no configurado. Usando Whisper local ({trans_lang.upper()})...", "orange")
                         global _WHISPER_MODEL
                         import whisper
                         if _WHISPER_MODEL is None:
                             _WHISPER_MODEL = whisper.load_model("tiny")
-                        result = _WHISPER_MODEL.transcribe(audio_full_path, word_timestamps=True, language="es")
+                        result = _WHISPER_MODEL.transcribe(audio_full_path, word_timestamps=True, language=trans_lang)
                     
                     if not result:
                         raise Exception("Fallo en transcripción Groq/Whisper")
@@ -383,7 +386,8 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                             "audio_path": audio_full_path,
                             "duration": audio_dur,
                             "sub_style": sub_style,
-                            "aspect_ratio": aspect_ratio
+                            "aspect_ratio": aspect_ratio,
+                            "language": trans_lang
                         }, f)
                 else:
                     srt_path = None
@@ -1097,7 +1101,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         a_m += f"[{idx_impact}:a]asplit={num_trans+1}" + "".join([f"[im_raw{i}]" for i in range(num_trans+1)]) + ";"
 
         vol_voice_mult = vol_voice / 100.0
-        vol_music_mult = 0.4 * (vol_music / 100.0)
+        vol_music_mult = max(0.12, (vol_music / 100.0) * 0.50)
         vol_sfx_mult = vol_sfx / 100.0
 
         if music_path:
@@ -1150,9 +1154,9 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         # --- MUSICA DE FONDO (con ducking adaptativo) ---
         try:
             if music_path:
-                in_cmd_audio.extend(["-i", os.path.abspath(music_path)])
-                # Usar expresión matemática en el filtro volume para el Pilar 4
-                a_m += f"[{n_x}:a]silenceremove=start_periods=1:start_duration=0:start_threshold=-45dB,volume=eval=frame:volume='{music_ducking_expr}'[m_pre];[m_pre][v_sc]sidechaincompress=threshold=0.04:ratio=6:attack=2:release=150[bg_duck];"
+                in_cmd_audio.extend(["-stream_loop", "-1", "-i", os.path.abspath(music_path)])
+                # Usar sidechaincompress suave (threshold=0.15, ratio=2.5) para que la música se mantenga siempre audible
+                a_m += f"[{n_x}:a]volume=eval=frame:volume='{music_ducking_expr}'[m_pre];[m_pre][v_sc]sidechaincompress=threshold=0.15:ratio=2.5:attack=15:release=250[bg_duck];"
                 a_i += "[bg_duck]"; a_c += 1; n_x += 1
         except Exception as me:
             print(f"[ERROR] Musica de fondo falló: {me}")

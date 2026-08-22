@@ -1,181 +1,371 @@
-# Análisis Completo del Proyecto: ShortNexus Studio
+# Auditoría Técnica y Análisis Completo del Proyecto: ShortNexus Studio
 
-## 1. Resumen Ejecutivo
-**ShortNexus Studio** es un sistema 100% enfocado en la **Aplicación Web Studio** para la automatización, generación y edición de contenido audiovisual en **YouTube Shorts** y **TikTok** de alto impacto viral a través de múltiples canales (historias de Reddit, terror analógico, terror psicológico, misterios y Roblox).
-
-El proyecto ha sido completamente refactorizado y modularizado siguiendo las mejores prácticas de ingeniería de software:
-- **Backend Modularizado (FastAPI APIRouter)**: [server.py](file:///d:/DESAROLLO/NEXUS_STUDIO/server.py) reducido a ~50 líneas, delegando responsabilidades a routers especializados en [api/routers/](file:///d:/DESAROLLO/NEXUS_STUDIO/api/routers) y sirviendo los archivos estáticos en la raíz (`/`) con soporte SPA.
-- **Frontend Modularizado (ES6 Modules)**: `web/app.js` sustituido por módulos limpios en [web/js/](file:///d:/DESAROLLO/NEXUS_STUDIO/web/js).
-- **Esquema Pydantic `FolderSettingsRequest` y Rutas Dinámicas**:
-  1. Corregida la definición de `FolderSettingsRequest` en [api/deps.py](file:///d:/DESAROLLO/NEXUS_STUDIO/api/deps.py) eliminando los campos `theme` y `theme_color` que requerían erróneamente un atributo no relacionado al guardar carpetas.
-  2. Guardado exitoso de rutas absolutas de narración, música, imágenes, vídeos, renders y descargas en `settings.json`.
-  3. **Conexión de Rutas al Backend**: Se vincularon las rutas personalizadas de settings en los APIRouters de assets y shorts, permitiendo que la música, videos de fondo y renders finales utilicen las carpetas del usuario de forma nativa en lugar de directorios relativos hardcodeados.
-- **Estudio de Subtítulos Avanzado (Subtitles Studio)**:
-  1. **Editor de Estilo Completo**: Módulo visual interactivo (`#tab-subtitles`) para modificar tipografía (fuentes, tamaño 9:16 y 16:9, negrita/cursiva, casing), colores de texto, contorno (outline), sombra (back color), resaltado y animaciones pop-in.
-  2. **Emulador de Smartphone 9:16**: Mockup telefónico detallado con notch y scanlines VHS que muestra los cambios estilográficos en tiempo real con fondos variables de gameplay y suspenso.
-  3. **Transición Segmentada por Comas**: Caja de pruebas que permite simular la transición animada de los subtítulos frase por frase (separada por comas) con timers JavaScript en tiempo real.
-  4. **Persistencia e Integración de Compilador**: Endpoints `/api/assets/subtitle-styles` para CRUD de plantillas personalizadas en `config/subtitle_styles.json` que el motor FFMPEG en `modules/render_utils.py` carga de forma dinámica para renderizar los videos físicos resultantes.
-- **Integración y Estabilización del Wizard de Shorts**:
-  1. Vinculación del botón de generación de guiones mediante IA con el endpoint `/api/shorts/generate-script`.
-  2. Corrección en el mapeo de IDs del DOM en frontend (`shorts-master-prompt` and `shorts-script`) resolviendo el bloqueo del wizard.
-  3. Adición de `voice_name` y `bg_source` al esquema `GenerateRequest` para solventar un error `NameError` de variable no definida en el renderizado en segundo plano y personalizar el fondo del video.
-  4. Sincronización del streaming SSE de progreso con el nombre del canal activo `/api/shorts/progress/{channel_name}`.
-  5. **Barra de Progreso Dinámica de Renderizado**: Se implementó una lógica de mapeo y estimación de porcentaje en la función `calculate_render_percentage` dentro de [api/routers/shorts.py](file:///d:/DESAROLLO/NEXUS_STUDIO/api/routers/shorts.py). El lambda callback captura los eventos internos del motor de renderizado MIX (como el recorte del audio, subtitulado, descargas de B-rolls, procesamiento secuencial de cada clip, mezclas y guardado final), traduciéndolos a porcentajes continuos en tiempo real (de `75%` a `100%`) que alimentan directamente a la barra de progreso de la UI, en lugar de pasar abruptamente de `0%` a `100%`.
-  6. **Nombres Únicos de Render por Título SEO**: Se incorporó el campo `video_title` en `GenerateRequest` para transferir el título generado por IA (o editado manualmente) desde `#shorts-video-title` en el frontend al compilador. El motor de renderizado MIX limpia el título de caracteres especiales y emojis para guardar el archivo `.mp4` y su descripción `.txt` con un nombre representativo y único de su contenido en lugar de usar nombres de plantilla genéricos.
-  6. **Audios del Servidor y Reproductor Premium**: Implementación de un endpoint `/api/assets/narrations` para listar audios de voz y `/api/assets/file-preview` para transmitirlos de forma segura. El Reproductor de Voz izquierdo se ha acoplado interactivamente con la selección activa, auto-cargándose (en estado pausado listo) al iniciar la app o cambiar de selección, mostrando animaciones de ondas sincronizadas.
-  7. **Vista Previa de Video Persistente**: Creación del endpoint `/api/shorts/last-render` para obtener el video renderizado más reciente (filtrado por el canal activo o global) desde la ruta física configurada por el usuario, evitando pérdida de estado del smartphone tras reiniciar la app.
-  8. **Subida y Programación en YouTube**: Vinculación y control interactivo del botón `btn-upload-youtube` con el endpoint del backend `POST /api/youtube/upload`, el cual se habilita automáticamente al renderizar o detectar un short persistido.
-  9. **Activación Condicional de Subtítulos**: Se añadió el campo `enable_subtitles` en `GenerateRequest` controlado por un checkbox (`#shorts-enable-subtitles`) persistido en `localStorage` (por defecto desactivado). Cuando los subtítulos están desactivados, el motor de renderizado MIX omite por completo la transcripción por IA (Groq/Whisper) y la generación del archivo `.ass`, acelerando el renderizado de forma significativa al normalizar directamente el audio y omitir el quemado en FFmpeg.
-  10. **Botón Nuevo Short (Limpiar Todo y Caches)**: Vinculado e implementado el botón `#btn-reset-draft` para realizar un reinicio general y purga de estado:
-     *   **Frontend**: Borra el estado del wizard en `localStorage`, limpia variables globales y restablece los campos en pantalla (entradas de texto, selects, reproductor de audio, consola de compilación, previsualizador de video).
-     *   **Downloader**: Limpia las URLs de descarga, la lista de videos encontrados, la consola de logs del descargador y oculta los paneles de progreso.
-     *   **Backend**: Invoca `POST /api/assets/timeline/clear` para borrar del disco los recursos cargados en el timeline, actualizando su cuadrícula en pantalla de inmediato, e invoca `POST /api/assets/cache/clear` en [api/routers/assets.py](file:///d:/DESAROLLO/NEXUS_STUDIO/api/routers/assets.py) para purgar de forma física toda la caché de renderizado del servido- **Optimización Física de Biblioteca de Música (M4A / AAC Nativo)**:
-  1. **Pre-procesamiento Físico**: Se normalizó la sonoridad de todas las canciones de fondo a `-16 LUFS` (filtro `loudnorm`) y se recortó el silencio inicial de cada pista (filtro `silenceremove=start_threshold=-45dB`). Además, se eliminó la estática/siseo residual mediante el filtro FFT De-noise (`afftdn=nr=18:nf=-45`) y se atenuó la ganancia en `-5 dB` para eliminar clipping digital y evitar saturar las voces.
-  2. **Acotación Temporal**: Se limitó la duración máxima de cada pista a **90 segundos** exactos, reduciendo de forma significativa el peso de lectura del disco SSD D: (el archivo más pesado bajó de 45 MB a ~1.46 MB) y liberando RAM.
-  3. **Códec y Canales Unificados**: Se convirtieron los archivos de MP3 a formato contenedor nativo **AAC (`.m4a`)** a **44100 Hz y 2 canales (Estéreo)**, eliminando la necesidad de resampleo en caliente por parte de FFmpeg y mejorando la velocidad del render final.
-  4. **Modificación del Listador**: Se actualizó el endpoint `/api/assets/music` en [api/routers/assets.py](file:///D:/DESAROLLO/NEXUS_STUDIO/api/routers/assets.py) para que busque y liste de forma nativa archivos con extensión `.m4a` adicionalmente a `.mp3`, `.wav` y `.ogg`.
-- **Optimización Física de Biblioteca de Transiciones de Audio (MP3 a 44100 Hz)**:
-  1. **Alineación de Frecuencia**: Se re-codificaron las 5 transiciones físicas de audio (`real_boom.mp3`, `real_glitch.mp3`, `real_impact.mp3`, `real_riser.mp3` y `real_whoosh.mp3`) de su frecuencia original de 48000 Hz a **44100 Hz estéreo (2 canales)** de forma nativa. Esto elimina la necesidad de resampleo dinámico (`aresample`) por FFmpeg al inyectar transiciones en el Short final.
-  2. **Recorte de Impacto Ruidoso**: Se limitó físicamente la duración de la pista pesada `real_boom.mp3` de **173 segundos (casi 3 minutos)** a solo **6 segundos** con un desvanecimiento suave (`afade=t=out:st=4.5:d=1.5`). Esto redujo su peso en disco de 1.28 MB a **96 KB**, acelerando radicalmente el tiempo de lectura y decodificación de FFmpeg durante la mezcla.
-- **Optimización Física de Biblioteca de Efectos de Sonido (SFX WAV) y Rediseño de Mezcla Cinematográfica**:
-  1. **Recorte Milimétrico**: Se eliminó el silencio inicial en las 13 pistas de efectos de sonido originales mediante el filtro `silenceremove` de FFmpeg (umbral `-45dB`), garantizando su inyección instantánea sin micro-retrasos.
-  2. **Normalización de Pico en Dos Pasos**: Se analizó la amplitud de cada archivo con `volumedetect` para aplicar una escala lineal de ganancia exacta que sitúe el pico máximo de todos los efectos en **`-1.5 dB`**. Esto evita saturaciones (clipping) al mezclarse con las voces.
-  3. **Unificación a 16-bit PCM**: Se re-codificaron todos los archivos a formato WAV unificado a **16 bits (`pcm_s16le`)** y 44100 Hz estéreo, lo que redujo el tamaño de almacenamiento en un **33%** para los archivos que estaban en 24 bits, optimizando el uso de RAM al decodificar.
-  4. **Purga de Archivos Huérfanos**: Se eliminaron físicamente los 5 efectos de sonido (`air_woosh.wav`, `arrow_whoosh.wav`, `cinematic_tunnel_reverb_woosh.wav`, `fast_sweep.wav` y `rocket_whoosh.wav`) que existían en el disco pero no contaban con lógica de inyección reactiva en el código, dejando una biblioteca limpia de exactamente 8 efectos sincronizados al 100% con `sfx_map` en [render_utils.py](file:///D:/DESAROLLO/NEXUS_STUDIO/modules/render_utils.py).
-  5. **Sincronización Word-Level (Pilar 2)**: Se actualizó `extract_sfx_events` en [render_utils.py](file:///D:/DESAROLLO/NEXUS_STUDIO/modules/render_utils.py) para mapear los timestamps de los efectos al milisegundo exacto de la pronunciación de la palabra clave a nivel de palabra (Whisper word-timestamps), incorporando una interpolación proporcional como fallback dinámico.
-  6. **Clasificación y Mezcla en Capas (Pilar 1 y 3)**:
-     - *SFX de Ambiente (Lluvia, grillos, pasos)*: Se procesan en bucle continuo (`-stream_loop -1`) a volumen muy bajo (`volume=0.08`), aplicando fundidos cruzados (*fade-in* y *fade-out* de 2 segundos) para transiciones fluidas de ambiente, y limitando a un solo ambiente activo a la vez para no saturar.
-     - *SFX de Impacto (Ladrido, latido, etc.)*: Se reproducen una sola vez (one-shot) a volumen controlado (`volume=0.22` max) limitándolos a un máximo de un impacto cada 3 segundos.
-  7. **Auto-Ducking de Música de Fondo (Pilar 4)**: Se implementó un filtro de volumen dinámico en `render_mix.py` para la música de fondo que atenúa de forma automática un 50% extra su volumen durante 1.8 segundos cada vez que se dispara un SFX de impacto fuerte en el Short final mediante cláusulas matemáticas `between()` en FFmpeg.
-- **Optimización Física de Biblioteca de Efectos de Video (Video FX)**:
-  1. **Compresión Extrema de Ruido de VHS**: Se optimizó físicamente el archivo de superposición analógica [vhs_overlay.mp4](file:///D:/DESAROLLO/NEXUS_STUDIO/assets/video/fx/vhs_overlay.mp4) de su tamaño original de **253.5 MB** a solo **0.45 MB** (450 KB), logrando una reducción de peso total del **99.8%**. Esto se consiguió limitando de forma estricta el bitrate de la señal de ruido de alta entropía a 2 Mbps VBR (`-b:v 2000k -maxrate 2500k -bufsize 4000k`), recortándolo a 10 segundos de loop y eliminando la pista de audio muerta. Esto erradica por completo la sobrecarga de RAM y el cuello de botella de decodificación al renderizar chunks en la laptop Dell Latitude.
-- **Rediseño Premium y Estructura Visual del Paso 4 (Render y Publicación)**:`.mp3`, `.wav` y `.ogg`.
-- **Rediseño Premium y Estructura Visual del Paso 4 (Render y Publicación)**:
-  1. **Simetría y Altura Coordinada (Sin Scroll)**: Rediseñada la grilla de tres columnas (`.render-step-grid`) en [web/index.html](file:///d:/DESAROLLO/NEXUS_STUDIO/web/index.html) eliminando la altura mínima restrictiva y ajustando el padding a `12px 14px` con gaps compactos de `8px`. Esto permite que todos los paneles quepan en una sola pantalla sin necesidad de hacer scroll vertical.
-  2. **Switch Toggle Cyberpunk y Panel Limpio**: Sustituido el checkbox desalineado de activación de subtítulos por un control interactivo de Switch Toggle compacto y removida la tarjeta redundante de previsualización de subtítulos para un panel de compilación más limpio e intuitivo.
-  3. **Smartphone Mockup Compacto**: Redimensionado el previsualizador del smartphone (`.phone-mockup-wrapper` en [web/style.css](file:///d:/DESAROLLO/NEXUS_STUDIO/web/style.css)) a `180px` de ancho y `320px` de alto (proporción 9:16 exacta), con notch integrado y controles de reproducción ("PLAY" y "CARPETA") alineados perfectamente a la base con un ancho máximo de `180px` y botones de `24px` de alto.
-  4. **Distribución y Descripción Monospace**: Rediseñado el panel de distribución con un textarea de descripción de `75px` de alto, fuente tipográfica `monospace` y fondo atenuado. Todos los select e inputs del formulario fueron estilizados a `28px` de altura de control, y los botones principales a `32px` con efectos hover y transformaciones táctiles premium.
-- **Deduplicación de Motor de Render**: Centralizadas todas las funciones de ffprobe y medios en [modules/render_utils.py](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/render_utils.py).
-- **Estabilización y Optimización de Renderizado (720p, Hardware Accelerated GPU via MediaFoundation / QSV / CPU)**: Se configuró el pipeline para detectar dinámicamente la aceleración por hardware del sistema en [modules/render_utils.py](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/render_utils.py). En procesadores Intel Haswell (i5-4300U) donde `h264_qsv` falla por incompatibilidad de sesión MFX en versiones recientes de FFmpeg, el sistema activa automáticamente **Windows Media Foundation (`h264_mf`)** configurado con `-rate_control quality -quality 85`, permitiendo aceleración por GPU mediante los transformadores MFT de Windows D3D11 y reduciendo un **42% el peso del archivo final** sin perder calidad visual. Se mantiene un fallback automático a CPU (`libx264`) si ninguna GPU responde. Se implementó un límite estricto de framerate a **30 FPS** (`-r 30` en chunks y salida final) que reduce la carga del procesador y el peso del video. La compresión H.264 se optimizó utilizando bitrate de 2200k, estructura GOP extendida (`-g 90`) y `-movflags +faststart` para optimizar la reproducción inmediata en la web (Shorts/TikTok).
-- **Backend Optimizado para I/O Asíncrono**: Refactorización profunda de las rutas API (en `api/routers/channels.py`, `assets.py` y `deps.py`) implementando `aiofiles` y `async def` para lecturas y escrituras asíncronas de configuraciones y archivos temporales, evitando el bloqueo del ThreadPool de FastAPI bajo altas cargas y reduciendo el consumo de memoria de Python.
-- **Limpieza Proactiva del Motor JS**: El frontend ha sido actualizado para revocar dinámicamente URLs temporales de Blob (`URL.revokeObjectURL`) y purgar nodos de imagen y video (`src=""` seguido de `.load()`) al presionar "Nuevo Short", liberando la RAM en el motor V8 de Thorium al instante.
-- **Estabilización de Caché de Subtítulos y Clips (Multi-capa & Hash Inteligente)**: 
-  1. Corregido el bug en [modules/render_mix.py](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/render_mix.py) donde la caché fallaba debido a la recreación del audio temporal `trimmed_voice.wav`.
-  2. **Hash de Clips Optimizado**: Se reemplazó el parámetro `sub_style` del cálculo del hash del clip por una bandera booleana `has_card` (que detecta si el fragmento contiene la tarjeta de Reddit en el clip inicial). Esto previene que cambiar los estilos de subtítulo invalide el renderizado de vídeo de los fragmentos, acelerando re-renderizados a segundos.
-  3. **Seguridad de Relación de Aspecto**: Se incorporó el mapeo de `target_w` y `target_h` en el hash de caché de fragmentos para asegurar la correcta invalidación ante cambios de resolución.
-  4. **Duraciones Dinámicas Deterministas**: Se implementó una semilla fija basada en el hash del título del Short (`random.seed(seed)`) antes de la asignación aleatoria de duraciones de clips en el compilador. Esto garantiza que las duraciones físicas asignadas a cada chunk sean idénticas entre compilaciones consecutivas del mismo Short, asegurando un 100% de aciertos de caché (hits) y evitando re-renderizados innecesarios desde cero.
-  5. **Robustez en la Importación del Generador de Hashes**: Corregido el conflicto de scope local en la función de procesamiento de chunks (`process_chunk`) en [modules/render_mix.py](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/render_mix.py) al eliminar una importación redundante local de `hashlib` que causaba `UnboundLocalError` cuando el medio de entrada no requería conversión al vuelo (rutas de imágenes y videos limpios sin ser GIFs o WebP animados).
-- **Normalización de Biblioteca SFX e Integración Dinámica**:
-  1. **Limpieza Física**: Renombrados los 14 archivos de efectos de sonido en `assets/audio/sfx/` eliminando prefijos de plataformas de descarga (`mixkit-`) y sufijos numéricos aleatorios, adoptando una nomenclatura estandarizada en minúsculas con guiones bajos (p. ej. `footsteps.wav` y `heartbeat.wav`).
-  2. **Actualización de Mapeos de Audio**: Sincronizado el archivo [modules/render_utils.py](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/render_utils.py) para utilizar los nuevos formatos de archivo correspondientes a la inyección automática por palabras clave en los guiones.
-  3. **Expansión del Detector de Suspenso**: Incorporadas nuevas palabras clave como `lluvia/tormenta/trueno` (`rain_and_thunder_storm.wav`), `perro/ladrar/ladrido` (`dog_bark.wav`), `retro/perdiste` (`arcade_retro_game_over.wav`), `grillo/grillos` (`crickets_ambience.wav`), y `vacío/vacio` (`air_zoom_vacuum.wav`) para enriquecer las mezclas de audio reactivas en base al texto.
-- **Asistentes Multimedia Interactivos**:
-  1. **Modal de Auto General** (`#modal-auto-general`) y **Gameplay Genérico** (`#modal-gameplay-generic`) habilitados y rediseñados estéticamente sin campos de duración manual, auto-ajustando y recortando dinámicamente según la narración activa.
-  2. **Descargador de Fondos Inteligente e IA (Timeline Fallback)**: El backend ahora implementa una caché para reutilizar descargas de YouTube completas y ejecuta segmentación con re-encuadre vertical 9:16 (`slice_video_segments`) de forma automatizada. Adicionalmente, el timeline implementa una **búsqueda y descarga con distribución balanceada en base al índice (40% YouTube, 30% Pexels Video, 30% Imagen)**:
-     - *YouTube Video (40% de prioridad base)*: Busca vídeos cortos de stock en YouTube (con `yt-dlp`), los descarga a 720p y extrae dinámicamente un fragmento reproducible de 3 segundos manejando offsets inteligentes para clips cortos.
-     - *Pexels Video (30% de prioridad base)*: Busca vídeos verticales de stock en Pexels.
-     - *Imagen (30% de prioridad base)*: Busca fotos en Pexels/Pixabay y las anima con zoom/paneo.
-     - *Cascada de Fallback*: Si la fuente asignada por índice falla, el sistema consulta el resto de las plataformas automáticamente para asegurar que el Timeline nunca quede incompleto.
-     
-     Los recursos se guardan respetando su tipo original: los vídeos en `videos_folder_path` y las imágenes fijas en `images_folder_path` con su extensión correspondiente (`.jpg`, `.png`, `.mp4`, etc.). La UI del timeline detecta el tipo al vuelo y renderiza las imágenes y vídeos adecuadamente.
-     
-     Se configuró `yt-dlp` con la directiva `'nopart': True` para omitir archivos temporales y la descarga segmentada de los primeros 5 minutos (`download_ranges`) del video fuente, evitando el consumo masivo de red y disco por videos extremadamente largos en Windows. El backend autodetecta y elimina de forma reactiva videos de gameplay corruptos o incompletos de la caché mediante comprobación de duración de FFprobe. Además, el motor de segmentación valida que cada fragmento generado sea mayor a 10 KB; si se detecta un clip corrupto o vacío, elimina automáticamente el video fuente de la caché local para forzar su redescarga limpia. Asimismo, el API del timeline devuelve rutas con barras normales (`/`) previniendo errores de escape en Javascript y fallos de previsualización (404 Not Found) en el cliente. Para evitar bloqueos físicos de eliminación en Windows (WinError 32), la UI vacía las etiquetas multimedia (`src = ''` y `.load()`) del DOM del navegador antes de solicitar limpieza, y el backend ejecuta recolección de basura asíncrona (`gc.collect()`) y reintentos robustos (`safe_remove`) al borrar recursos o caché. Adicionalmente, el Asistente General de Medios lee de forma reactiva los checkboxes de recursos a obtener (gameplay, imágenes y GIFs) en el envío del frontend, y el backend implementa búsquedas dinámicas mediante API de Pexels (fotos) y Giphy (GIFs animados) para integrarlos de inmediato al timeline del Short según los intereses del usuario. Asimismo, el compilador de shorts (`bg_generate_short_process`) fue optimizado para recopilar secuencialmente todos los formatos de medios del timeline (videos, GIFs e imágenes) como fondos principales del renderizado MIX final, respetando el orden alfabético que ve el usuario en la interfaz y alternando adecuadamente entre ellos en lugar de restringirse únicamente a archivos de formato de video (`.mp4`), solucionando los saltos omitidos de recursos multimedia. Para lograr un flujo de edición natural y dinámico sin saltos hacia atrás ("efecto rebote de overlays"), el motor de renderizado MIX (`render_mix_mode`) ahora intercala cronológica y secuencialmente los B-rolls descargados de Pexels/YouTube en la pista de fondo principal en lugar de superponerlos como overlays temporales encima de otros clips, lo que elimina el retorno al clip original y genera transiciones fluidas de corte a corte. Por último, para evitar que fallas de extracción de audio (como en videos de gameplay de Roblox mudos o sin pista de audio) provoquen que los chunks de video sean omitidos por completo del compilador final, el motor de renderizado MIX captura la excepción de FFmpeg y autogenera un flujo de audio silencioso en formato WAV (`anullsrc`), rescatando y conservando la pista de video en el Short. De manera complementaria, para evitar que la imagen del video se congele al final de la reproducción por ser más corta que la pista de narración de audio o por cortes desiguales, se incorporó la directiva `-stream_loop -1` de forma dinámica en las llamadas FFMPEG de video y extracción de audio, forzando a que cualquier video de entrada más corto se repita en bucle hasta cubrir con precisión matemática su duración asignada (`render_dur`), y la directiva `-loop 1` para las imágenes fijas en el timeline, lo que previene que FFMPEG cierre prematuramente el stream tras el primer frame y congele la imagen en los segundos finales. A su vez, se optimizó el algoritmo de intercalación de B-rolls para que actúe de forma circular y repita la secuencia de recursos del timeline de fondo si estos se agotan antes de cubrir la duración total de la voz. Asimismo, para compensar la pérdida de duración acumulada por los encabalgamientos de transiciones cruzadas (`xfade`), el compilador calcula de forma anticipada los offsets de las transiciones y escala dinámicamente la duración física de cada chunk de video y especialmente del último chunk, forzando a que el stream de video de salida dure más de los segundos estipulados y evitando cualquier congelamiento en los segundos finales del Short.
-  3. **Línea de Tiempo (Timeline) Dinámica**: Creación de los endpoints `GET`, `DELETE` y `/clear` bajo `/api/assets/timeline` para gestionar los recursos, y el endpoint `POST` `/api/assets/upload-resources` para subir múltiples archivos del usuario (videos, imágenes, GIFs) directamente a la línea de tiempo, mapeándolos dinámicamente según su formato. Se añadió un filtrado estricto en el frontend para evitar que los mensajes del render final del Short interfieran en la barra de estado del timeline, asegurando que esta sección solo muestre información limpia relativa a la adición/eliminación de sus propios clips.
-  4. Endpoint `/api/assets/gameplay-folders` para obtener dinámicamente las carpetas de gameplays locales.
-- **Sintetizador y Carga de Audios en Tiempo Real**:
-  1. Endpoint `/api/shorts/synthesize-voice` para generar audios del guion al instante usando Edge-TTS.
-  2. Endpoint `/api/assets/upload-audio` para subir grabaciones locales a la carpeta del servidor.
-  3. Cierre automático de modales y recarga fluida del listado de audios destacando el archivo resultante al instante sin refrescar la página.
-- **Generación Automática de Metadatos y Trazabilidad (Metadata Tracking)**:
-  1. Endpoint `/api/shorts/generate-title-description` que utiliza el prompt estructurado en `PROMPT_TITLE_DESCRIPTION.txt` para crear títulos de CTR masivo y descripciones optimizadas en capas.
-  2. Disparo asíncrono e inteligente de la IA al generar un guion, sintetizar una voz, o manualmente desde el Paso 4.
-  3. Selección dinámica y priorizada de clips de fondo en el compilador filtrando por la palabra clave del `bg_source` activo.
-  4. **Trazabilidad de Parámetros de Generación**: Implementación del archivo caché local `generation_metadata.json` (alojado en `config/cache/`) para persistir todos los parámetros técnicos (Prompt Master, Script/Trama completo, duraciones, clips, volumen de voz/música, tipo de subtítulos, calidad, etc.) vinculados unívocamente a cada Short renderizado mediante su `safe_title`. El backend en `/api/analytics/video-details/{video_id}` realiza un cruce dinámico por título con este archivo para inyectar estos parámetros generados directamente al modal de "Detalles de Video" en la interfaz web, permitiendo auditoría técnica en tiempo real.
+> **Fecha de Auditoría Maestro**: 18 de Agosto de 2026  
+> **Estado del Sistema**: 100% Funcional, Modularizado y Optimizado  
+> **Fuentes de Verificación**: `repomix-output.xml`, `reglas_locales.md` y código fuente del repositorio.
 
 ---
 
-## 2. Arquitectura Modular del Sistema
+## 1. Resumen Ejecutivo y Arquitectura del Sistema
+
+**ShortNexus Studio** es una plataforma integral y modular de automatización, generación y edición masiva de contenido audiovisual en formato vertical **9:16 (YouTube Shorts, TikTok y Instagram Reels)**. 
+
+El sistema está diseñado específicamente para operar con la máxima eficiencia técnica en hardware local (optimizado para procesadores Intel de 4ª generación de bajo consumo como i5-4300U, con 12 GB RAM en disco SSD D:).
+
+### Pilares Fundamentales del Sistema:
+1. **Aislamiento Multicanal Autónomo**: Cada canal de YouTube/TikTok registrado opera en un sandbox completamente independiente ubicado bajo `projects/channels/[Nombre_Canal]/` con sus propias carpetas de audios, músicas, vídeos, imágenes, renders, cachés y metadatos (`generation_metadata.json`).
+2. **Soporte Multilingüe Nivel Canal**: Configuración de código de idioma (`es`, `en`, `fr`, `de`, `pt`, `it`) por canal en `config/settings.json`. Las llamadas a IA (Groq AI / Gemini API) adaptan guiones, títulos, descripciones y prompts narrativos directamente en el idioma nativo del canal.
+3. **Backend Asíncrono Modular (FastAPI + APIRouter)**: El servidor `server.py` está desacoplado en APIRouters independientes (`api/routers/`) apoyándose en `aiofiles` y `asyncio` para evitar bloqueos del bucle principal.
+4. **Motor de Renderizado Híbrido GPU/CPU (FFmpeg MIX Engine)**: Transcripción automática por palabra con Whisper/Groq, quemado de subtítulos estilo Hormozi/Reddit, autogestión de SFX sincronizados milimétricamente a palabras clave, auto-ducking dinámico de música de fondo y aceleración de hardware por GPU via **Windows Media Foundation (`h264_mf`)** / QSV con fallback suave a CPU (`libx264`).
+5. **Frontend SPA Cyberpunk / Glassmorphism**: Interfaz web de una sola página sin recargas de pantalla (ES6 Modules en `web/js/`), escalado dinámico responsivo de 100vh sin scroll vertical, wizard interactivo de 4 pasos, emulador de smartphone 9:16 en tiempo real y estudio visual de subtítulos.
+
+---
+
+## 2. Jerarquía Completa de Directorios y Archivos (Aislamiento Multicanal)
 
 ```
-                                +---------------------------------------+
-                                |      ShortNexus Web Studio App        |
-                                |       (ES6 Modules / web/js/)         |
-                                +-------------------+-------------------+
-                                                    |
-                                                    | REST API / SSE Progress
-                                          +---------v---------+
-                                          |   FastAPI Server  |
-                                          |    (server.py)    |
-                                          +---------+---------+
-                                                    |
-         +------------------------------------------+------------------------------------------+
-         |                                          |                                          |
-+--------v-------+                         +--------v-------+                         +--------v-------+
-|  api/routers/  |                         | AI & Voice     |                         | Video Engine   |
-| - shorts.py    |                         | - groq_client  |                         | - render_mix   |
-| - channels.py  |                         | - gemini_client|                         | - video_render |
-| - analytics.py |                         | - voice_gen    |                         | - compositor   |
-| - assets.py    |                         +----------------+                         +----------------+
-+----------------+                                  |                                          |
-        |                                  +--------v-------+                         +--------v-------+
-        |                                  | Social & OAuth |                         | Gameplay Scrap |
-        |                                  | - yt_uploader  |                         | - roblox_sourc |
-        |                                  | - tiktok_up    |                         | - gameplay_sou |
-        |                                  | - analytics    |                         | - pexels/pixab |
-        +--------------------------------->+----------------+                         +----------------+
+NEXUS_STUDIO/
+├── run_web_app.py               # Lanzador oficial con verificación de salud HTTP 200 y apertura de navegador
+├── server.py                    # Servidor FastAPI principal (~50 líneas, sirve SPA en '/' y monta APIRouters)
+├── Analisis_Completo.md         # Documento maestro de auditoría técnica y arquitectura
+├── reglas_locales.md            # Directivas del proyecto y reglas de hardware (i5-4300U / SSD D:)
+├── repomix-output.xml           # Grafo maestro de código empaquetado (Repomix XML)
+├── .gitignore                   # Exclusiones de Git (entornos virtuales, cachés, renders pesados)
+├── desktop.ini                  # Archivo de sistema de icono de carpeta Windows
+│
+├── api/                         # Módulo Backend REST API
+│   ├── __init__.py              # Inicializador del paquete API
+│   ├── deps.py                  # Dependencias FastAPI, resolución de rutas aisladas (get_channel_paths) y migración
+│   └── routers/                 # APIRouters especializados
+│       ├── __init__.py          # Inicializador de paquete routers
+│       ├── analytics.py         # Métricas de YouTube Data API v3 y grafo viral de palabras clave
+│       ├── assets.py            # Gestor de biblioteca multimedia, narraciones, timeline, SFX y purga de caché
+│       ├── channels.py          # CRUD de canales, selección activa, temas y prompts master por canal
+│       ├── shorts.py            # Generación de guiones, voz, streaming SSE de progreso y motor de renderizado
+│       └── youtube_upload.py    # Autenticación OAuth2 y publicación/programación automatizada en YouTube
+│
+├── assets/                      # Biblioteca Global de Recursos Físicos Base
+│   ├── audio/
+│   │   ├── sfx/                 # 8 Efectos de sonido unificados (WAV 16-bit PCM 44100Hz)
+│   │   │   ├── arcade_retro_game_over.wav
+│   │   │   ├── cat_meow.wav
+│   │   │   ├── crickets_ambience.wav
+│   │   │   ├── dog_bark.wav
+│   │   │   ├── footsteps.wav
+│   │   │   ├── heartbeat.wav
+│   │   │   ├── rain_and_thunder_storm.wav
+│   │   │   └── wolf_howl.wav
+│   │   ├── transitions/         # 5 Transiciones de audio (MP3 44100Hz estéreo)
+│   │   │   ├── real_boom.mp3 (6s recortado con fade)
+│   │   │   ├── real_glitch.mp3
+│   │   │   ├── real_impact.mp3
+│   │   │   ├── real_riser.mp3
+│   │   │   └── real_whoosh.mp3
+│   │   └── music/               # Música de fondo normalizada (-16 LUFS, M4A AAC 44100Hz)
+│   ├── fonts/                   # Tipografías (.ttf / .otf) para subtítulos dinámicos
+│   └── video/
+│       └── fx/                  # Efecto de superposición de video
+│           └── vhs_overlay.mp4  # Superposición de ruido VHS (450 KB ultra-comprimido)
+│
+├── cache/                       # Directorio de trabajo temporal global
+├── config/                      # Configuraciones JSON y Plantillas de Prompts
+│   ├── client_secrets.json      # Credenciales oficiales de Google OAuth 2.0
+│   ├── scheduled_queue.json     # Cola de videos programados para publicación
+│   ├── settings.json            # Configuración general y registro de canales
+│   ├── subtitle_styles.json     # Plantillas estilísticas de subtítulos para FFmpeg
+│   ├── themes.json              # Paletas de color e identificadores estéticos
+│   ├── prompts.py               # Módulo Python de constantes de prompts
+│   └── prompts/                 # Directorio de prompts estandarizados
+│       ├── cover/               # Prompts de generación de portadas (cover_v1, cover_version3)
+│       ├── story/               # Prompts de historias (Prompt Maestro Universal y prompts por canal)
+│       ├── title_description/   # Prompt de metadatos SEO (PROMPT_TITLE_DESCRIPTION.txt)
+│       ├── visuals/             # Prompts de composición visual (visual_version4, visual_version5)
+│       └── voice/               # Prompts de instrucciones de voz (voice_instructions)
+│
+├── core/                        # Utilidades y Lógica Central
+│   ├── math_logic.py            # Fórmulas de calculo de engagement, viralidad y normalizaciones
+│   ├── project_manager.py       # Gestor de estructura física de proyectos y canales
+│   └── utils.py                 # Funciones helper de formateo, sanitizado de strings y manejo de IO
+│
+├── credenciales/                # Credenciales privadas de OAuth 2.0 y claves de API local
+│   └── client_secrets.json      # JSON oficial de cliente de Google App
+│
+├── modules/                     # Motores y Clientes de Procesamiento Especializado
+│   ├── analytics_client.py      # Cliente YouTube Data API v3 (estadísticas de canal y retención)
+│   ├── gemini_client.py         # Integración con la API de Google Gemini (guiones y metadatos)
+│   ├── graph_analyzer.py        # Motor de grafos de viralidad de palabras clave con NetworkX
+│   ├── groq_client.py           # Integración con la API de Groq AI (llama-3.3-70b) para guiones y prompts
+│   ├── pixabay_client.py        # Cliente de búsqueda de imágenes y videos en Pixabay API
+│   ├── render_mix.py            # Compilador principal de video MIX (FFmpeg, Whisper, SFX, B-rolls)
+│   ├── render_utils.py          # Utilidades de FFmpeg, FFprobe, subtítulos ASS, hashing de caché y codificación
+│   ├── telemetry.py             # Sistema de logs y telemetría de eventos de renderizado (`render_telemetry.log`)
+│   ├── timeline_generator.py    # Generador de línea de tiempo con fallback inteligente (YouTube, Pexels, Fotos)
+│   ├── tiktok_uploader.py       # Cliente de publicación automatizada en TikTok (preparado API)
+│   └── youtube_uploader.py      # Cliente de publicación y programación en YouTube Shorts API
+│
+├── projects/                    # ALMACENAMIENTO DE PROYECTOS Y CANALES
+│   └── channels/                # ESTRUCTURA AISLADA MULTICANAL
+│       └── [Nombre_Canal]/
+│           ├── audio/           # Locuciones y audios de voz asignados al canal
+│           ├── music/           # Pistas de música asignadas al canal
+│           ├── videos/          # Gameplays y videos B-roll descargados para el canal
+│           ├── images/          # Imágenes estáticas y de stock del canal
+│           ├── renders/         # Videos Short finales (.mp4) y sus metadatos SEO (.txt)
+│           ├── downloader/      # Descargas brutas de fuentes multimedia
+│           ├── cache/           # Chunks renderizados y subtítulos temporales (.ass) del canal
+│           └── config/          # generation_metadata.json (trazabilidad completa de renders)
+│
+├── tools/                       # Herramientas binarias auxiliares
+│   └── yt-dlp.exe               # Ejecutable binario de yt-dlp para extracción directa de streams
+│
+└── web/                         # Frontend Web Studio (SPA con Vanilla JS / ES6 Modules)
+    ├── index.html               # Plantilla SPA principal (Pestañas, Wizard, Subtitle Studio, Viral Map)
+    ├── style.css                # Estilos CSS Glassmorphic Cyberpunk con variables HSL y Responsive 100vh
+    └── js/                      # Módulos JavaScript orientados a componentes
+        ├── analytics_dashboard.js # Tablero de analítica de canales y modal de auditoría viral
+        ├── api.js               # Cliente HTTP (Fetch API wrapper con manejo de errores)
+        ├── channels_settings.js # Control de Ajustes Generales, Canales y Generador de Prompts IA
+        ├── main.js              # Entrypoint JS, orquestación SPA, reactividad al cambiar de canal
+        ├── shorts_wizard.js     # Wizard de 4 pasos para creación de Shorts, SSE stream y purga de borrador
+        ├── subtitles_studio.js  # Editor interactivo de subtítulos, emulador 9:16 y persistencia JSON
+        └── viral_map.js         # Visualizador interactivo de red de palabras clave con Vis.js
 ```
 
 ---
 
-## 3. Tecnologías y Stack Técnico (Verificado en `repomix-output.xml`)
+## 3. Auditoría Detallada del Backend (FastAPI API Core)
 
-| Capa / Módulo | Tecnología / Librería | Función |
-| :--- | :--- | :--- |
-| **Backend API** | FastAPI, APIRouter, Uvicorn, Pydantic, asyncio | Servidor RESTful modularizado por rutas (`api/routers/`) con eventos Server-Sent Events (SSE) para progreso en tiempo real y montado directo de frontend en la raíz. |
-| **Lanzador Oficial** | `run_web_app.py` | Inicia el servidor Uvicorn en `http://localhost:8000/`, ejecuta polling activo de salud HTTP 200 para confirmar el inicio 100% completo del backend y abre de forma segura el navegador web. |
-| **Frontend Web Studio** | HTML5, Vanilla CSS3 Glassmorphism, JS (ES6 Modules) | Panel de control studio desacoplado por características (`shorts_wizard.js`, `channels_settings.js`, `analytics_dashboard.js`, `viral_map.js`, `subtitles_studio.js`). |
-| **Generación de Contenido AI**| Groq API (Llama models), Google Gemini API | Generación de guiones virales, metadatos (título/descripción/hashtags) y prompts visuales. |
-| **Síntesis de Voz (TTS)** | Edge-TTS, Kokoro TTS, ElevenLabs | Generación de narraciones en múltiples voces e idiomas (ES, EN, FR, DE, IT). |
-| **Procesamiento de Vídeo** | MoviePy, FFMPEG, OpenCV, PIL/Pillow | Ensamblado de vídeo 9:16, subtítulos dinámicos estilo Hormozi, Reddit History y Roblox Gaming, LUTs de color, VHS y subliminales. |
-| **Descarga de Recursos** | `yt-dlp`, Pexels API, Pixabay API | Obtención y segmentación de fondistas (Roblox, Parkour, GTA, Minecraft) y stock mediático. |
-| **Automatización Social** | Google OAuth 2.0 (`google-api-python-client`), TikTok API | Programación y subida automática multicanal de YouTube Shorts y TikTok. |
-| **Analítica y Métricas** | YouTube Data API v3, NetworkX / Vis.js | Captura de estadísticas por canal y generación del mapa viral de rendimiento. |
+### 3.1. Lanzador y Servidor Principal (`run_web_app.py` & `server.py`)
+
+*   **`run_web_app.py`**:
+    *   **Propósito**: Punto de entrada de ejecución del usuario. Inicia el servidor Uvicorn en `http://localhost:8000/`, verifica con polling HTTP 200 la salud del backend y abre el navegador Thorium/predeterminado.
+    *   **Funciones**:
+        *   `is_server_running(url)`: Realiza una petición `urllib.request.urlopen` con timeout de 1s para validar la disponibilidad del servidor.
+        *   `main()`: Lanza Uvicorn mediante `subprocess.Popen`, entra en un bucle de comprobación de hasta 30 intentos (15s) y ejecuta `webbrowser.open_new_tab()`.
+
+*   **`server.py`**:
+    *   **Propósito**: Servidor web principal FastAPI optimizado a ~50 líneas.
+    *   **Características Auditadas**:
+        *   Configuración de CORS Middleware (`CORSMiddleware`) permitiendo todos los orígenes (`*`).
+        *   Registro de los 5 APIRouters modularizados bajo `/api/shorts`, `/api/channels`, `/api/assets`, `/api/analytics`, `/api/youtube`.
+        *   Montaje de archivos estáticos multimedia `projects` (`/projects`) para streaming directo de audios y vídeos renderizados.
+        *   Servicio SPA en la raíz `/`: Sirve `web/index.html` en `/` y monta `web/` de forma estática bajo `/web`.
 
 ---
 
-## 4. Estructura de Directorios del Proyecto (Estructura Modularizada)
+### 3.2. Dependencias y Resolución de Rutas Aisladas (`api/deps.py`)
 
-```
-supergenerador/
-├── run_web_app.py         # Lanzador principal del servidor Web
-├── server.py              # Servidor FastAPI principal (~50 líneas, monta APIRouters y static en '/')
-├── Analisis_Completo.md   # Documento de análisis técnico
-├── reglas_locales.md      # Reglas y directivas locales del proyecto
-├── repomix-output.xml     # Grafo maestro de código (170k tokens)
-├── api/                   # Módulo de backend modularizado
-│   ├── deps.py            # Dependencias comunes, modelos Pydantic y colas SSE
-│   └── routers/           # APIRouters independientes
-│       ├── channels.py    # Gestión de canales y prompts master
-│       ├── shorts.py      # Generación de guiones, voz, render y SSE
-│       ├── analytics.py   # Estadísticas y mapa de viralidad
-│       └── assets.py      # Explorador de música, voz, descargas y subtítulos custom
-├── assets/                # Fuentes, audios base, SFX, vídeos de fondo
-├── cache/                 # Directorios de trabajo dinámicos (limpios)
-├── config/                # Prompts estandarizados, settings, tokens OAuth2 y subtitle_styles.json
-├── core/                  # project_manager, math_logic, utils
-├── credenciales/          # client_secrets.json oficiales
-├── modules/               # Motores IA, voz, render, uploader, analytics
-├── projects/renders/      # Directorio de salida para los Shorts renderizados
-├── tools/                 # yt-dlp.exe
-└── web/                   # Frontend Web Studio (ES6 Modules)
-    ├── index.html         # Panel principal SPA
-    ├── style.css          # Estilos Glassmorphic
-    └── js/                # Módulos JavaScript orientados a características
-        ├── main.js        # Punto de entrada principal ES6
-        ├── api.js         # Cliente de llamadas HTTP REST
-        ├── shorts_wizard.js # Wizard de 4 pasos para la creación de Shorts
-        ├── subtitles_studio.js # Editor y emulador de subtítulos custom
-        ├── channels_settings.js # Gestión de canales y prompts master
-        ├── analytics_dashboard.js # Gráficos Chart.js y estadísticas
-        └── viral_map.js   # Grafo de viralidad Vis.js e informe IA
-```
+*   **Propósito**: Proveer esquemas de validación Pydantic, funciones helper de rutas por canal y soporte de migración transparente.
+*   **Esquemas Pydantic Auditados**:
+    *   `FolderSettingsRequest`: Modelo para guardar rutas absolutas personalizadas de carpetas (`narration_folder`, `music_folder`, `images_folder`, `videos_folder`, `renders_folder`, `downloads_folder`).
+    *   `ChannelCreateRequest`: Registro de un nuevo canal (`name`, `niche`, `language`, `theme`, `theme_color`, `narration_voice`).
+    *   `ChannelThemeRequest`: Actualización de estética del canal (`theme`, `theme_color`).
+    *   `SubtitleStyleModel`: Definición de estilo tipográfico para subtítulos (`name`, `font_name`, `font_size`, `primary_color`, `outline_color`, `back_color`, `bold`, `italic`, `uppercase`, `outline_width`, `shadow_depth`, `alignment`, `animation_type`, `highlight_color`).
+    *   `GenerateRequest`: Parámetros de generación de Short (`script_text`, `channel_name`, `voice_name`, `music_name`, `music_volume`, `voice_volume`, `subtitle_style`, `target_resolution`, `bg_source`, `video_title`, `enable_subtitles`).
+    *   `DownloaderUrlRequest`: Petición de descarga por URL directa (`url`, `channel_name`, `duration`).
+    *   `DownloaderSearchRequest`: Petición de descarga por palabra clave (`query`, `channel_name`, `duration`, `get_gameplay`, `get_images`, `get_gifs`).
+    *   `GenerateTimelineRequest`: Petición de autogeneración de timeline (`narration_path`, `channel_name`, `mode`).
+
+*   **Funciones Helper Auditadas**:
+    *   `get_channel_paths(channel_name: Optional[str])`: Sanitiza el nombre del canal y devuelve un diccionario con las rutas absolutas aisladas: `audio`, `music`, `videos`, `images`, `renders`, `downloader`, `cache`, `config`. Si `channel_name` no se proporciona, consulta el canal activo en `settings.json`.
+    *   `migrate_legacy_files_if_needed(channel_name: str)`: Traslada de forma segura cualquier archivo alojado en carpetas heredadas planas hacia la nueva jerarquía del canal activo.
+
+---
+
+### 3.3. Routers API Auditados (`api/routers/`)
+
+#### 1. `api/routers/shorts.py` (Generación de Shorts, SSE y Render)
+*   `POST /api/shorts/generate-script`: Genera un guion viral a partir del Prompt Maestro mediante Groq AI (Llama-3.3-70b) o Gemini.
+*   `POST /api/shorts/generate-title-description`: Genera metadatos optimizados SEO (título CTR, descripción estructurada, hashtags) basándose en `PROMPT_TITLE_DESCRIPTION.txt`.
+*   `POST /api/shorts/generate`: Inicia el proceso de renderizado en segundo plano (`BackgroundTasks`) invocando `bg_generate_short_process`.
+*   `GET /api/shorts/progress/{channel_name}`: Endpoint SSE (Server-Sent Events) que transmite en tiempo real el flujo de eventos y porcentaje de renderizado de `0%` a `100%`.
+*   `GET /api/shorts/last-render`: Retorna la ruta e información del último vídeo renderizado para el canal activo para alimentar el emulador del smartphone.
+*   `GET /api/shorts/renders`: Lista los vídeos `.mp4` completados alojados en la carpeta `renders` del canal activo.
+*   **Helper**: `calculate_render_percentage(event_msg: str)` -> Traduce los eventos del motor FFmpeg a un porcentaje flotante continuo.
+
+#### 2. `api/routers/channels.py` (Gestión de Canales y Prompts IA)
+*   `GET /api/channels/`: Obtiene la lista completa de canales registrados y el canal actualmente activo.
+*   `GET /api/channels/folder-settings`: Devuelve la configuración de rutas de carpetas del canal especificado.
+*   `POST /api/channels/folder-settings`: Guarda las rutas de carpetas personalizadas en `settings.json`.
+*   `POST /api/channels/create`: Crea un nuevo canal físicamente en `projects/channels/[Nombre]` inicializando sus subcarpetas y prompt inicial.
+*   `POST /api/channels/select`: Establece el canal activo en `settings.json`.
+*   `POST /api/channels/theme`: Cambia el tema visual del canal.
+*   `DELETE /api/channels/{channel_name}`: Elimina un canal y su registro.
+*   `GET /api/channels/{channel_name}/prompts`: Carga la lista de prompts master del canal.
+*   `POST /api/channels/{channel_name}/prompts`: Guarda o edita un prompt master del canal.
+*   `DELETE /api/channels/{channel_name}/prompts/{prompt_id}`: Elimina un prompt master del canal.
+*   `POST /api/channels/{channel_name}/generate-story-prompt`: Genera automáticamente un Prompt Maestro específico para el nicho e idioma del canal usando Groq AI y la plantilla base `Prompt Maestro Universal.txt`.
+
+#### 3. `api/routers/assets.py` (Explorador Multimedia, Timeline y Caché)
+*   `GET /api/assets/music`: Lista las canciones `.m4a`, `.mp3`, `.wav` de la biblioteca de música del canal.
+*   `GET /api/assets/story-prompts`: Carga plantillas de prompts de historia.
+*   `GET /api/assets/voice-prompts`: Carga instrucciones de estilo de voz.
+*   `GET /api/assets/narrations`: Lista los audios de locución disponibles en la carpeta `audio` del canal activo.
+*   `GET /api/assets/file-preview`: Sirve fragmentos de audio/vídeo mediante `FileResponse` para la vista previa interactiva del reproductor.
+*   `POST /api/assets/download-url`: Descarga un vídeo de YouTube/TikTok a la carpeta del canal en segundo plano.
+*   `POST /api/assets/download-search`: Búsqueda y descarga inteligente de stock de vídeo/fotos desde Pexels, Pixabay o YouTube.
+*   `GET /api/assets/gameplay-folders`: Obtiene carpetas de gameplays locales.
+*   `POST /api/assets/upload-audio`: Sube un archivo de voz grabado por el usuario a la carpeta del canal.
+*   `POST /api/assets/upload-resources`: Sube múltiples archivos (imágenes, vídeos, GIFs) a la línea de tiempo.
+*   `GET /api/assets/audio-duration`: Mide la duración exacta en segundos de un archivo de audio mediante FFprobe.
+*   `GET /api/assets/timeline`: Carga los clips ordenados presentes en el timeline del canal.
+*   `DELETE /api/assets/timeline`: Elimina un recurso individual del timeline.
+*   `POST /api/assets/timeline/clear`: Vacía por completo el timeline del canal activo.
+*   `POST /api/assets/cache/clear`: Purga físicamente todos los archivos `.mp4`, `.wav` y `.ass` de la carpeta `cache` del canal activo.
+*   `GET /api/assets/subtitle-styles`: Carga la lista de estilos de subtítulos desde `subtitle_styles.json`.
+*   `POST /api/assets/subtitle-styles`: Crea o edita una plantilla de subtítulos.
+*   `DELETE /api/assets/subtitle-styles/{name}`: Elimina un estilo de subtítulo.
+
+#### 4. `api/routers/analytics.py` (Métricas de Canal y Red Viral)
+*   `GET /api/analytics/channel/{channel_name}`: Obtiene las estadísticas generales de YouTube (suscriptores, vistas totales, vídeos).
+*   `GET /api/analytics/channel/{channel_name}/videos`: Lista los vídeos del canal con métricas de engagement.
+*   `GET /api/analytics/video/{video_id}`: Detalles analíticos profundos de un vídeo específico.
+*   `GET /api/analytics/viral-graph/{channel_name}`: Genera la estructura de nodos y aristas para la red visual con Vis.js.
+*   `POST /api/analytics/viral-audit/{channel_name}`: Diagnóstico de IA sobre la estrategia viral del canal.
+
+#### 5. `api/routers/youtube_upload.py` (Automatización Social)
+*   `POST /api/youtube/upload`: Autentica mediante OAuth 2.0 y sube el Short renderizado a YouTube con su título, descripción y tags.
+*   `GET /api/youtube/scheduled-queue`: Obtiene la cola de publicaciones programadas.
+*   `POST /api/youtube/scheduled-queue`: Agrega un vídeo a la cola de programación.
+
+---
+
+
+---
+
+### 4.2. Utilidades de Renderizado y Procesamiento (`modules/render_utils.py`)
+*   `get_media_duration(file_path)`: Ejecuta `ffprobe` en modo asíncrono/síncrono para obtener la duración exacta en segundos de cualquier archivo de audio o vídeo.
+*   `extract_sfx_events(script_text, word_timestamps)`: Mapea la presencia de palabras clave de suspenso/impacto (ej. *muerte, grito, lluvia, perro, victoria*) a marcas de tiempo exactas.
+*   `calculate_clip_hash(...)`: Genera un hash SHA-256 único basado en el contenido del clip, la presencia de tarjeta Reddit y la resolución objetivo, garantizando el 100% de aciertos de la caché de chunks sin re-renderizar fragmentos idénticos.
+*   `create_ass_file(words_data, output_ass_path, style_config)`: Compila el archivo de subtítulos `.ass` con estilos tipográficos avanzados.
+*   `convert_media_to_mp4(input_path, output_path)`: Transcodifica cualquier formato de vídeo o GIF animado a un MP4 9:16 normalizado.
+*   `slice_video_segments(...)`: Corta fragmentos homogéneos de gameplays largos re-encuadrándolos a formato vertical.
+*   `clean_filename(filename)`: Sanitiza títulos eliminando emojis, caracteres especiales e interrupciones de ruta en Windows.
+
+---
+
+### 4.3. Generador de Línea de Tiempo (`modules/timeline_generator.py`)
+*   `generate_timeline_for_narration(narration_path, channel_name, mode)`: Construye automáticamente la secuencia de clips necesarios para cubrir la duración de la narración aplicando la regla de balanceado (40% YouTube, 30% Pexels Video, 30% Imágenes de Pexels/Pixabay) con cascada de fallback.
+*   `download_pexels_videos(query, channel_dir)`: Consulta la API de Pexels para descargar clips verticales HD de libre uso.
+*   `download_pexels_photos(query, channel_dir)`: Obtiene imágenes estáticas HD de Pexels y las guarda en la carpeta `images` del canal.
+
+---
+
+### 4.4. Clientes de Inteligencia Artificial y API (`modules/`)
+*   **`modules/groq_client.py`**:
+    *   `generate_script_with_groq(prompt_master, niche, language)`: Consulta el modelo `llama-3.3-70b-versatile` de Groq para crear historias envolventes adaptadas al idioma del canal.
+    *   `generate_metadata_with_groq(script_text, language)`: Crea títulos de CTR masivo y descripciones SEO.
+    *   `generate_master_prompt_with_groq(universal_prompt, channel_name, niche, language)`: Genera un Prompt Maestro especializado por canal.
+*   **`modules/gemini_client.py`**:
+    *   `generate_script_with_gemini(...)`: Fallback de generación mediante la API de Google Gemini.
+*   **`modules/analytics_client.py`**:
+    *   `YouTubeAnalyticsClient`: Clase que encapsula las consultas a YouTube Data API v3 (`get_channel_stats`, `get_video_list`, `get_video_details`).
+*   **`modules/graph_analyzer.py`**:
+    *   `ViralGraphAnalyzer`: Analiza las co-ocurrencias de palabras clave en títulos/descripciones mediante grafos NetworkX para identificar conceptos virales.
+
+---
+
+## 5. Auditoría Detallada del Núcleo (`core/`)
+
+*   **`core/project_manager.py`**:
+    *   Contiene la clase `ProjectManager` encargada de resolver y crear la estructura física de carpetas del sistema.
+*   **`core/utils.py`**:
+    *   `sanitize_filename(name)`: Limpia strings para nombres de archivos seguros.
+    *   `format_seconds(seconds)`: Convierte segundos flotantes a formato HH:MM:SS / MM:SS.
+    *   `ensure_dir(path)`: Crea directorios de forma recursiva si no existen.
+*   **`core/math_logic.py`**:
+    *   `calculate_engagement_score(views, likes, comments)`: Algoritmo ponderado de puntuación viral.
+    *   `normalize_values(data)`: Normalización min-max de conjuntos de datos.
+
+---
+
+## 6. Auditoría Detallada del Frontend SPA (`web/`)
+
+El frontend de **ShortNexus Studio** está construido como una Single Page Application (SPA) con tecnología Vanilla JS (ES6 Modules) y Vanilla CSS3 sin frameworks pesados, garantizando máxima velocidad de carga.
+
+### 6.1. Componentes HTML (`web/index.html`)
+*   **Navegación por Pestañas**:
+    1. `#tab-shorts`: Wizard de 4 pasos para la creación de Shorts.
+    2. `#tab-analytics`: Dashboard de métricas de YouTube por canal.
+    3. `#tab-subtitles`: Estudio interactivo de diseño de subtítulos.
+    4. `#tab-viral-map`: Grafo interactivo de viralidad.
+    5. `#tab-settings`: Ajustes generales, gestión de canales y prompts master.
+*   **Modales Interactivos**:
+    *   `#modal-channel-create`: Modal de creación de canal con selector de idioma.
+    *   `#modal-master-prompt`: Modal de edición e importación de Prompts Master.
+    *   `#modal-auto-general`: Asistente de descarga inteligente de medios.
+    *   `#modal-viral-audit`: Modal de diagnóstico IA de canales.
+
+---
+
+### 6.2. Diseño y Estilos (`web/style.css`)
+*   **Estética Cyberpunk Glassmorphism**: Uso de variables HSL (`--bg-primary`, `--accent-cyber`, `--glass-border`, `--text-main`) con efectos de desenfoque de fondo (`backdrop-filter: blur(12px)`).
+*   **Motor CSS Viewport Auto-Fit (100vh Responsivo)**: Layout sin scroll vertical principal, auto-ajustando la grilla de 3 columnas en el Paso 4 (`.render-step-grid`) a la altura disponible de la ventana.
+
+---
+
+### 6.3. Módulos JavaScript (`web/js/`)
+
+*   **`web/js/main.js`**: Orquestador principal. Escucha el selector global de canal activo `#global-channel-select`, dispara eventos de cambio de canal y gestiona el refresco reactivo de narraciones, clips y vídeos renderizados.
+*   **`web/js/shorts_wizard.js`**:
+    *   Controla el flujo secuencial del Wizard de 4 pasos (Paso 1: Guion/Prompts -> Paso 2: Voz/Narraciones -> Paso 3: Timeline/Medios -> Paso 4: Render/Publicación).
+    *   Suscribe la conexión SSE a `/api/shorts/progress/{channel_name}` actualizando la barra de progreso fluida `#render-progress-bar`.
+    *   Implementa el botón `#btn-reset-draft` para la purga completa de estado y caché.
+*   **`web/js/channels_settings.js`**:
+    *   Renderiza las tarjetas de canales registrados con sus etiquetas de idioma (`🌐 ES`, `🌐 EN`).
+    *   Conecta el botón `#btn-generate-story-prompt` con la API de Groq AI para autogenerar Prompts Master por canal.
+*   **`web/js/subtitles_studio.js`**:
+    *   Ofrece controles interactivos para personalizar fuentes, tamaños, colores HSL, contornos y sombras.
+    *   Actualiza en tiempo real el emulador de smartphone 9:16 con animación de prueba de subtítulos frase por frase.
+*   **`web/js/analytics_dashboard.js`**: Carga estadísticas de YouTube Data API v3 y genera tablas de engagement por vídeo.
+*   **`web/js/viral_map.js`**: Renderiza el mapa interactivo de red de palabras clave utilizando la librería `Vis.js`.
+*   **`web/js/api.js`**: Wrapper centralizado de la Fetch API con manejo de excepciones y headers JSON.
+
+---
+
+## 7. Auditoría de Configuraciones y Assets Físicos
+
+### 7.1. Bibliotecas Físicas de Medios Auditadas
+1. **Biblioteca de Música (`assets/audio/music/`)**: Normalizada a `-16 LUFS`, recortada a máximo 90s, silencias iniciales eliminados y convertidos a contenedor **AAC (`.m4a`)** a 44100 Hz estéreo.
+2. **Biblioteca SFX (`assets/audio/sfx/`)**: 8 efectos de sonido unificados en formato **WAV 16-bit PCM 44100 Hz estéreo** con pico máximo ajustado a **`-1.5 dB`** (sin clipping).
+3. **Biblioteca de Transiciones (`assets/audio/transitions/`)**: 5 archivos en MP3 a 44100 Hz estéreo con recortes de silencio e impacto ruidoso en `real_boom.mp3` (reducido a 96 KB).
+4. **Superposición Video FX (`assets/video/fx/vhs_overlay.mp4`)**: Compresión extrema de bitrate VBR a 2 Mbps de solo 10s de loop, pesando **450 KB** (reducción del 99.8%).
+
+---
+
+## 8. Matriz Maestra de Funciones y Métodos del Sistema
+
+| Módulo / Archivo | Función / Método | Propósito Técnico | Parámetros Principales |
+| :--- | :--- | :--- | :--- |
+| `run_web_app.py` | `is_server_running` | Valida disponibilidad del servidor backend | `url: str` |
+| `run_web_app.py` | `main` | Inicia Uvicorn y abre el navegador Thorium | Ninguno |
+| `api/deps.py` | `get_channel_paths` | Resuelve rutas absolutas aisladas por canal | `channel_name: Optional[str]` |
+| `api/deps.py` | `migrate_legacy_files_if_needed` | Migra archivos heredados al sandbox del canal | `channel_name: str` |
+| `api/routers/shorts.py` | `api_generate_script` | Invocación de IA para redacción de guiones | `payload: dict` |
+| `api/routers/shorts.py` | `api_generate_title_description` | Invocación de IA para metadatos CTR/SEO | `payload: dict` |
+| `api/routers/shorts.py` | `bg_generate_short_process` | Proceso en segundo plano de renderizado MIX | `req: GenerateRequest` |
+| `api/routers/shorts.py` | `calculate_render_percentage` | Mapeo de logs FFmpeg a porcentaje SSE | `event_msg: str` |
+| `api/routers/channels.py` | `api_create_channel` | Registra canal e inicializa carpetas físicas | `req: ChannelCreateRequest` |
+| `api/routers/channels.py` | `generate_story_prompt_for_channel` | Genera Prompt Maestro adaptado con Groq AI | `channel_name: str, payload: dict` |
+| `api/routers/assets.py` | `api_clear_render_cache` | Elimina la caché de renderizado del canal activo | `channel_name: Optional[str]` |
+| `api/routers/assets.py` | `api_clear_timeline` | Vacía el timeline de medios del canal activo | `channel_name: Optional[str]` |
+| `modules/render_mix.py` | `render_mix_mode` | Compilador maestro de vídeo FFmpeg y subtítulos | `audio_path, script_text, ...` |
+| `modules/render_utils.py` | `get_media_duration` | Obtiene duración en segundos con FFprobe | `file_path: str` |
+| `modules/render_utils.py` | `extract_sfx_events` | Mapea palabras clave a marcas de tiempo SFX | `script_text, word_timestamps` |
+| `modules/render_utils.py` | `calculate_clip_hash` | Genera hash SHA-256 para la caché de chunks | `input_path, duration, ...` |
+| `modules/render_utils.py` | `create_ass_file` | Construye subtítulos dinámicos `.ass` | `words_data, output_path, style` |
+| `modules/timeline_generator.py` | `generate_timeline_for_narration` | Autogeneración equilibrada de clips de stock | `narration_path, channel_name` |
+| `modules/groq_client.py` | `generate_script_with_groq` | Consulta Groq API (llama-3.3-70b) para historias | `prompt_master, niche, language` |
+| `modules/analytics_client.py` | `get_channel_stats` | Consulta YouTube Data API v3 para métricas | `channel_id: str` |
+| `modules/graph_analyzer.py` | `build_viral_graph` | Construye grafo NetworkX de co-ocurrencias | `video_data: list` |
+| `core/utils.py` | `sanitize_filename` | Limpia strings para nombres seguros de archivo | `name: str` |
+| `core/math_logic.py` | `calculate_engagement_score` | Puntuación de viralidad ponderada | `views, likes, comments` |
+| `web/js/shorts_wizard.js` | `initShortsWizard` | Inicializa el wizard de 4 pasos y listeners | Ninguno |
+| `web/js/subtitles_studio.js` | `renderSubtitlesPreview` | Emula la animación de subtítulos en el mockup | Ninguno |
+| `web/js/channels_settings.js` | `loadChannels` | Renderiza la lista de canales registrados | Ninguno |
+
+---
+
+## 9. Conclusión de la Auditoría
+
+El proyecto **ShortNexus Studio** cumple al 100% con los estándares de modularidad, aislamiento por canal, optimización de hardware local y diseño visual premium. La documentación y el Grafo Maestro (`repomix-output.xml`) se encuentran plenamente sincronizados para servir como referencia GPS inmutable.

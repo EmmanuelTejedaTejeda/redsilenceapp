@@ -6,7 +6,7 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
 from fastapi.responses import FileResponse
 from api.deps import (
-    get_settings, DownloaderUrlRequest, DownloaderSearchRequest, log_progress
+    get_settings, DownloaderUrlRequest, DownloaderSearchRequest, log_progress, get_channel_paths
 )
 from modules.gameplay_sourcing import download_youtube_gameplay
 
@@ -14,9 +14,11 @@ router = APIRouter(prefix="/api/assets", tags=["assets"])
 
 
 @router.get("/music")
-def api_get_music_files():
-    settings = get_settings()
-    music_dir = settings.get("music_folder_path") or os.path.join("assets", "music")
+def api_get_music_files(channel_name: Optional[str] = None):
+    paths = get_channel_paths(channel_name)
+    music_dir = paths["music"]
+    if not os.path.exists(music_dir):
+        music_dir = os.path.join("assets", "music")
     if not os.path.exists(music_dir):
         return ["Ninguno"]
     try:
@@ -27,8 +29,12 @@ def api_get_music_files():
 
 
 @router.get("/story-prompts")
-def api_get_story_prompts():
-    story_dir = os.path.join("config", "prompts", "story")
+def api_get_story_prompts(channel_name: Optional[str] = None):
+    if channel_name:
+        paths = get_channel_paths(channel_name)
+        story_dir = paths["prompts"]
+    else:
+        story_dir = os.path.join("config", "prompts", "story")
     if not os.path.exists(story_dir):
         return []
     try:
@@ -49,32 +55,47 @@ def api_get_voice_prompts():
 
 
 @router.get("/narrations")
-def api_get_narration_files():
+def api_get_narration_files(channel_name: Optional[str] = None):
+    paths = get_channel_paths(channel_name)
+    audio_dir = paths["audio"]
+    clean_ch = paths["clean_channel_name"]
+    
+    dirs_to_check = []
+    if os.path.exists(audio_dir):
+        sub = os.path.join(audio_dir, clean_ch)
+        if os.path.exists(sub):
+            dirs_to_check.append(sub)
+        dirs_to_check.append(audio_dir)
+        
     settings = get_settings()
-    audio_dir = settings.get("audio_folder_path") or os.path.join("cache", "audio")
-    if not os.path.exists(audio_dir):
-        return []
-    try:
-        files = [f for f in os.listdir(audio_dir) if f.lower().endswith(('.mp3', '.wav', '.ogg', '.m4a'))]
-        
-        # Sort files by modification date (newest first)
-        files_with_mtime = []
-        for f in files:
-            p = os.path.join(audio_dir, f)
-            try:
-                mtime = os.path.getmtime(p)
-            except Exception:
-                mtime = 0
-            files_with_mtime.append((f, mtime))
+    global_audio = settings.get("audio_folder_path")
+    if global_audio and os.path.exists(global_audio):
+        sub = os.path.join(global_audio, clean_ch)
+        if os.path.exists(sub) and sub not in dirs_to_check:
+            dirs_to_check.append(sub)
+        if global_audio not in dirs_to_check:
+            dirs_to_check.append(global_audio)
+
+    seen_files = set()
+    result = []
+    
+    for d in dirs_to_check:
+        try:
+            for f in os.listdir(d):
+                if f.lower().endswith(('.mp3', '.wav', '.ogg', '.m4a')):
+                    full_path = os.path.abspath(os.path.join(d, f))
+                    if f not in seen_files:
+                        seen_files.add(f)
+                        try:
+                            mtime = os.path.getmtime(full_path)
+                        except Exception:
+                            mtime = 0
+                        result.append({"name": f, "path": full_path, "mtime": mtime})
+        except Exception:
+            continue
             
-        files_with_mtime.sort(key=lambda x: x[1], reverse=True)
-        
-        return [
-            {"name": item[0], "path": os.path.abspath(os.path.join(audio_dir, item[0]))}
-            for item in files_with_mtime
-        ]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error leyendo carpeta de narraciones: {e}")
+    result.sort(key=lambda x: x["mtime"], reverse=True)
+    return [{"name": item["name"], "path": item["path"]} for item in result]
 
 
 @router.get("/file-preview")
@@ -89,28 +110,23 @@ def api_get_file_preview(path: str):
 
 # --- DOWNLOADER & GAMEPLAY SOURCING ---
 def bg_download_gameplay(url_or_query: str, channel_name: str, duration: float = 120.0):
-    settings = get_settings()
+    paths = get_channel_paths(channel_name)
     
-    # 1. Definir directorios
-    cache_dir = os.path.abspath(os.path.join("cache", "gameplays"))
+    # Directorios aislados del canal
+    cache_dir = paths["cache_gameplays"]
+    output_dir = paths["videos"]
     os.makedirs(cache_dir, exist_ok=True)
-    
-    output_dir = settings.get("videos_folder_path") or settings.get("downloader_folder_path") or os.path.join("cache", "gameplays")
-    output_dir = os.path.abspath(output_dir)
     os.makedirs(output_dir, exist_ok=True)
     
     try:
-        # 2. Generar nombre de caché limpio
         clean_name = re.sub(r'[^a-zA-Z0-9_]', '', url_or_query[:30].replace(' ', '_').lower())
         
-        # 3. Buscar si el video completo ya está en caché y es válido (no corrupto)
         local_video_path = None
         if os.path.exists(cache_dir):
             for file in os.listdir(cache_dir):
                 if file.startswith(clean_name) and file.endswith(('.mp4', '.mkv', '.webm')):
                     candidate_path = os.path.join(cache_dir, file)
                     from modules.render_utils import get_video_duration
-                    # Validar si el archivo es un video reproducible
                     if get_video_duration(candidate_path) > 0.0:
                         local_video_path = candidate_path
                         break
@@ -122,7 +138,7 @@ def bg_download_gameplay(url_or_query: str, channel_name: str, duration: float =
                             print(f"[CACHE] Error al eliminar archivo corrupto: {e}")
                             
         if local_video_path and os.path.exists(local_video_path):
-            log_progress(channel_name, "♻️ USANDO VIDEO DE GAMEPLAY EN CACHÉ LOCAL", "#00FF66", 30)
+            log_progress(channel_name, "♻️ USANDO VIDEO DE GAMEPLAY EN CACHÉ LOCAL DEL CANAL", "#00FF66", 30)
         else:
             log_progress(channel_name, f"🌐 Descargando gameplay para '{url_or_query}'...", "#FFD700", 20)
             local_video_path = download_youtube_gameplay(
@@ -131,13 +147,11 @@ def bg_download_gameplay(url_or_query: str, channel_name: str, duration: float =
                 status_callback=lambda msg, color: log_progress(channel_name, msg, color, 40)
             )
             
-        # Fallback de auto-curación si falla la descarga
         if not local_video_path or not os.path.exists(local_video_path):
             log_progress(channel_name, "⚠️ Descarga fallida. Reintentando con búsqueda alternativa...", "orange", 50)
             fallback_query = "Minecraft parkour gameplay long no commentary"
             fallback_clean_name = "minecraft_parkour_gameplay_long_"
             
-            # Buscar en caché validando que el video sea reproducible
             for file in os.listdir(cache_dir):
                 if file.startswith(fallback_clean_name) and file.endswith(('.mp4', '.mkv', '.webm')):
                     candidate_path = os.path.join(cache_dir, file)
@@ -152,7 +166,6 @@ def bg_download_gameplay(url_or_query: str, channel_name: str, duration: float =
                         except Exception as e:
                             print(f"[CACHE] Error al eliminar fallback corrupto: {e}")
             
-            # Descargar si no está en caché
             if not local_video_path:
                 local_video_path = download_youtube_gameplay(
                     fallback_query, 
@@ -240,19 +253,14 @@ def download_file(url, output_path):
 def bg_download_resources(query: str, channel_name: str, duration: float, get_gameplay: bool, get_images: bool, get_gifs: bool):
     import random
     settings = get_settings()
-    video_dir = settings.get("videos_folder_path") or os.path.join("assets", "videos")
-    image_dir = settings.get("images_folder_path") or os.path.join("assets", "images")
-    video_dir = os.path.abspath(video_dir)
-    image_dir = os.path.abspath(image_dir)
-    os.makedirs(video_dir, exist_ok=True)
-    os.makedirs(image_dir, exist_ok=True)
+    paths = get_channel_paths(channel_name, settings)
+    video_dir = paths["videos"]
+    image_dir = paths["images"]
     
-    # 1. Gameplay / Video de fondo
     if get_gameplay:
         log_progress(channel_name, f"🎮 Buscando gameplay para: {query}...", "#FFD700", 10)
         bg_download_gameplay(query, channel_name, duration)
         
-    # 2. Imágenes del tema
     if get_images:
         log_progress(channel_name, f"🖼️ Buscando imágenes sobre: {query}...", "#00E5FF", 40)
         pexels_key = settings.get("pexels_api_key")
@@ -282,7 +290,6 @@ def bg_download_resources(query: str, channel_name: str, duration: float, get_ga
         else:
             log_progress(channel_name, "⚠️ No se encontraron imágenes para el tema.", "orange", 75)
             
-    # 3. GIFs animados
     if get_gifs:
         log_progress(channel_name, f"🎬 Buscando GIFs animados para: {query}...", "#FF9100", 80)
         gif_urls = search_giphy_gifs(query, limit=3)
@@ -316,16 +323,17 @@ def api_download_by_search(req: DownloaderSearchRequest, background_tasks: Backg
 
 
 @router.get("/gameplay-folders")
-def api_get_gameplay_folders():
-    settings = get_settings()
-    video_dir = settings.get("videos_folder_path") or os.path.join("cache", "gameplays")
+def api_get_gameplay_folders(channel_name: Optional[str] = None):
+    paths = get_channel_paths(channel_name)
+    video_dir = paths["videos"]
+    cache_gp = paths["cache_gameplays"]
+    
     folders = []
     if os.path.exists(video_dir):
         for d in os.listdir(video_dir):
             if os.path.isdir(os.path.join(video_dir, d)) and not d.startswith("."):
                 folders.append(d)
     
-    cache_gp = os.path.join("cache", "gameplays")
     if os.path.exists(cache_gp):
         for d in os.listdir(cache_gp):
             if os.path.isdir(os.path.join(cache_gp, d)) and not d.startswith(".") and d not in folders:
@@ -335,9 +343,9 @@ def api_get_gameplay_folders():
 
 
 @router.post("/upload-audio")
-def api_upload_audio(file: UploadFile = File(...)):
-    settings = get_settings()
-    audio_dir = settings.get("audio_folder_path") or os.path.join("cache", "audio")
+def api_upload_audio(file: UploadFile = File(...), channel_name: Optional[str] = None):
+    paths = get_channel_paths(channel_name)
+    audio_dir = paths["audio"]
     os.makedirs(audio_dir, exist_ok=True)
     
     filename = file.filename
@@ -355,14 +363,10 @@ def api_upload_audio(file: UploadFile = File(...)):
 
 
 @router.post("/upload-resources")
-def api_upload_resources(files: List[UploadFile] = File(...)):
-    settings = get_settings()
-    video_dir = settings.get("videos_folder_path") or os.path.join("assets", "videos")
-    image_dir = settings.get("images_folder_path") or os.path.join("assets", "images")
-    video_dir = os.path.abspath(video_dir)
-    image_dir = os.path.abspath(image_dir)
-    os.makedirs(video_dir, exist_ok=True)
-    os.makedirs(image_dir, exist_ok=True)
+def api_upload_resources(files: List[UploadFile] = File(...), channel_name: Optional[str] = None):
+    paths = get_channel_paths(channel_name)
+    video_dir = paths["videos"]
+    image_dir = paths["images"]
     
     saved_files = []
     for file in files:
@@ -388,9 +392,9 @@ def api_upload_resources(files: List[UploadFile] = File(...)):
 
 
 @router.get("/audio-duration")
-def api_get_audio_duration(filename: str):
-    settings = get_settings()
-    audio_dir = settings.get("audio_folder_path") or os.path.join("cache", "audio")
+def api_get_audio_duration(filename: str, channel_name: Optional[str] = None):
+    paths = get_channel_paths(channel_name)
+    audio_dir = paths["audio"]
     path = os.path.join(audio_dir, filename)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Audio no encontrado.")
@@ -412,14 +416,14 @@ def api_get_audio_duration(filename: str):
 
 
 @router.get("/timeline")
-def api_get_timeline_files():
-    settings = get_settings()
-    video_dir = settings.get("videos_folder_path")
-    image_dir = settings.get("images_folder_path")
+def api_get_timeline_files(channel_name: Optional[str] = None):
+    paths = get_channel_paths(channel_name)
+    video_dir = paths["videos"]
+    image_dir = paths["images"]
     
     files = []
     
-    if video_dir and os.path.exists(video_dir):
+    if os.path.exists(video_dir):
         for f in os.listdir(video_dir):
             if f.lower().endswith(('.mp4', '.mov', '.avi', '.mkv', '.webm', '.gif')):
                 path = os.path.join(video_dir, f)
@@ -432,7 +436,7 @@ def api_get_timeline_files():
                         "ctime": os.path.getctime(path)
                     })
                     
-    if image_dir and os.path.exists(image_dir):
+    if os.path.exists(image_dir):
         for f in os.listdir(image_dir):
             if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
                 path = os.path.join(image_dir, f)
@@ -466,10 +470,10 @@ def api_delete_timeline_file(path: str):
 
 
 @router.post("/timeline/clear")
-def api_clear_timeline():
-    settings = get_settings()
-    video_dir = settings.get("videos_folder_path")
-    image_dir = settings.get("images_folder_path")
+def api_clear_timeline(channel_name: Optional[str] = None):
+    paths = get_channel_paths(channel_name)
+    video_dir = paths["videos"]
+    image_dir = paths["images"]
     
     import gc
     gc.collect()
@@ -477,7 +481,7 @@ def api_clear_timeline():
     
     deleted_count = 0
     
-    if video_dir and os.path.exists(video_dir):
+    if os.path.exists(video_dir):
         for f in os.listdir(video_dir):
             if f.lower().endswith(('.mp4', '.mov', '.avi', '.mkv', '.webm', '.gif')):
                 path = os.path.join(video_dir, f)
@@ -488,7 +492,7 @@ def api_clear_timeline():
                 except:
                     pass
                     
-    if image_dir and os.path.exists(image_dir):
+    if os.path.exists(image_dir):
         for f in os.listdir(image_dir):
             if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
                 path = os.path.join(image_dir, f)
@@ -499,26 +503,191 @@ def api_clear_timeline():
                 except:
                     pass
                     
-    return {"status": "success", "message": f"Se eliminaron {deleted_count} archivos del timeline."}
+    return {"status": "success", "message": f"Se eliminaron {deleted_count} archivos del timeline de {paths['channel_name']}."}
 
 
 @router.post("/cache/clear")
-def api_clear_render_cache():
+def api_clear_render_cache(channel_name: Optional[str] = None):
     import shutil
+    paths = get_channel_paths(channel_name)
     cache_dirs = [
-        os.path.join("cache", "audio"),
-        os.path.join("cache", "ass"),
-        os.path.join("cache", "chunks"),
-        os.path.join("cache", "json")
+        paths["cache_audio"],
+        paths["cache_ass"],
+        paths["cache_chunks"],
+        paths["cache_json"],
+        paths["cache_gameplays"]
     ]
+    deleted_files = 0
+    deleted_folders = 0
     for d in cache_dirs:
         if os.path.exists(d):
-            try:
-                shutil.rmtree(d)
-                os.makedirs(d, exist_ok=True)
-            except:
-                pass
-    return {"status": "success", "message": "Caché de renderizado limpiada localmente"}
+            for f in os.listdir(d):
+                file_path = os.path.join(d, f)
+                try:
+                    if os.path.isfile(file_path) or os.path.islink(file_path):
+                        os.remove(file_path)
+                        deleted_files += 1
+                    elif os.path.isdir(file_path):
+                        shutil.rmtree(file_path)
+                        deleted_folders += 1
+                except Exception as e:
+                    print(f"Error removiendo {file_path}: {e}")
+                    
+    return {
+        "status": "success", 
+        "message": f"Se eliminaron {deleted_files} archivos y {deleted_folders} carpetas de la caché de {paths['channel_name']}."
+    }
+
+from api.deps import GenerateTimelineRequest
+from modules.timeline_generator import generate_timeline_resources
+
+def bg_generate_timeline(req: GenerateTimelineRequest):
+    try:
+        generate_timeline_resources(req, req.channel_name)
+    except Exception as e:
+        log_progress(req.channel_name, f"❌ Error fatal en generación de timeline: {e}", "#ff1a1a", 0)
+
+@router.post("/generate-timeline")
+def api_generate_timeline(req: GenerateTimelineRequest, background_tasks: BackgroundTasks):
+    background_tasks.add_task(bg_generate_timeline, req)
+    return {"status": "success", "message": "Generando timeline en segundo plano"}
+
+
+# --- CRUD DE ESTILOS DE SUBTÍTULOS CUSTOM ---
+from pydantic import BaseModel
+import json
+
+SUBTITLE_STYLES_PATH = os.path.join("config", "subtitle_styles.json")
+
+class SubtitleStyleModel(BaseModel):
+    name: str
+    font_name: str = "Arial Black"
+    font_size_9_16: int = 90
+    font_size_16_9: int = 68
+    primary_color: str = "&H00FFFFFF"
+    outline_color: str = "&H00000000"
+    back_color: str = "&H80000000"
+    bold: int = -1
+    italic: int = 0
+    outline: int = 4
+    shadow: int = 0
+    alignment: int = 2
+    margin_v_9_16: int = 450
+    margin_v_16_9: int = 120
+    animation_type: str = "TikTok"
+    text_case: str = "uppercase"
+    highlight_color: str = "&H00FFFF00&"
+    emojis_enabled: bool = True
+    hook_type: str = "none"
+
+def get_default_styles():
+    return {
+        "Reddit History": {
+            "name": "Reddit History",
+            "font_name": "Arial Black",
+            "font_size_9_16": 100,
+            "font_size_16_9": 65,
+            "primary_color": "&H00FFFFFF",
+            "outline_color": "&H00000000",
+            "back_color": "&H00000000",
+            "bold": -1,
+            "italic": 0,
+            "outline": 10,
+            "shadow": 6,
+            "alignment": 2,
+            "margin_v_9_16": 700,
+            "margin_v_16_9": 120,
+            "animation_type": "Reddit",
+            "text_case": "uppercase",
+            "highlight_color": "&H0000FFFF&",
+            "emojis_enabled": False,
+            "hook_type": "reddit_card"
+        },
+        "Roblox Gaming": {
+            "name": "Roblox Gaming",
+            "font_name": "Arial Black",
+            "font_size_9_16": 95,
+            "font_size_16_9": 75,
+            "primary_color": "&H00FFFFFF",
+            "outline_color": "&H00000000",
+            "back_color": "&H99000000",
+            "bold": -1,
+            "italic": 0,
+            "outline": 8,
+            "shadow": 4,
+            "alignment": 2,
+            "margin_v_9_16": 450,
+            "margin_v_16_9": 120,
+            "animation_type": "Roblox",
+            "text_case": "uppercase",
+            "highlight_color": "&H00FFFF00&",
+            "emojis_enabled": False,
+            "hook_type": "roblox_double_line"
+        }
+    }
+
+@router.get("/subtitle-styles")
+async def api_get_subtitle_styles():
+    styles = get_default_styles()
+    
+    if os.path.exists(SUBTITLE_STYLES_PATH):
+        try:
+            async with aiofiles.open(SUBTITLE_STYLES_PATH, "r", encoding="utf-8") as f:
+                content = await f.read()
+                custom_styles = json.loads(content)
+                for name, style in custom_styles.items():
+                    styles[name] = style
+        except Exception as e:
+            print(f"Error cargando estilos personalizados de subtítulos: {e}")
+            
+    return styles
+
+@router.post("/subtitle-styles")
+async def api_save_subtitle_style(req: SubtitleStyleModel):
+    custom_styles = {}
+    if os.path.exists(SUBTITLE_STYLES_PATH):
+        try:
+            async with aiofiles.open(SUBTITLE_STYLES_PATH, "r", encoding="utf-8") as f:
+                content = await f.read()
+                custom_styles = json.loads(content)
+        except Exception:
+            pass
+            
+    custom_styles[req.name] = req.dict()
+    
+    try:
+        os.makedirs(os.path.dirname(SUBTITLE_STYLES_PATH), exist_ok=True)
+        async with aiofiles.open(SUBTITLE_STYLES_PATH, "w", encoding="utf-8") as f:
+            await f.write(json.dumps(custom_styles, indent=4, ensure_ascii=False))
+        return {"status": "success", "message": f"Estilo de subtítulo '{req.name}' guardado correctamente."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error guardando el estilo de subtítulo: {e}")
+
+@router.delete("/subtitle-styles/{name}")
+async def api_delete_subtitle_style(name: str):
+    if name in ["Reddit History", "Roblox Gaming"]:
+        raise HTTPException(status_code=400, detail="No se pueden eliminar los estilos predeterminados.")
+        
+    custom_styles = {}
+    if os.path.exists(SUBTITLE_STYLES_PATH):
+        try:
+            async with aiofiles.open(SUBTITLE_STYLES_PATH, "r", encoding="utf-8") as f:
+                content = await f.read()
+                custom_styles = json.loads(content)
+        except Exception:
+            pass
+            
+    if name in custom_styles:
+        del custom_styles[name]
+        try:
+            async with aiofiles.open(SUBTITLE_STYLES_PATH, "w", encoding="utf-8") as f:
+                await f.write(json.dumps(custom_styles, indent=4, ensure_ascii=False))
+            return {"status": "success", "message": f"Estilo de subtítulo '{name}' eliminado correctamente."}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error al eliminar estilo de subtítulo: {e}")
+    else:
+        raise HTTPException(status_code=404, detail="Estilo de subtítulo personalizado no encontrado.")
+
 
 from api.deps import GenerateTimelineRequest
 from modules.timeline_generator import generate_timeline_resources

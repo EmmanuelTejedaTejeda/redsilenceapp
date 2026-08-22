@@ -1,24 +1,65 @@
 import os
 import glob
 import asyncio
+import re
 from typing import Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks
+from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from api.deps import (
     get_settings, get_groq_api_key, get_gemini_api_key, log_progress, PROGRESS_QUEUES,
-    GenerateRequest, ScriptGenerationRequest, SynthesizeVoiceRequest, TitleDescriptionRequest
+    GenerateRequest, ScriptGenerationRequest, TitleDescriptionRequest,
+    get_channel_paths
 )
 from modules.groq_client import generate_content as generate_groq_content
-from modules.voice_generator import generate_voice
 from modules.gameplay_sourcing import download_youtube_gameplay
 from modules.video_render import render_final_video
 
-import re
+router = APIRouter(prefix="/api/shorts", tags=["shorts"])
+
 
 def calculate_render_percentage(msg: str) -> int:
+    if not msg:
+        return 0
     msg_lower = msg.lower()
-    if "iniciando modo mix" in msg_lower:
+
+    # 1. Mensajes de subida a YouTube (0% - 100%)
+    if "subiendo" in msg_lower or "youtube" in msg_lower or "upload" in msg_lower:
+        pct_match = re.search(r"(\d+)%", msg_lower)
+        if pct_match:
+            return min(100, max(0, int(pct_match.group(1))))
+        if "iniciando subida" in msg_lower:
+            return 5
+        if "completado" in msg_lower or "éxito" in msg_lower or "exito" in msg_lower:
+            return 100
+
+    # 2. Transcripción y renderizado de clips individuales (76% - 95%)
+    clip_match = re.search(r"clip\s+(\d+)(?:\s+(?:de|/)\s+|\s*/\s*)(\d+)", msg_lower)
+    if clip_match:
+        cur_clip = int(clip_match.group(1))
+        tot_clips = int(clip_match.group(2))
+        if tot_clips > 0:
+            return min(95, 76 + int((cur_clip / tot_clips) * 19))
+
+    # 3. Búsqueda y descarga de recursos del timeline (10% - 75%)
+    res_match = re.search(r"recurso\s+(\d+)(?:\s+(?:de|/)\s+|\s*/\s*)(\d+)", msg_lower)
+    if res_match:
+        cur_res = int(res_match.group(1))
+        tot_res = int(res_match.group(2))
+        if tot_res > 0:
+            return min(75, 10 + int((cur_res / tot_res) * 65))
+
+    # 4. Hitos de pipeline fijos
+    if "iniciando" in msg_lower or "calculando" in msg_lower:
+        return 5
+    elif "generando lista" in msg_lower or "recursos mixtos" in msg_lower:
+        return 10
+    elif "intercalando recursos" in msg_lower:
+        return 72
+    elif "timeline generado" in msg_lower:
+        return 75
+    elif "iniciando modo mix" in msg_lower or "iniciando renderizado" in msg_lower:
         return 76
     elif "recortando silencio" in msg_lower:
         return 77
@@ -26,83 +67,110 @@ def calculate_render_percentage(msg: str) -> int:
         return 78
     elif "verificando aceleración" in msg_lower or "verificando aceleracion" in msg_lower:
         return 79
-    elif "buscando b-roll" in msg_lower:
+    elif "buscando b-roll" in msg_lower or "descargando b-roll" in msg_lower:
         return 80
-    elif "descargando b-roll" in msg_lower:
-        return 81
     elif "paso 1/2" in msg_lower or "componiendo video" in msg_lower:
         return 96
     elif "paso 2/2" in msg_lower or "mezclando y sincronizando" in msg_lower:
         return 98
     elif "guardando render" in msg_lower:
         return 99
-    elif "completados con éxito" in msg_lower or "completados con exito" in msg_lower or "compilado con éxito" in msg_lower:
+    elif "completados con éxito" in msg_lower or "completados con exito" in msg_lower or "compilado con éxito" in msg_lower or "short generado con éxito" in msg_lower:
         return 100
-    
-    # Try parsing patterns like "3 de 10" or "3/10"
-    match = re.search(r"(\d+)\s*(?:de|/)\s*(\d+)", msg)
-    if match:
+
+    return None
+
+
+@router.get("/progress/{channel_name}")
+async def api_shorts_progress(channel_name: str):
+    async def event_generator():
+        queue = asyncio.Queue()
+        if channel_name not in PROGRESS_QUEUES:
+            PROGRESS_QUEUES[channel_name] = []
+        PROGRESS_QUEUES[channel_name].append(queue)
+        
         try:
-            current = int(match.group(1))
-            total = int(match.group(2))
-            if total > 0:
-                fraction = current / total
-                return int(82 + fraction * 13)
-        except:
-            pass
-            
-    return 75
+            while True:
+                data = await queue.get()
+                yield {"event": "message", "data": data}
+        except asyncio.CancelledError:
+            if channel_name in PROGRESS_QUEUES and queue in PROGRESS_QUEUES[channel_name]:
+                PROGRESS_QUEUES[channel_name].remove(queue)
+                if not PROGRESS_QUEUES[channel_name]:
+                    del PROGRESS_QUEUES[channel_name]
+                    
+    return EventSourceResponse(event_generator())
 
-router = APIRouter(prefix="/api/shorts", tags=["shorts"])
+
+def process_prompt_placeholders(prompt_template: str, user_trama: str = "", ch_lang: str = "es") -> str:
+    clean_trama = user_trama.strip() if user_trama else ""
+    
+    placeholders = [
+        "{TRAMA}", "{TEMA_O_TRAMA}", "{trama}", "{tema_o_trama}",
+        "{Trama}", "{Tema_o_trama}", "{TRAMA_BASE}", "{trama_base}",
+        "{TEMA}", "{tema}"
+    ]
+    
+    prompt = prompt_template
+    has_replaced = False
+    
+    if clean_trama:
+        for ph in placeholders:
+            if ph in prompt:
+                prompt = prompt.replace(ph, clean_trama)
+                has_replaced = True
+        
+        trama_header = f"TRAMA / TEMA PRINCIPAL OBLIGATORIO DE LA HISTORIA (ENTREGADO POR EL USUARIO): {clean_trama}\n(ESTÁ TERMINANTEMENTE PROHIBIDO OMITIR ESTA TRAMA O CREAR HISTORIAS SOBRE OTROS TEMAS NO RELACIONADOS)\n\n"
+        prompt = trama_header + prompt
+    else:
+        empty_val = "[VACÍO: El usuario no especificó trama, investiga un tema de alto impacto para tu nicho]"
+        for ph in placeholders:
+            prompt = prompt.replace(ph, empty_val)
+
+    prompt = prompt.replace("{GANCHO}", "un gancho directo e impactante")
+    prompt = prompt.replace("{EVIDENCIA}", "evidencias inquietantes o registros reales")
+    prompt = prompt.replace("{ATMOSFERA}", "una atmósfera opresiva y perturbadora")
+    prompt = prompt.replace("{CIERRE}", "un cierre de suspense con loop perfecto")
+    prompt = prompt.replace("{MONSTRUO}", "una presencia o entidad inquietante")
+    prompt = prompt.replace("{ADN}", "detalles físicos perturbadores")
+    prompt = prompt.replace("{INSERTA_PALABRAS_CLAVE_DE_TU_NICHO}", "palabras clave virales")
+    prompt = prompt.replace("{INSERTA_TUS_RESTRICCIONES_AQUÍ}", "sin gore ni violencia explícita")
+
+    anti_cliche_directive = (
+        "\n\nDIRECTIVA CRÍTICA ANTI-CLICHÉ Y DEBATE OBLIGATORIO (MONETIZACIÓN YPP 2026/2027):\n"
+        "1. QUEDA TERMINANTEMENTE PROHIBIDO usar frases vacías de IA desmonetizables como 'lo que descubrieron los dejó sin palabras', 'nada te preparará para lo que viene', 'lo que ocurrió a continuación cambió todo'.\n"
+        "2. Aporta datos reales, nombres comprobables, fechas, registros o hechos documentados.\n"
+        "3. CIERRE OBLIGATORIO CON PREGUNTA DE DEBATE COMUNITARIO: Las últimas 1-2 oraciones del guion DEBEN formular una pregunta de debate directa e inquisitiva para que la audiencia opine e interactúe en los comentarios."
+    )
+    prompt += anti_cliche_directive
+
+    if ch_lang.lower() == "en":
+        prompt += "\n\nCRITICAL LANGUAGE DIRECTIVE: The target language for this channel is ENGLISH ('en'). You MUST write 100% of the output script exclusively in natural, native English. ABSOLUTELY ZERO SPANISH WORDS, PHRASES, KEYWORDS, OR SYNTAX ARE ALLOWED."
+    else:
+        prompt += f"\n\nIDIOMA OBLIGATORIO: Genera todo el guion 100% en el idioma '{ch_lang}'."
+
+    return prompt
 
 
-def generate_viral_script(prompt_template: str, custom_instructions: str = "", api_key: str = "", provider: str = "groq"):
-    full_prompt = f"{prompt_template}\n\nInstrucciones adicionales: {custom_instructions}" if custom_instructions else prompt_template
+def generate_viral_script(prompt_template: str, custom_instructions: str = "", api_key: str = "", provider: str = "groq", ch_lang: str = "es"):
+    full_prompt = process_prompt_placeholders(prompt_template, custom_instructions, ch_lang)
+    
     if provider == "gemini":
         from modules.gemini_client import generate_content as generate_gemini_content
         return generate_gemini_content(full_prompt, api_key, model_name="gemini-2.5-flash")
     else:
-        return generate_groq_content(full_prompt, api_key, model_name="llama-3.3-70b-versatile")
-
-
-
-def generate_voice_narration(script_text: str, output_path: str, voice_name: str = "Fritz-PlayAI", api_key: str = ""):
-    voice_inst = os.path.join("config", "prompts", "voice", "voice_instructions.txt")
-    if not os.path.exists(voice_inst):
-        voice_inst = None
-    return generate_voice(script_text, api_key, voice_inst, output_path, voice_name=voice_name)
-
-
-
-# --- STREAMING SSE DE PROGRESO ---
-@router.get("/progress/{channel_name}")
-async def sse_progress(channel_name: str):
-    if channel_name not in PROGRESS_QUEUES:
-        PROGRESS_QUEUES[channel_name] = []
-        
-    queue = asyncio.Queue()
-    PROGRESS_QUEUES[channel_name].append(queue)
-    
-    async def event_generator():
-        try:
-            while True:
-                data = await queue.get()
-                yield {"data": data}
-        except asyncio.CancelledError:
-            pass
-        finally:
-            if channel_name in PROGRESS_QUEUES and queue in PROGRESS_QUEUES[channel_name]:
-                PROGRESS_QUEUES[channel_name].remove(queue)
-
-    return EventSourceResponse(event_generator())
+        return generate_groq_content(full_prompt, api_key)
 
 
 # --- GENERACIÓN DE GUION CON IA ---
 @router.post("/generate-script")
 def api_generate_script(req: ScriptGenerationRequest):
     master_prompt = ""
+    paths = get_channel_paths(req.channel_name)
+    prompts_dir = paths["prompts"]
+
     if req.prompt_title:
-        story_path = os.path.join("config", "prompts", "story", req.channel_name, f"{req.prompt_title}.txt")
+        story_path = os.path.join(prompts_dir, f"{req.prompt_title}.txt")
         if not os.path.exists(story_path):
             story_path_root = os.path.join("config", "prompts", "story", f"{req.prompt_title}.txt")
             if os.path.exists(story_path_root):
@@ -115,8 +183,13 @@ def api_generate_script(req: ScriptGenerationRequest):
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Error leyendo prompt físico: {e}")
                 
+    if not master_prompt and os.path.exists(prompts_dir) and os.listdir(prompts_dir):
+        first_file = os.path.join(prompts_dir, os.listdir(prompts_dir)[0])
+        with open(first_file, "r", encoding="utf-8") as f:
+            master_prompt = f.read()
+
     if not master_prompt:
-        raise HTTPException(status_code=404, detail="Prompt Master no encontrado.")
+        master_prompt = "Escribe una historia viral para un Short."
         
     provider = "groq"
     if req.ai_engine and "gemini" in req.ai_engine.lower():
@@ -130,17 +203,93 @@ def api_generate_script(req: ScriptGenerationRequest):
         api_key = get_groq_api_key()
         if not api_key:
             raise HTTPException(status_code=400, detail="Falta configurar la API Key de Groq.")
-        
+
+    settings = get_settings()
+    channels = settings.get("channels", [])
+    ch_info = next((c for c in channels if c["name"].lower() == req.channel_name.lower()), None)
+    ch_lang = ch_info.get("language", "es") if ch_info else "es"
+
+    user_trama = req.custom_instructions or ""
+
     try:
         script = generate_viral_script(
             prompt_template=master_prompt,
-            custom_instructions=req.custom_instructions or "",
+            custom_instructions=user_trama,
             api_key=api_key,
-            provider=provider
+            provider=provider,
+            ch_lang=ch_lang
         )
         return {"status": "success", "script": script}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generando guion con IA: {e}")
+
+
+def resolve_narration_audio_file(req: GenerateRequest, channel_name: str, settings: dict) -> Optional[str]:
+    channels = settings.get("channels", [])
+    ch_info = next((c for c in channels if c.get("name", "").lower() == (channel_name or "").lower()), None)
+    paths = get_channel_paths(channel_name, settings)
+    clean_ch = paths["clean_channel_name"]
+    
+    dirs_to_check = []
+    
+    if ch_info and isinstance(ch_info.get("folders"), dict):
+        ch_audio = ch_info["folders"].get("audio_folder_path")
+        if ch_audio and os.path.exists(ch_audio):
+            dirs_to_check.append(ch_audio)
+            sub = os.path.join(ch_audio, clean_ch)
+            if os.path.exists(sub):
+                dirs_to_check.append(sub)
+
+    audio_output_dir = paths.get("audio")
+    if audio_output_dir and os.path.exists(audio_output_dir) and audio_output_dir not in dirs_to_check:
+        dirs_to_check.append(audio_output_dir)
+        sub = os.path.join(audio_output_dir, clean_ch)
+        if os.path.exists(sub) and sub not in dirs_to_check:
+            dirs_to_check.append(sub)
+
+    global_audio = settings.get("audio_folder_path")
+    if global_audio and os.path.exists(global_audio):
+        if global_audio not in dirs_to_check:
+            dirs_to_check.append(global_audio)
+        sub = os.path.join(global_audio, clean_ch)
+        if os.path.exists(sub) and sub not in dirs_to_check:
+            dirs_to_check.append(sub)
+
+    default_ch_dir = os.path.join("projects", "channels", clean_ch, "audio")
+    if os.path.exists(default_ch_dir) and default_ch_dir not in dirs_to_check:
+        dirs_to_check.append(default_ch_dir)
+
+    cache_audio = os.path.join("cache", "audio")
+    if os.path.exists(cache_audio) and cache_audio not in dirs_to_check:
+        dirs_to_check.append(cache_audio)
+
+    if req.narration_file and str(req.narration_file).strip():
+        n_file = str(req.narration_file).strip()
+        if os.path.exists(n_file):
+            return os.path.abspath(n_file)
+            
+        for d in dirs_to_check:
+            target = os.path.join(d, n_file)
+            if os.path.exists(target):
+                return os.path.abspath(target)
+                
+            target_base = os.path.join(d, os.path.basename(n_file))
+            if os.path.exists(target_base):
+                return os.path.abspath(target_base)
+
+    all_audio_files = []
+    for d in dirs_to_check:
+        try:
+            for ext in ("*.wav", "*.mp3", "*.m4a", "*.ogg"):
+                all_audio_files.extend(glob.glob(os.path.join(d, ext)))
+        except Exception:
+            continue
+
+    if all_audio_files:
+        all_audio_files.sort(key=os.path.getmtime, reverse=True)
+        return os.path.abspath(all_audio_files[0])
+
+    return None
 
 
 # --- PROCESO COMPLETO EN SEGUNDO PLANO ---
@@ -150,19 +299,18 @@ def bg_generate_short_process(req: GenerateRequest):
     
     try:
         groq_key = get_groq_api_key()
-        if not groq_key:
-            log_progress(channel_name, "❌ Error: API Key de Groq no configurada (requerida para síntesis de voz).", "#ff4444", 0)
-            return
-
         settings = get_settings()
         channel_info = next((c for c in settings.get("channels", []) if c["name"] == channel_name), None)
-        theme = channel_info.get("theme", "Terror Analógico") if channel_info else "Terror Analógico"
+        theme = channel_info.get("theme", "General") if channel_info else "General"
+        ch_lang = channel_info.get("language", "es") if channel_info else "es"
 
-        # 1. Selección o Generación del Guion
+        paths = get_channel_paths(channel_name, settings)
+        prompts_dir = paths["prompts"]
+
         script_text = req.custom_prompt or ""
         if not script_text:
             provider = "gemini" if req.ai_engine and "gemini" in req.ai_engine.lower() else "groq"
-            log_progress(channel_name, f"✍️ Generando guion viral con {provider.upper()}...", "#ff007f", 15)
+            log_progress(channel_name, f"✍️ Generando guion viral con {provider.upper()} ({ch_lang})...", "#ff007f", 15)
             
             if provider == "gemini":
                 api_key = get_gemini_api_key()
@@ -174,245 +322,106 @@ def bg_generate_short_process(req: GenerateRequest):
 
             master_prompt = ""
             if req.prompt_title:
-                story_path = os.path.join("config", "prompts", "story", channel_name, f"{req.prompt_title}.txt")
-                if not os.path.exists(story_path):
-                    # Compatibilidad si no tenía .txt en el nombre del request o si está en la raíz
-                    story_path_root = os.path.join("config", "prompts", "story", f"{req.prompt_title}.txt")
-                    if os.path.exists(story_path_root):
-                        story_path = story_path_root
-                
-                if os.path.exists(story_path):
-                    with open(story_path, "r", encoding="utf-8") as f:
+                file_by_title = os.path.join(prompts_dir, f"{req.prompt_title}.txt")
+                if os.path.exists(file_by_title):
+                    with open(file_by_title, "r", encoding="utf-8") as f:
                         master_prompt = f.read()
 
-            if not master_prompt:
-                story_dir = os.path.join("config", "prompts", "story", channel_name)
-                if os.path.exists(story_dir) and os.listdir(story_dir):
-                    first_file = os.path.join(story_dir, os.listdir(story_dir)[0])
-                    with open(first_file, "r", encoding="utf-8") as f:
-                        master_prompt = f.read()
+            if not master_prompt and os.path.exists(prompts_dir) and os.listdir(prompts_dir):
+                first_file = os.path.join(prompts_dir, os.listdir(prompts_dir)[0])
+                with open(first_file, "r", encoding="utf-8") as f:
+                    master_prompt = f.read()
 
             if not master_prompt:
-                master_prompt = "Escribe una historia inquietante de terror para un Short."
+                master_prompt = "Escribe una historia viral para un Short."
 
-            script_text = generate_viral_script(prompt_template=master_prompt, api_key=api_key, provider=provider)
+            user_trama = req.custom_prompt or ""
+            script_text = generate_viral_script(
+                prompt_template=master_prompt,
+                custom_instructions=user_trama,
+                api_key=api_key,
+                provider=provider,
+                ch_lang=ch_lang
+            )
 
-        audio_output_dir = settings.get("audio_folder_path") or os.path.join("cache", "audio")
+        audio_output_dir = paths["audio"]
+        os.makedirs(audio_output_dir, exist_ok=True)
         
-        # Check if pre-selected narration file is used
-        if req.narration_file:
-            resolved_audio_path = os.path.join(audio_output_dir, req.narration_file)
-            if os.path.exists(resolved_audio_path):
-                log_progress(channel_name, f"🎙️ Usando narración pre-seleccionada del servidor: {req.narration_file}", "#00d2ff", 35)
-                audio_output_path = resolved_audio_path
-            else:
-                log_progress(channel_name, f"⚠️ Audio seleccionado '{req.narration_file}' no encontrado. Generando nueva voz...", "#ffae00", 30)
-                os.makedirs(audio_output_dir, exist_ok=True)
-                audio_output_path = os.path.join(audio_output_dir, f"narracion_{channel_name}.mp3")
-                voice_name = req.voice_name or "Fritz-PlayAI"
-                generate_voice_narration(script_text, audio_output_path, voice_name=voice_name, api_key=groq_key)
-        else:
-            log_progress(channel_name, "🎙️ Sintetizando voz...", "#00d2ff", 35)
-            os.makedirs(audio_output_dir, exist_ok=True)
-            audio_output_path = os.path.join(audio_output_dir, f"narracion_{channel_name}.mp3")
-            voice_name = req.voice_name or "Fritz-PlayAI"
-            generate_voice_narration(script_text, audio_output_path, voice_name=voice_name, api_key=groq_key)
+        # 2. Selección de locución de narración
+        audio_file = resolve_narration_audio_file(req, channel_name, settings)
 
-        # 2. Obtención de Fondo (Videos, GIFs e Imágenes integrados en el Timeline)
-        log_progress(channel_name, "🎮 Buscando clips y recursos en el timeline...", "#ffae00", 55)
-        
-        custom_videos_dir = settings.get("videos_folder_path")
-        custom_images_dir = settings.get("images_folder_path")
-        
-        existing_assets = []
-        
-        # Cargar videos y GIFs del timeline
-        if custom_videos_dir and os.path.exists(custom_videos_dir):
-            for ext in ('*.mp4', '*.mov', '*.avi', '*.mkv', '*.webm', '*.gif'):
-                existing_assets += glob.glob(os.path.join(custom_videos_dir, ext))
-                existing_assets += glob.glob(os.path.join(custom_videos_dir, "*", ext))
-                
-        # Cargar imágenes del timeline
-        if custom_images_dir and os.path.exists(custom_images_dir):
-            for ext in ('*.png', '*.jpg', '*.jpeg', '*.webp'):
-                existing_assets += glob.glob(os.path.join(custom_images_dir, ext))
-                existing_assets += glob.glob(os.path.join(custom_images_dir, "*", ext))
-                
-        # Ordenar cronológicamente (ctime) para respetar la secuencia que el usuario ve en la UI (más viejo primero)
-        existing_assets.sort(key=lambda x: os.path.getctime(x) if os.path.exists(x) else 0)
+        if not audio_file:
+            log_progress(channel_name, "❌ Error: No se encontró ningún archivo de locución/audio en la carpeta del canal.", "#ff4444", 0)
+            return
 
-        # Si no hay recursos en el timeline, buscar en la caché temporal de gameplays
-        if not existing_assets:
-            gameplay_dir = os.path.join("cache", "gameplays")
-            if os.path.exists(gameplay_dir):
-                existing_assets = glob.glob(os.path.join(gameplay_dir, "*.mp4")) + glob.glob(os.path.join(gameplay_dir, "*", "*.mp4"))
+        # 3. Recopilación de Recursos del Timeline (videos e imágenes)
+        v_dir = paths["videos"]
+        i_dir = paths["images"]
+        timeline_files = []
+        if os.path.exists(v_dir):
+            for f in os.listdir(v_dir):
+                if f.lower().endswith(('.mp4', '.mkv', '.webm')):
+                    timeline_files.append(os.path.abspath(os.path.join(v_dir, f)))
+        if os.path.exists(i_dir):
+            for f in os.listdir(i_dir):
+                if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+                    timeline_files.append(os.path.abspath(os.path.join(i_dir, f)))
+                    
+        timeline_files.sort(key=lambda x: os.path.getctime(x))
 
-        mixed_media = []
-        if existing_assets:
-            # Filtrar por palabra clave si se especifica bg_source
-            if req.bg_source:
-                bg_keywords = [w.lower() for w in req.bg_source.split() if len(w) > 2]
-                if not bg_keywords:
-                    bg_keywords = [req.bg_source.lower()]
-                
-                matching_clips = []
-                for g in existing_assets:
-                    path_lower = g.lower()
-                    if any(kw in path_lower for kw in bg_keywords):
-                        matching_clips.append(g)
-                
-                if matching_clips:
-                    for g in matching_clips[:25]:
-                        ext = os.path.splitext(g)[1].lower()
-                        is_video = ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.gif']
-                        mixed_media.append({
-                            "path": g,
-                            "type": "video" if is_video else "image",
-                            "has_audio": is_video
-                        })
-            
-            # Fallback si no hay coincidencias de palabra clave o no se especificó bg_source
-            if not mixed_media:
-                for g in existing_assets[:25]:
-                    ext = os.path.splitext(g)[1].lower()
-                    is_video = ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.gif']
-                    mixed_media.append({
-                        "path": g,
-                        "type": "video" if is_video else "image",
-                        "has_audio": is_video
-                    })
-        else:
-            # Si no hay absolutamente nada descargado, usar downloader de Youtube
-            gameplay_dir = settings.get("downloader_folder_path") or os.path.join("cache", "gameplays")
-            os.makedirs(gameplay_dir, exist_ok=True)
-            query = f"{req.bg_source or 'roblox parkour'} gameplay 4k no commentary"
-            try:
-                gp_path = download_youtube_gameplay(query, gameplay_dir, status_callback=lambda msg, color: log_progress(channel_name, msg, color, 65))
-                mixed_media = [{"path": gp_path, "type": "video", "has_audio": False}]
-            except Exception as e:
-                log_progress(channel_name, f"⚠️ Aviso en gameplay, usando fallback: {e}", "#ffae00", 65)
-
-        # 3. Música de fondo
+        # Música de fondo
         music_path = None
         if req.music_name and req.music_name != "Ninguno":
-            music_dir = settings.get("music_folder_path") or os.path.join("assets", "music")
-            possible_music = os.path.join(music_dir, req.music_name)
-            if os.path.exists(possible_music):
-                music_path = possible_music
+            m_dir = paths["music"]
+            if not os.path.exists(m_dir):
+                m_dir = os.path.join("assets", "audio", "music")
+            target_m = os.path.join(m_dir, req.music_name)
+            if os.path.exists(target_m):
+                music_path = os.path.abspath(target_m)
 
-        # 4. Renderizado Final
-        log_progress(channel_name, "🎞️ Ensamblando vídeo 9:16, subtítulos dinámicos y audio...", "#9d00ff", 75)
-        output_dir = settings.get("renders_folder_path") or os.path.join("projects", "renders")
-        os.makedirs(output_dir, exist_ok=True)
+        # Directorio de salida para renders
+        output_folder = paths["renders"]
+        os.makedirs(output_folder, exist_ok=True)
 
-        selected_lut = "Horror_Cool" if "Terror" in theme else "Vibrant_Punch"
+        def render_progress_callback(msg, color=None):
+            perc = calculate_render_percentage(msg)
+            log_progress(channel_name, msg, color or "#00ffcc", percentage=perc)
+
+        title_text = req.video_title or f"Short_{channel_name}"
+        desc_text = script_text[:200] if script_text else ""
+
+        log_progress(channel_name, "🎬 Iniciando renderizado del Short...", "#00ffcc", 75)
+        
+        enable_subs = req.enable_subtitles if req.enable_subtitles is not None else True
 
         final_video_path = render_final_video(
-            audio_path=audio_output_path,
-            images_paths=mixed_media,
+            audio_path=audio_file,
+            images_paths=timeline_files,
             cover_path=None,
-            output_folder=output_dir,
-            title=req.video_title or req.prompt_title or channel_name or "Short_NexusStudio",
-            description="Short autogenerado por ShortNexus Studio Core",
-            vhs_enabled=True,
+            output_folder=output_folder,
+            title=title_text,
+            description=desc_text,
+            vhs_enabled=False,
             music_path=music_path,
-            media_mode="mix",
-            status_callback=lambda msg, *a: log_progress(
-                channel_name=channel_name,
-                message=msg,
-                color=a[0] if a else "#ffffff",
-                percentage=calculate_render_percentage(msg)
-            ),
+            status_callback=render_progress_callback,
             groq_key=groq_key,
             aspect_ratio="9:16",
-            lut_name=selected_lut,
-            sub_style=req.sub_style,
-            reddit_card_title="Pregunta intrigante de Reddit..." if req.sub_style == "Reddit History" else None,
-            pacing="Dinámico [2.0s]",
-            vol_voice=100.0,
-            vol_music=35.0,
-            vol_sfx=25.0,
-            render_quality=req.render_quality,
-            enable_brolls=True,
-            enable_subtitles=req.enable_subtitles
+            sub_style=req.sub_style or "Reddit History",
+            enable_subtitles=enable_subs,
+            language=ch_lang
         )
-        log_progress(
-            channel_name=channel_name,
-            message=f"🎉 Short compilado con éxito: {os.path.basename(final_video_path)}",
-            color="#00ff88",
-            percentage=100,
-            output_path=final_video_path
-        )
-        
-        # --- Guardar Metadatos de Generación ---
-        try:
-            from modules.render_utils import get_media_duration
-            from modules.analytics_client import load_generation_metadata, save_generation_metadata
-            import re
-            
-            gen_meta = load_generation_metadata()
-            
-            # El titulo usado para guardar el video (safe_title)
-            raw_title = req.video_title or req.prompt_title or channel_name or "Short_NexusStudio"
-            safe_title = "".join([c for c in raw_title if c.isalnum() or c==' ']).rstrip().replace(" ", "_") or "Video_Render_Mix"
-            
-            duracion_narracion = get_media_duration(audio_output_path)
-            
-            gen_meta[safe_title] = {
-                "prompt_master": req.prompt_title or "Ninguno",
-                "trama": script_text,
-                "duracion_narracion": duracion_narracion,
-                "cantidad_clips": len(mixed_media),
-                "intercalar_gameplay": any(m.get("type") == "video" for m in mixed_media),
-                "cancion": req.music_name or "Ninguno",
-                "volumen_cancion": 35.0,
-                "volumen_narracion": 100.0,
-                "tipo_subtitulos": req.sub_style,
-                "calidad": req.render_quality,
-                "titulo": req.video_title or req.prompt_title or "Video Autogenerado",
-                "descripcion": "Short autogenerado por ShortNexus Studio Core",
-                "timestamp": datetime.datetime.now().isoformat()
-            }
-            save_generation_metadata(gen_meta)
-        except Exception as e_meta:
-            print(f"Error guardando metadatos de generación: {e_meta}")
-            
 
+        log_progress(channel_name, "🎉 ¡Short generado con éxito!", "#00ff00", 100, output_path=final_video_path)
 
     except Exception as e:
-        import traceback
-        err_msg = traceback.format_exc()
+        print(f"Error fatal en bg_generate_short_process: {e}")
         log_progress(channel_name, f"❌ Error fatal en generación: {e}", "#ff1a1a", 0)
-        print(f"ERROR EN RENDER: {err_msg}")
 
 
 @router.post("/generate")
 def api_generate_short(req: GenerateRequest, background_tasks: BackgroundTasks):
     background_tasks.add_task(bg_generate_short_process, req)
-    return {"status": "success", "message": "Proceso de generación encolado en segundo plano de forma asíncrona."}
-
-
-@router.post("/synthesize-voice")
-def api_synthesize_voice(req: SynthesizeVoiceRequest):
-    groq_key = get_groq_api_key()
-    if not groq_key:
-        raise HTTPException(status_code=400, detail="API Key de Groq no configurada (requerida para síntesis de voz).")
-    
-    settings = get_settings()
-    audio_dir = settings.get("audio_folder_path") or os.path.join("cache", "audio")
-    os.makedirs(audio_dir, exist_ok=True)
-    
-    import datetime
-    now_str = datetime.datetime.now().strftime("%B %d, %Y - %I_%M%p")
-    filename = f"Generated Audio {now_str}.wav"
-    output_path = os.path.join(audio_dir, filename)
-    
-    try:
-        from modules.voice_generator import generate_voice as generate_voice_narration
-        generate_voice_narration(req.script_text, output_path, voice_name=req.voice_name, api_key=groq_key)
-        return {"status": "success", "filename": filename, "path": output_path}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error en síntesis de voz: {e}")
+    return {"status": "success", "message": "Proceso de generación encolado en segundo plano."}
 
 
 @router.post("/generate-title-description")
@@ -431,7 +440,17 @@ def api_generate_title_description(req: TitleDescriptionRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error leyendo el archivo de prompt: {e}")
         
+    settings = get_settings()
+    channels = settings.get("channels", [])
+    ch_info = next((c for c in channels if c["name"].lower() == req.channel_name.lower()), None)
+    ch_lang = ch_info.get("language", "es") if ch_info else "es"
+
     prompt = template.replace("{STORY}", story_text).replace("{story}", story_text)
+    if ch_lang.lower() == "en":
+        prompt += "\n\nCRITICAL LANGUAGE DIRECTIVE: Generate all titles, description, and hashtags 100% in natural, native ENGLISH ('en'). ABSOLUTELY ZERO SPANISH WORDS, PHRASES, OR SYNTAX ARE ALLOWED."
+    else:
+        prompt += f"\n\nIDIOMA OBLIGATORIO: Genera los títulos, descripción y hashtags 100% en el idioma '{ch_lang}'."
+
     provider = "gemini" if req.ai_engine and "gemini" in req.ai_engine.lower() else "groq"
     
     if provider == "gemini":
@@ -444,69 +463,90 @@ def api_generate_title_description(req: TitleDescriptionRequest):
             raise HTTPException(status_code=400, detail="API Key de Groq no configurada.")
             
     try:
-        import re
         if provider == "gemini":
             from modules.gemini_client import generate_content as generate_gemini_content
             raw_text = generate_gemini_content(prompt, api_key, model_name="gemini-2.5-flash")
         else:
-            from modules.groq_client import generate_content as generate_groq_content
-            raw_text = generate_groq_content(prompt, api_key, model_name="llama-3.3-70b-versatile")
+            raw_text = generate_groq_content(prompt, api_key)
             
-        # Parse output
-        title_section_match = re.search(r"---T[ÍI]TULOS.*?---(.*?)(?=---DESCRIPCI[OÓ]N|$)", raw_text, re.DOTALL | re.IGNORECASE)
-        desc_section_match = re.search(r"---DESCRIPCI[OÓ]N.*?---(.*)", raw_text, re.DOTALL | re.IGNORECASE)
+        title_section_match = re.search(r"(?:---|###|\*\*|\b)(?:T[ÍI]TULOS|TITLES).*?(?:---|###|\*\*|\n)(.*?)(?=(?:---|###|\*\*|\b)(?:DESCRIPCI[OÓ]N|DESCRIPTION)|$)", raw_text, re.DOTALL | re.IGNORECASE)
+        desc_section_match = re.search(r"(?:---|###|\*\*|\b)(?:DESCRIPCI[OÓ]N|DESCRIPTION).*?(?:---|###|\*\*|\n)(.*)", raw_text, re.DOTALL | re.IGNORECASE)
         
         titles = []
         description = ""
         
         if title_section_match:
-            lines = title_section_match.group(1).strip().split('\n')
+            lines = title_section_match.group(1).strip().split("\n")
             for line in lines:
-                line_clean = re.sub(r"^\d+[\.\-\s]+", "", line.strip()).strip()
-                line_clean = line_clean.strip("[] ")
-                if line_clean:
-                    titles.append(line_clean)
+                line_str = line.strip()
+                cleaned = re.sub(r"^(?:\d+[\.\)]|[-*•])\s*", "", line_str).strip()
+                cleaned = cleaned.strip('"\'`*#')
+                if cleaned and len(cleaned) >= 5 and not cleaned.startswith("---") and not cleaned.lower().startswith("título") and not cleaned.lower().startswith("title"):
+                    titles.append(cleaned)
                     
         if desc_section_match:
             description = desc_section_match.group(1).strip()
-            
+            description = re.sub(r"^(?:---|###|\*\*)\s*", "", description).strip()
+
+        # Fallback 1: Buscar líneas numeradas si el regex de encabezado no coincidió
         if not titles:
-            for line in raw_text.split('\n'):
-                line = line.strip()
-                if line.startswith("1.") or line.startswith("2.") or line.startswith("3."):
-                    titles.append(re.sub(r"^\d+[\.\-\s]+", "", line).strip("[] "))
-                    
-        if not titles:
-            titles = ["Misterio Inexplicable 💀"]
+            numbered_lines = re.findall(r"^\s*(?:\d+[\.\)]|[-*•])\s*(.+)$", raw_text, re.MULTILINE)
+            for line in numbered_lines:
+                cleaned = line.strip().strip('"\'`*#')
+                if len(cleaned) >= 10 and not any(k in cleaned.lower() for k in ["hashtag", "descripción", "description", "http"]):
+                    titles.append(cleaned)
+                    if len(titles) >= 3:
+                        break
+
+        # Fallback 2: Extraer descripción si el regex de encabezado falló
         if not description:
-            description = raw_text.strip()
+            lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
+            non_title_lines = [l for l in lines if not any(l == t for t in titles) and not l.startswith("---") and not l.startswith("###")]
+            if non_title_lines:
+                description = "\n\n".join(non_title_lines)
+
+        # Fallback 3: Título por defecto de emergencia
+        if not titles:
+            lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
+            if lines:
+                titles = [re.sub(r"^(?:\d+[\.\)]|[-*•])\s*", "", lines[0]).strip('"\'`*#')]
+            else:
+                titles = [f"Short - {req.channel_name}"]
+            
+        main_title = titles[0] if titles else f"Short - {req.channel_name}"
             
         return {
             "status": "success",
+            "title": main_title,
             "titles": titles,
-            "title": titles[0] if titles else "Misterio Inexplicable 💀",
-            "description": description
+            "description": description,
+            "raw": raw_text
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error llamando a la IA: {e}")
+        raise HTTPException(status_code=500, detail=f"Error generando título/descripción con IA: {e}")
 
 
 @router.get("/last-render")
 def api_get_last_render(channel_name: Optional[str] = None):
     settings = get_settings()
-    output_dir = settings.get("renders_folder_path") or os.path.join("projects", "renders")
-    if not os.path.exists(output_dir):
-        return {"status": "error", "message": "El directorio de renders no existe."}
+    mp4_files = []
     
-    import glob
-    mp4_files = glob.glob(os.path.join(output_dir, "*.mp4"))
+    if channel_name:
+        paths = get_channel_paths(channel_name, settings)
+        ch_renders = paths["renders"]
+        if os.path.exists(ch_renders):
+            mp4_files.extend(glob.glob(os.path.join(ch_renders, "*.mp4")))
+            
+    if not mp4_files:
+        renders_dir = settings.get("renders_folder_path") or os.path.join("projects", "renders")
+        if os.path.exists(renders_dir):
+            mp4_files.extend(glob.glob(os.path.join(renders_dir, "**", "*.mp4"), recursive=True))
+            
     if not mp4_files:
         return {"status": "error", "message": "No hay videos renderizados."}
     
-    # Ordenar por fecha de modificación (el más nuevo primero)
     mp4_files.sort(key=os.path.getmtime, reverse=True)
     
-    # Si especifican channel_name, intentamos buscar el más reciente que contenga el nombre del canal
     if channel_name:
         channel_lower = channel_name.lower()
         for f in mp4_files:
@@ -517,7 +557,6 @@ def api_get_last_render(channel_name: Optional[str] = None):
                     "filename": os.path.basename(f)
                 }
     
-    # Si no hay ninguno con el nombre del canal o no se especificó, devolvemos el más reciente de todos
     latest_video = mp4_files[0]
     return {
         "status": "success",
@@ -525,9 +564,10 @@ def api_get_last_render(channel_name: Optional[str] = None):
         "filename": os.path.basename(latest_video)
     }
 
-from pydantic import BaseModel
+
 class ScriptGenerateTramaRequest(BaseModel):
     script: str
+    channel_name: Optional[str] = None
 
 @router.post("/generate-trama-from-script")
 def api_generate_trama_from_script(req: ScriptGenerateTramaRequest):
@@ -538,15 +578,25 @@ def api_generate_trama_from_script(req: ScriptGenerateTramaRequest):
     if not groq_key:
         raise HTTPException(status_code=400, detail="API Key de Groq no configurada.")
         
+    settings = get_settings()
+    channel_name = req.channel_name or settings.get("active_channel")
+    channels = settings.get("channels", [])
+    ch_info = next((c for c in channels if c.get("name", "").lower() == (channel_name or "").lower()), None)
+    
+    ch_theme = ch_info.get("theme", "General") if ch_info else "General"
+    ch_lang = ch_info.get("language", "es") if ch_info else "es"
+
     prompt = f"""
-Eres un asistente experto en videos cortos (TikTok/Shorts).
-Tengo el siguiente guion de narración. Extrae la trama o idea principal en un máximo de 10 palabras (conciso). No incluyas nada más en tu respuesta.
+Eres un asistente experto en producción visual de videos cortos (TikTok/Shorts).
+Analiza el siguiente guion de un canal con temática '{ch_theme}' (idioma del canal: {ch_lang}).
+Extrae la trama visual o idea principal para buscar recursos de video en un máximo de 10 palabras (conciso, descriptivo y directo), en el idioma '{ch_lang}'.
+No incluyas nada más en tu respuesta.
 
 GUION:
 {req.script[:1500]}
 """
     try:
-        trama = generate_groq_content(prompt, groq_key, model_name="llama-3.3-70b-versatile")
+        trama = generate_groq_content(prompt, groq_key)
         return {"status": "success", "trama": trama.strip().replace('"', '')}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al generar trama: {e}")

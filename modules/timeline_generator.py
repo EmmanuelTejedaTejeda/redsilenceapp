@@ -112,10 +112,10 @@ def generate_timeline_resources(req, channel_name: str):
     log_progress(channel_name, f"📊 Requeridos: {num_clips} clips (Gameplay: {num_gameplay}, Mixto: {num_mixed})", "#00d2ff", 10)
     
     settings = get_settings()
-    video_dir = settings.get("videos_folder_path") or os.path.join("cache", "videos")
-    image_dir = settings.get("images_folder_path") or os.path.join("cache", "images")
-    video_dir = os.path.abspath(video_dir)
-    image_dir = os.path.abspath(image_dir)
+    from api.deps import get_channel_paths
+    paths = get_channel_paths(channel_name, settings)
+    video_dir = paths["videos"]
+    image_dir = paths["images"]
     os.makedirs(video_dir, exist_ok=True)
     os.makedirs(image_dir, exist_ok=True)
         
@@ -148,10 +148,10 @@ def generate_timeline_resources(req, channel_name: str):
                 pass
                 
         if groq_key:
-            prompt = f"""Eres un director de fotografía buscando videos de stock para un canal con la temática estricta de: '{channel_theme}'.
-Basándote en esta trama: "{req.trama}", genera exactamente {num_mixed} búsquedas en inglés (máximo 1 a 3 palabras por búsqueda).
-REGLA CRÍTICA: Cada término de búsqueda DEBE incluir un adjetivo o modificador que obligue a que el resultado coincida visualmente con la atmósfera '{channel_theme}'.
-(Ejemplo: Si la trama habla de 'un hombre caminando' y la temática es 'terror', no respondas 'man walking', debes responder 'scary silhouette walking').
+            prompt = f"""Eres un director de fotografía cinematográfico buscando B-Rolls documentales de alta calidad para el nicho '{channel_theme}'.
+Basándote en esta historia: "{req.trama}", genera exactamente {num_mixed} búsquedas en inglés (de 2 a 4 palabras descriptivas por búsqueda).
+REGLA CRÍTICA DE AUTENTICIDAD:
+Cada término debe describir escenas documentales de contexto hiper-específico (ej: 'underwater sonar radar screen', '1970s oceanographic research ship deck', 'cinematic deep sea trench abyss'). EVITA palabras vacías abstractas como 'dark', 'sea', 'crimson'.
 Solo devuelve una lista separada por comas, sin comillas, ni introducciones, ni viñetas."""
             
             try:
@@ -168,12 +168,12 @@ Solo devuelve una lista separada por comas, sin comillas, ni introducciones, ni 
     gameplay_chunks = []
     if num_gameplay > 0:
         log_progress(channel_name, "🎮 Obteniendo y extrayendo fragmentos de Gameplay...", "#ff1a1a", 30)
-        gameplay_cache = os.path.join("cache", "gameplays")
+        gameplay_cache = paths["cache_gameplays"]
         os.makedirs(gameplay_cache, exist_ok=True)
         try:
             gp_path = download_youtube_gameplay("roblox parkour horror", gameplay_cache)
             if gp_path:
-                gp_temp = os.path.join("cache", "temp_gp_chunks")
+                gp_temp = os.path.join(paths["cache"], "temp_gp_chunks")
                 gameplay_chunks = extract_gameplay_chunks(gp_path, gp_temp, num_gameplay, 3)
         except Exception as e:
             print(f"Error gameplay: {e}")
@@ -185,7 +185,7 @@ Solo devuelve una lista separada por comas, sin comillas, ni introducciones, ni 
         pexels_key = settings.get("pexels_api_key", "")
         pixabay_key = settings.get("pixabay_api_key", "")
         
-        cache_temp_dir = os.path.join("cache", "temp_mixed")
+        cache_temp_dir = os.path.join(paths["cache"], "temp_mixed")
         os.makedirs(cache_temp_dir, exist_ok=True)
         
         for idx, kw in enumerate(keywords):
