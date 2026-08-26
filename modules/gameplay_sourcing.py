@@ -30,6 +30,8 @@ def download_youtube_gameplay(query_or_url, output_dir, status_callback=None):
         'no_warnings': True,
         'noplaylist': True,
         'nopart': True,  # Escribe directamente en el archivo final sin usar .part en Windows
+        'max_filesize': 150 * 1024 * 1024,  # LÍMITE RIGUROSO: Rechaza inmediatamente cualquier archivo > 150 MB (evita descargas de 7 GB)
+        'match_filter': yt_dlp.utils.match_filter_func("duration <= 300 & !is_live"),  # LÍMITE DE DURACIÓN: Máximo 5 minutos y nunca emisiones en directo
         'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'

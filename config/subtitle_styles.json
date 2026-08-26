@@ -18,7 +18,7 @@
         "text_case": "uppercase",
         "highlight_color": "&H0000ffff",
         "emojis_enabled": true,
-        "hook_type": "reddit_card"
+        "hook_type": "none"
     },
     "TikTok": {
         "name": "TikTok",

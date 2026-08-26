@@ -213,7 +213,7 @@ Solo devuelve una lista separada por comas, sin comillas, ni introducciones, ni 
                 
                 if source == "youtube":
                     try:
-                        yt_query = f"{kw} stock video vertical no commentary"
+                        yt_query = f"{kw} short vertical"
                         log_progress(channel_name, f"🌐 Buscando en YouTube: '{kw}'", "#FFD700", 50 + int((idx/len(keywords))*30))
                         yt_video_path = download_youtube_gameplay(yt_query, cache_temp_dir)
                         if yt_video_path and os.path.exists(yt_video_path):
