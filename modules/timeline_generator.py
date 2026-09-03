@@ -15,6 +15,7 @@ from modules.groq_client import generate_content as generate_groq_content
 from modules.pexels_client import search_pexels_video, download_video_file
 from modules.gameplay_sourcing import download_youtube_gameplay
 from modules.pixabay_client import search_pixabay_photos
+from modules.entity_search import search_and_download_entity_image
 import subprocess
 
 def extract_gameplay_chunks(source_video: str, dest_dir: str, num_chunks: int, duration_per_chunk: int = 3):
@@ -94,6 +95,79 @@ def download_file(url, output_path):
         print(f"Error descargando recurso {url}: {e}")
         return False
 
+def segment_script_into_sentences(script_text: str, target_num_clips: int) -> list:
+    """Divide el guion en exactamente target_num_clips frases/bloques homogéneos."""
+    clean_text = script_text.replace('\n', ' ').strip()
+    raw_sentences = [s.strip() for s in re.split(r'[.!?]+', clean_text) if s.strip()]
+    if not raw_sentences:
+        raw_sentences = [clean_text]
+        
+    result_blocks = []
+    if len(raw_sentences) == target_num_clips:
+        result_blocks = raw_sentences
+    elif len(raw_sentences) > target_num_clips:
+        ratio = len(raw_sentences) / float(target_num_clips)
+        for i in range(target_num_clips):
+            start_idx = int(i * ratio)
+            end_idx = int((i + 1) * ratio) if i < target_num_clips - 1 else len(raw_sentences)
+            block = " ".join(raw_sentences[start_idx:end_idx])
+            result_blocks.append(block)
+    else:
+        words = clean_text.split()
+        chunk_size = max(1, len(words) // target_num_clips)
+        for i in range(target_num_clips):
+            start_idx = i * chunk_size
+            end_idx = (i + 1) * chunk_size if i < target_num_clips - 1 else len(words)
+            block = " ".join(words[start_idx:end_idx])
+            result_blocks.append(block)
+            
+    return result_blocks
+
+def extract_per_sentence_visual_queries(sentences: list, channel_theme: str = "General") -> list:
+    """Extrae 1 término visual hiper-específico de 2-5 palabras por frase del guion."""
+    groq_key = get_groq_api_key()
+    if not groq_key:
+        return [s[:40] for s in sentences]
+        
+    num_clips = len(sentences)
+    sentences_formatted = "\n".join([f"Frase {i+1}: {s}" for i, s in enumerate(sentences)])
+    
+    prompt = f"""
+Eres el director visual maestro de ShortNexus Studio.
+Tenemos un guion dividido en exactamente {num_clips} frases para un vídeo corto vertical (Shorts/TikTok).
+
+TU TAREA:
+Para CADA una de las {num_clips} frases, debes extraer el término de búsqueda visual MÁS RELEVANTE (de 2 a 5 palabras descriptivas).
+
+REGLAS ABSOLUTAS:
+1. SI LA FRASE MENCIONA UN NOMBRE REAL, PERSONAJE, VIDEOJUEGO, MARCA, PELÍCULA O NOTICIA (ej: GTA 6, CyberLeek, MrBeast, Elon Musk, Bitcoin, Rockstar Games), CONSERVA EL NOMBRE EXACTO DE LA ENTIDAD.
+2. Si la frase es sobre una acción o concepto, genera un término cinematográfico claro (ej: 'hacker malware screen warning', 'crypto coin dollar scam', 'police cyber crime investigation').
+3. PROHIBIDO GENERAR PALABRAS VAGAS O RARAS como 'footprint', 'farm', 'abstract blur', 'dark room'.
+
+FRASES DEL GUION:
+{sentences_formatted}
+
+Responde ÚNICAMENTE con un JSON válido con esta estructura (sin etiquetas markdown ni texto adicional):
+[
+  {{"phrase_index": 1, "query": "búsqueda para frase 1"}},
+  ...
+]
+"""
+    try:
+        raw = generate_groq_content(prompt, groq_key)
+        raw_clean = raw.strip()
+        if raw_clean.startswith("```json"): raw_clean = raw_clean[7:]
+        if raw_clean.startswith("```"): raw_clean = raw_clean[3:]
+        if raw_clean.endswith("```"): raw_clean = raw_clean[:-3]
+        data = json.loads(raw_clean.strip())
+        queries = [item.get("query", "").strip() for item in data]
+        if len(queries) == num_clips:
+            return queries
+    except Exception as e:
+        print("Error en extract_per_sentence_visual_queries:", e)
+        
+    return [s[:40] for s in sentences]
+
 def generate_timeline_resources(req, channel_name: str):
     log_progress(channel_name, f"🧠 Calculando {req.audio_duration}s de audio...", "#00d2ff", 5)
     
@@ -102,14 +176,8 @@ def generate_timeline_resources(req, channel_name: str):
     if num_clips < 1:
         num_clips = 1
         
-    num_gameplay = 0
     num_mixed = num_clips
-    
-    if req.intercalar_gameplay:
-        num_mixed = num_clips // 2
-        num_gameplay = num_clips - num_mixed
-        
-    log_progress(channel_name, f"📊 Requeridos: {num_clips} clips (Gameplay: {num_gameplay}, Mixto: {num_mixed})", "#00d2ff", 10)
+    log_progress(channel_name, f"📊 Requeridos: {num_clips} clips mixtos", "#00d2ff", 10)
     
     settings = get_settings()
     from api.deps import get_channel_paths
@@ -132,10 +200,12 @@ def generate_timeline_resources(req, channel_name: str):
                 except: pass
                 
     keywords = []
-    if num_mixed > 0:
-        log_progress(channel_name, "🤖 Generando lista de términos visuales con Groq...", "#ffae00", 15)
-        groq_key = get_groq_api_key()
-        
+    custom_kw = getattr(req, "custom_keywords", None)
+    if custom_kw and isinstance(custom_kw, list) and len(custom_kw) > 0:
+        keywords = [str(k).strip() for k in custom_kw if str(k).strip()]
+        log_progress(channel_name, f"📋 Usando {len(keywords)} términos visuales definidos/editados por el usuario...", "#00d2ff", 15)
+
+    if num_mixed > 0 and len(keywords) == 0:
         channel_theme = channel_name
         themes_path = os.path.join("config", "themes.json")
         if os.path.exists(themes_path):
@@ -146,39 +216,28 @@ def generate_timeline_resources(req, channel_name: str):
                         channel_theme = themes_data[channel_name]
             except:
                 pass
-                
-        if groq_key:
-            prompt = f"""Eres un director de fotografía cinematográfico buscando B-Rolls documentales de alta calidad para el nicho '{channel_theme}'.
-Basándote en esta historia: "{req.trama}", genera exactamente {num_mixed} búsquedas en inglés (de 2 a 4 palabras descriptivas por búsqueda).
-REGLA CRÍTICA DE AUTENTICIDAD:
-Cada término debe describir escenas documentales de contexto hiper-específico (ej: 'underwater sonar radar screen', '1970s oceanographic research ship deck', 'cinematic deep sea trench abyss'). EVITA palabras vacías abstractas como 'dark', 'sea', 'crimson'.
-Solo devuelve una lista separada por comas, sin comillas, ni introducciones, ni viñetas."""
-            
-            try:
-                result = generate_groq_content(prompt, groq_key, model_name="llama-3.3-70b-versatile")
-                raw_keywords = [k.strip() for k in result.split(",") if k.strip()]
-                keywords = raw_keywords[:num_mixed]
-            except Exception as e:
-                print(f"Error AI keywords: {e}")
-        
+
+        script_text = getattr(req, "script", "") or ""
+        if script_text.strip():
+            log_progress(channel_name, f"🤖 Analizando guion frase por frase ({num_mixed} frases)...", "#ffae00", 15)
+            sentences = segment_script_into_sentences(script_text, num_mixed)
+            keywords = extract_per_sentence_visual_queries(sentences, channel_theme)
+        else:
+            log_progress(channel_name, "🤖 Generando términos visuales con Groq...", "#ffae00", 15)
+            groq_key = get_groq_api_key()
+            if groq_key:
+                prompt = f"Genera exactamente {num_mixed} búsquedas visuales descriptivas separadas por comas para: {req.trama}"
+                try:
+                    result = generate_groq_content(prompt, groq_key, model_name="openai/gpt-oss-120b")
+                    raw_keywords = [k.strip() for k in result.split(",") if k.strip()]
+                    keywords = raw_keywords[:num_mixed]
+                except Exception as e:
+                    print(f"Error AI keywords: {e}")
+
         while len(keywords) < num_mixed:
             keywords.append(f"aesthetic {channel_theme}")
             
-    # 2. Descargar Gameplay
-    gameplay_chunks = []
-    if num_gameplay > 0:
-        log_progress(channel_name, "🎮 Obteniendo y extrayendo fragmentos de Gameplay...", "#ff1a1a", 30)
-        gameplay_cache = paths["cache_gameplays"]
-        os.makedirs(gameplay_cache, exist_ok=True)
-        try:
-            gp_path = download_youtube_gameplay("roblox parkour horror", gameplay_cache)
-            if gp_path:
-                gp_temp = os.path.join(paths["cache"], "temp_gp_chunks")
-                gameplay_chunks = extract_gameplay_chunks(gp_path, gp_temp, num_gameplay, 3)
-        except Exception as e:
-            print(f"Error gameplay: {e}")
-
-    # 3. Descargar Recursos Mixtos alternando plataformas (40% YouTube, 30% Pexels Video, 30% Imagen)
+    # 2. Descargar Recursos Mixtos (40% YouTube, 30% Pexels Video, 30% Imagen)
     mixed_clips = []
     if keywords:
         log_progress(channel_name, f"📥 Descargando {len(keywords)} recursos mixtos (IA)...", "#00c853", 50)
@@ -192,26 +251,40 @@ Solo devuelve una lista separada por comas, sin comillas, ni introducciones, ni 
             clip_path = None
             log_progress(channel_name, f"🔍 Buscando recurso {idx+1}/{len(keywords)}: '{kw}'", "#00E5FF", 50 + int((idx/len(keywords))*30))
             
-            # Definir la prioridad de búsqueda según el índice para mantener el ratio 40/30/30
-            # idx % 10: [0, 3, 6, 9] -> YouTube (40%), [1, 4, 7] -> Pexels Video (30%), [2, 5, 8] -> Imagen (30%)
-            rem = idx % 10
-            if rem in [0, 3, 6, 9]:
-                search_order = ["youtube", "pexels_video", "pexels_image", "pixabay_image"]
-            elif rem in [1, 4, 7]:
-                search_order = ["pexels_video", "youtube", "pexels_image", "pixabay_image"]
-            else: # 2, 5, 8
-                # Alternar entre empezar por Pexels o Pixabay para las imágenes
-                if idx % 2 == 0:
-                    search_order = ["pexels_image", "pixabay_image", "youtube", "pexels_video"]
-                else:
-                    search_order = ["pixabay_image", "pexels_image", "youtube", "pexels_video"]
+            # Detectar si la búsqueda trata sobre una entidad/sujeto específico
+            words = [w for w in kw.strip().split() if w]
+            has_proper_nouns = any(len(w) > 1 and w[0].isupper() for w in words[1:]) if len(words) > 1 else (len(words) == 1 and words[0][0].isupper())
+            is_entity = has_proper_nouns or any(k in kw.lower() for k in ["gta", "mrbeast", "elon", "musk", "ronaldo", "messi", "iphone", "batman", "spiderman", "anime", "naruto", "roblox", "minecraft", "fortnite", "tesla", "apple", "bitcoin"])
+
+            # Reequilibrar la mezcla de fuentes: 
+            # - Para entidades explícitas/nombres de juegos/personas: Buscar Imagen Referencial -> YouTube -> Pexels Video
+            # - Para conceptos/acciones: Alternar entre Pexels Video -> YouTube -> Imagen Referencial (asegurando videos MP4)
+            rem = idx % 5
+            if is_entity or "gameplay" in kw.lower() or "video" in kw.lower():
+                search_order = ["entity_image", "youtube", "pexels_video", "pexels_image"]
+            elif rem in [0, 2]:
+                search_order = ["pexels_video", "youtube", "entity_image", "pexels_image"]
+            elif rem in [1, 3]:
+                search_order = ["youtube", "pexels_video", "entity_image", "pexels_image"]
+            else:
+                search_order = ["entity_image", "pexels_video", "youtube", "pexels_image"]
             
             # Ejecutar la búsqueda en el orden prioritario definido
             for source in search_order:
                 if clip_path:
                     break # Recurso ya obtenido
                 
-                if source == "youtube":
+                if source == "entity_image":
+                    try:
+                        log_progress(channel_name, f"📌 Buscando imagen referencial (Entidad/IA): '{kw}'", "#FF007F", 50 + int((idx/len(keywords))*30))
+                        img_entity_path = search_and_download_entity_image(kw, cache_temp_dir, f"entity_{idx}")
+                        if img_entity_path and os.path.exists(img_entity_path):
+                            clip_path = img_entity_path
+                            print(f">>> [TIMELINE] Recurso referencial para entidad '{kw}' obtenido exitosamente.")
+                    except Exception as e:
+                        print(f"Error Entity Image {kw}: {e}")
+
+                elif source == "youtube":
                     try:
                         yt_query = f"{kw} short vertical"
                         log_progress(channel_name, f"🌐 Buscando en YouTube: '{kw}'", "#FFD700", 50 + int((idx/len(keywords))*30))
@@ -266,35 +339,21 @@ Solo devuelve una lista separada por comas, sin comillas, ni introducciones, ni 
             else:
                 print(f">>> [TIMELINE] ⚠️ No se pudo obtener ningún recurso para la palabra clave: {kw}")
                 
-    # 4. Intercalar y guardar en timeline
-    log_progress(channel_name, "🔄 Intercalando recursos en el timeline...", "#9d00ff", 85)
-    
-    total_len = max(len(gameplay_chunks), len(mixed_clips))
+    # 3. Guardar recursos en el timeline
+    log_progress(channel_name, "🔄 Integrando recursos al timeline...", "#9d00ff", 85)
     file_index = 0
-    
-    for i in range(total_len):
-        if i < len(gameplay_chunks):
-            src = gameplay_chunks[i]
-            dst = os.path.join(video_dir, f"{file_index:03d}_gameplay.mp4")
-            try:
-                import shutil
-                shutil.copy2(src, dst)
-                file_index += 1
-            except:
-                pass
+    import shutil
+    for src in mixed_clips:
+        ext = os.path.splitext(src)[1].lower()
+        is_video = ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.gif']
+        target_dir = video_dir if is_video else image_dir
+        dst = os.path.join(target_dir, f"{file_index:03d}_mixed{ext}")
+        try:
+            shutil.copy2(src, dst)
+            file_index += 1
+        except:
+            pass
                 
-        if i < len(mixed_clips):
-            src = mixed_clips[i]
-            ext = os.path.splitext(src)[1].lower()
-            # Guardar en el directorio apropiado basado en si es video o imagen
-            is_video = ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.gif']
-            target_dir = video_dir if is_video else image_dir
-            dst = os.path.join(target_dir, f"{file_index:03d}_mixed{ext}")
-            try:
-                import shutil
-                shutil.copy2(src, dst)
-                file_index += 1
-            except:
-                pass
+    log_progress(channel_name, f"✅ Timeline generado exitosamente con {file_index} recursos.", "#00ff88", 100)
                 
     log_progress(channel_name, f"✅ Timeline generado exitosamente con {file_index} recursos.", "#00ff88", 100)

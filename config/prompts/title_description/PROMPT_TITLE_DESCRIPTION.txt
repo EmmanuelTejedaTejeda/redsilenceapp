@@ -10,6 +10,10 @@ REGLAS MATEMÁTICAS DE TÍTULOS (CRÍTICAS):
 - ESPECIFICIDAD Y BAJA FRICCIÓN: Prohibido usar palabras vacías de clickbait genérico (como "increíble", "locura"). Si la historia lo permite, integra números, métricas de tiempo, dinero o paréntesis de contexto operativo.
 - ANTI-SPAM VISUAL: Prohibido usar hashtags en el título. Prohibido saturar con mayúsculas consecutivas. Usa exactamente 1 solo emoji de alto impacto al final.
 
+FILTRO DE PALABRAS PROHIBIDAS (CENSURA SHORTS/TIKTOK):
+Está ESTRICTAMENTE PROHIBIDO usar las siguientes palabras o descripciones gore:
+muerte, suicidio, matar, asesinato, asesino, sangre, masacre, terrorismo, tortura, violación, abuso, acoso, pedofilia, pornografía, sexo, desnudos, drogas, cocaína, fentanilo, narco, sicario, armas, explosivos, estafa, puto, pendejo, marica, nazi, racismo, autolesión, anorexia, bulimia.
+
 FASE 1: INGENIERÍA DE TÍTULOS (Genera exactamente estas 3 fórmulas):
 1. [Brecha de Curiosidad + Carga Frontal]: Genera tensión cognitiva aplicando la teoría de Loewenstein. Da el contexto justo pero retén el desenlace. + 1 Emoji al final.
 2. [Sesgo de Negación o Corrección]: Apela al miedo a perder oportunidades (FOMO) o al sesgo de negatividad humana (Ej: "Deja de hacer X", "El error que arruinó X"). + 1 Emoji al final.

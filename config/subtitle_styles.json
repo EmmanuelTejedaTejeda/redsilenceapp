@@ -40,5 +40,26 @@
         "highlight_color": "&H000031f5",
         "emojis_enabled": true,
         "hook_type": "roblox_double_line"
+    },
+    "SubReddit": {
+        "name": "SubReddit",
+        "font_name": "Arial Black",
+        "font_size_9_16": 100,
+        "font_size_16_9": 65,
+        "primary_color": "&H00ffffff",
+        "outline_color": "&H00000000",
+        "back_color": "&H00000000",
+        "bold": -1,
+        "italic": 0,
+        "outline": 16,
+        "shadow": 12,
+        "alignment": 2,
+        "margin_v_9_16": 511,
+        "margin_v_16_9": 84,
+        "animation_type": "Reddit",
+        "text_case": "uppercase",
+        "highlight_color": "&H0000ffff",
+        "emojis_enabled": true,
+        "hook_type": "none"
     }
 }

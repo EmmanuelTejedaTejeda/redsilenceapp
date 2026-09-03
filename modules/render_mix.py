@@ -194,9 +194,30 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         # 0x00000040 es IDLE_PRIORITY_CLASS (Prioridad de fondo mínima)
         sub_kwargs['creationflags'] = 0x00000040
 
-    safe_title = "".join([c for c in title if c.isalnum() or c==' ']).rstrip().replace(" ", "_") or "Video_Render_Mix"
-
     project_root = os.getcwd()
+
+    # Configuración de gancho visual (hook_type) desde el estilo de subtítulos seleccionado
+    hook_type = kwargs.get("hook_type", None)
+    if not hook_type:
+        styles_path = os.path.join(project_root, "config", "subtitle_styles.json")
+        if os.path.exists(styles_path):
+            try:
+                with open(styles_path, "r", encoding="utf-8") as sf:
+                    styles_data = json.load(sf)
+                    if sub_style in styles_data:
+                        hook_type = styles_data[sub_style].get("hook_type", "none")
+            except Exception as se:
+                print(f"Error leyendo hook_type para estilo {sub_style}: {se}")
+        
+    if not hook_type:
+        if sub_style == "Reddit History":
+            hook_type = "reddit_card"
+        elif sub_style == "Roblox Gaming":
+            hook_type = "roblox_double_line"
+        else:
+            hook_type = "none"
+
+    safe_title = "".join([c for c in title if c.isalnum() or c==' ']).rstrip().replace(" ", "_") or "Video_Render_Mix"
     cache_base = os.path.join(project_root, 'cache')
     cache_ass = os.path.join(cache_base, 'ass', safe_title)
     cache_json = os.path.join(cache_base, 'json', safe_title)
@@ -295,6 +316,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                         # Si la transcripción es válida, verificar si el estilo de subtítulos o aspect ratio cambiaron
                         # o si el archivo .ass final no existe en disco
                         elif (cache_data.get("sub_style") != sub_style or 
+                              cache_data.get("hook_type") != hook_type or
                               cache_data.get("aspect_ratio") != aspect_ratio or 
                               not os.path.exists(srt_path) or os.path.getsize(srt_path) == 0):
                             rebuild_srt_only = True
@@ -476,7 +498,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
             _start_chunk = time.time()
             nonlocal processed_mix, hw_failed
             try:
-                i, item, enc, dur, vhs_p, title, sub_style, horror_intervals, clip_durations = args
+                i, item, enc, dur, vhs_p, title, sub_style, horror_intervals, clip_durations, hook_type = args
                 if status_callback:
                     status_callback(f"🎬 RENDERIZANDO CLIP {i+1} de {len(mixed_media)}...", "#FF9100")
                 
@@ -572,8 +594,8 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                         print(f">>> [RENDER CONVERSION ERROR] No se pudo desinfectar animación {media_path}: {conv_err}")
 
                 # Compute deterministic cache hash for the chunk
-                has_card = (i == 0 and sub_style == "Reddit History")
-                hash_input = f"{str(media_path).lower()}_{round(dur, 3)}_{str(vhs_p).lower()}_{has_card}_{target_w}_{target_h}_{horror_intervals}"
+                hook_key = hook_type if i == 0 else "none"
+                hash_input = f"{str(media_path).lower()}_{round(dur, 3)}_{str(vhs_p).lower()}_{hook_key}_{target_w}_{target_h}_{horror_intervals}"
                 chunk_hash = hashlib.sha256(hash_input.encode()).hexdigest()[:16]
                 cached_chunk_path = os.path.abspath(os.path.join(cache_chunks, f"chunk_mix_{i:03d}_{chunk_hash}.mp4"))
                 
@@ -635,10 +657,13 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                     if i == 0:
                         strobe_fx = "negate=enable='between(t\\,0\\,0.15)'"
                         
-                        if sub_style == "Reddit History":
+                        if hook_type == "none":
+                            # Sin gancho visual inicial
+                            pass
+                        elif hook_type == "reddit_card":
                             # En modo Reddit, no queremos el drawtext intermitente gigante
                             fx_chain = f"{strobe_fx},{fx_chain}"
-                        elif sub_style == "Roblox Gaming":
+                        elif hook_type == "roblox_double_line":
                             # HOOK ROBLOX GAMING: Texto gaming limpio, estático, sin parpadeo
                             font_path_roblox = "C\\:/Windows/Fonts/ariblk.ttf"
                             if not os.path.exists("C:\\Windows\\Fonts\\ariblk.ttf"):
@@ -679,7 +704,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                                 fx_chain = f"{fx_chain},{hook_bg},{dt1_roblox},{dt2_roblox}"
                             else:
                                 fx_chain = f"{fx_chain},{hook_bg},{dt1_roblox}"
-                        else:
+                        elif hook_type == "strobe_red":
                             # Buscar fuente disponible en Windows
                             font_path = "C\\:/Windows/Fonts/ariblk.ttf"
                             if not os.path.exists("C:\\Windows\\Fonts\\ariblk.ttf"):
@@ -863,7 +888,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
                 
                 # UNIFICACIÓN DE EFECTOS
                 card_png_path = None
-                if i == 0 and sub_style == "Reddit History":
+                if i == 0 and hook_type == "reddit_card":
                     card_png_path = os.path.abspath(os.path.join(cache_chunks, "reddit_card.png"))
                     try:
                         from modules.render_utils import generate_reddit_card
@@ -971,7 +996,7 @@ def render_mix_mode(audio_path, mixed_media, cover_path, output_folder, title, d
         tks = []
         for i, m in enumerate(mixed_media):
             d = chunk_durations[i]
-            tks.append((i, m, enc_params, d, vhs_bg, title, sub_style, horror_intervals, clip_durations))
+            tks.append((i, m, enc_params, d, vhs_bg, title, sub_style, horror_intervals, clip_durations, hook_type))
 
         # Evitar saturar el CPU y disco con múltiples renders simultáneos.
         max_workers = 1

@@ -308,8 +308,6 @@ window.openVideoDetails = async (videoId) => {
                 let durText = "-";
                 if (g.duracion_narracion) durText = typeof g.duracion_narracion === 'number' ? `${g.duracion_narracion.toFixed(1)}s` : g.duracion_narracion;
                 document.getElementById("gen-narration-dur").textContent = durText;
-                
-                document.getElementById("gen-gameplay").textContent = g.intercalar_gameplay ? "Sí (50/50)" : "No";
                 document.getElementById("gen-music").textContent = g.cancion || "Ninguna";
                 
                 let volText = "-";

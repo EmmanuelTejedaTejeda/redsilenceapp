@@ -54,6 +54,31 @@ export async function initShortsWizardModule() {
         loadTimelineClips();
         await loadLastRenderedVideoPreview();
     });
+
+    // Bindeo del botón de refrescar audios del servidor
+    const btnRefreshAudios = document.getElementById("btn-refresh-audios");
+    if (btnRefreshAudios) {
+        btnRefreshAudios.addEventListener("click", async () => {
+            const icon = btnRefreshAudios.querySelector("i");
+            if (icon) icon.classList.add("fa-spin");
+            await loadServerAudios();
+            if (icon) icon.classList.remove("fa-spin");
+        });
+    }
+
+    // Auto-refresco al volver a la ventana (focus) si está en el Paso 2
+    window.addEventListener("focus", () => {
+        if (activeStep === 2) {
+            loadServerAudios(null, true);
+        }
+    });
+
+    // Polling inteligente cada 4 segundos si el Paso 2 está activo
+    setInterval(() => {
+        if (activeStep === 2) {
+            loadServerAudios(null, true);
+        }
+    }, 4000);
 }
 
 function setupStepNavigation() {
@@ -92,6 +117,10 @@ export function switchStep(stepNum) {
     if (target) {
         target.classList.add("active");
         target.style.display = "block";
+    }
+
+    if (stepNum === 2) {
+        loadServerAudios(null, true);
     }
 }
 
@@ -523,7 +552,7 @@ function formatTime(secs) {
     return `${m}:${s}`;
 }
 
-async function loadServerAudios(autoSelectFileName = null) {
+async function loadServerAudios(autoSelectFileName = null, silent = false) {
     const container = document.getElementById("audios-list-container");
     if (!container) return;
 
@@ -532,14 +561,25 @@ async function loadServerAudios(autoSelectFileName = null) {
         const channelName = channelSelect ? channelSelect.value : "";
         const res = await fetch(`${API_BASE}/assets/narrations?t=${Date.now()}&channel_name=${encodeURIComponent(channelName)}`);
         if (!res.ok) {
-            container.innerHTML = `<p class="text-dim" style="text-align: center; padding: 15px; font-size: 12px;">Error cargando audios</p>`;
+            if (!silent) container.innerHTML = `<p class="text-dim" style="text-align: center; padding: 15px; font-size: 12px;">Error cargando audios</p>`;
             return;
         }
-        allServerAudios = await res.json();
+        const newAudios = await res.json();
+        
+        // Detectar si la lista de audios cambió
+        const hasChanged = JSON.stringify(newAudios.map(a => a.name)) !== JSON.stringify(allServerAudios.map(a => a.name));
+        allServerAudios = newAudios;
+
         if (autoSelectFileName) {
             selectAudioFile(autoSelectFileName);
-        } else {
-            renderAudiosList(allServerAudios);
+        } else if (hasChanged || !silent) {
+            const searchInput = document.getElementById("audio-search-input");
+            const query = searchInput ? searchInput.value.trim() : "";
+            if (query) {
+                filterServerAudios(query);
+            } else {
+                renderAudiosList(allServerAudios);
+            }
             
             // Si ya hay un audio seleccionado en el estado guardado, cargarlo en el reproductor (sin autoplay)
             if (selectedAudioFile) {
@@ -551,7 +591,7 @@ async function loadServerAudios(autoSelectFileName = null) {
         }
     } catch (e) {
         console.error("Error cargando audios del servidor:", e);
-        container.innerHTML = `<p class="text-dim" style="text-align: center; padding: 15px; font-size: 12px;">Error de conexión.</p>`;
+        if (!silent) container.innerHTML = `<p class="text-dim" style="text-align: center; padding: 15px; font-size: 12px;">Error de conexión.</p>`;
     }
 }
 
@@ -566,18 +606,33 @@ function renderAudiosList(files) {
 
     container.innerHTML = files.map(file => {
         const isSelected = selectedAudioFile === file.name;
+        const color = file.color || '#00e5ff';
+        const relativeTime = file.relative_time || '';
+        const durStr = file.formatted_duration || '';
+        const previewText = file.preview_text || 'Audio de voz';
+
         return `
-            <div class="audio-item" data-path="${file.path}" data-name="${file.name}" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; margin-bottom: 6px; background: ${isSelected ? 'rgba(0, 229, 255, 0.08)' : 'rgba(255,255,255,0.03)'}; border: 1px solid ${isSelected ? '#00e5ff' : 'var(--color-border)'}; border-radius: 6px; cursor: pointer; transition: all 0.2s;">
-                <div style="display: flex; align-items: center; gap: 10px; min-width: 0; flex-grow: 1;">
-                    <i class="fa-solid fa-file-audio" style="color: ${isSelected ? '#00e5ff' : 'var(--color-accent)'}; flex-shrink: 0;"></i>
-                    <span class="audio-filename" style="font-size: 11px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; color: var(--color-text-main);">${file.name}</span>
+            <div class="audio-item" data-path="${file.path}" data-name="${file.name}" style="display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; margin-bottom: 8px; background: ${isSelected ? 'rgba(0, 229, 255, 0.12)' : 'rgba(255,255,255,0.03)'}; border: 1px solid ${isSelected ? '#00e5ff' : 'var(--color-border)'}; border-left: 5px solid ${color}; border-radius: 6px; cursor: pointer; transition: all 0.2s;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex-grow: 1;">
+                        <i class="fa-solid fa-file-audio" style="color: ${color}; flex-shrink: 0; font-size: 14px;"></i>
+                        <span class="audio-filename" style="font-size: 11px; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; color: var(--color-text-main);" title="${file.name}">${file.name}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                        ${durStr ? `<span style="background: rgba(0, 229, 255, 0.1); border: 1px solid rgba(0, 229, 255, 0.25); color: #00e5ff; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; display: flex; align-items: center; gap: 3px;"><i class="fa-regular fa-clock"></i> ${durStr}</span>` : ''}
+                        ${relativeTime ? `<span style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #aaa; font-size: 10px; padding: 2px 6px; border-radius: 4px; display: flex; align-items: center; gap: 3px;"><i class="fa-regular fa-calendar"></i> ${relativeTime}</span>` : ''}
+                        <button class="btn-use-audio" title="${isSelected ? 'Deseleccionar' : 'Usar este audio'}" style="background: none; border: none; color: ${isSelected ? '#00e5ff' : '#888'}; cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 4px;">
+                            <i class="${isSelected ? 'fa-solid fa-square-check' : 'fa-regular fa-square-check'}"></i>
+                            <span>${isSelected ? 'Seleccionado' : 'Seleccionar'}</span>
+                        </button>
+                        <button class="btn-play-item" title="Reproducir" style="background: none; border: none; color: ${color}; cursor: pointer; font-size: 14px;"><i class="fa-solid fa-circle-play"></i></button>
+                    </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
-                    <button class="btn-use-audio" title="${isSelected ? 'Deseleccionar' : 'Usar este audio'}" style="background: none; border: none; color: ${isSelected ? '#00e5ff' : '#888'}; cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 4px;">
-                        <i class="${isSelected ? 'fa-solid fa-square-check' : 'fa-regular fa-square-check'}"></i>
-                        <span>${isSelected ? 'Seleccionado' : 'Seleccionar'}</span>
-                    </button>
-                    <button class="btn-play-item" title="Reproducir" style="background: none; border: none; color: var(--color-accent); cursor: pointer; font-size: 12px;"><i class="fa-solid fa-circle-play"></i></button>
+                
+                <!-- Transcripción automática / Lo que dice el audio -->
+                <div style="display: flex; align-items: flex-start; gap: 6px; background: rgba(0,0,0,0.25); padding: 6px 10px; border-radius: 4px; border-left: 2px solid ${color};">
+                    <span style="color: ${color}; font-size: 11px; flex-shrink: 0; font-weight: bold;">💬</span>
+                    <span style="font-size: 11px; color: #d1d5db; font-style: italic; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word;">"${previewText}"</span>
                 </div>
             </div>
         `;
@@ -639,11 +694,17 @@ function toggleAudioSelection(name) {
 }
 
 function filterServerAudios(query) {
-    if (!query) {
+    if (!query || !query.trim()) {
         renderAudiosList(allServerAudios);
         return;
     }
-    const filtered = allServerAudios.filter(f => f.name.toLowerCase().includes(query.toLowerCase()));
+    const q = query.trim().toLowerCase();
+    const filtered = allServerAudios.filter(f => {
+        const nameMatch = f.name && f.name.toLowerCase().includes(q);
+        const textMatch = f.preview_text && f.preview_text.toLowerCase().includes(q);
+        const timeMatch = f.relative_time && f.relative_time.toLowerCase().includes(q);
+        return nameMatch || textMatch || timeMatch;
+    });
     renderAudiosList(filtered);
 }
 
@@ -754,6 +815,8 @@ function resetAudioPlayer() {
 function saveWizardState() {
     const state = {
         script: document.getElementById("shorts-script")?.value || "",
+        trama: document.getElementById("shorts-trama")?.value || "",
+        keywords: document.getElementById("shorts-keywords")?.value || "",
         voice: document.getElementById("shorts-voice-model")?.value || "",
         subStyle: document.getElementById("shorts-sub-style")?.value || "",
         music: document.getElementById("shorts-music")?.value || "",
@@ -783,6 +846,8 @@ function loadWizardState() {
         };
         
         setVal("shorts-script", state.script);
+        setVal("shorts-trama", state.trama);
+        setVal("shorts-keywords", state.keywords);
         setVal("shorts-voice-model", state.voice);
         setVal("shorts-sub-style", state.subStyle);
         setVal("shorts-music", state.music);
@@ -832,6 +897,8 @@ function setupWizardStatePersistence() {
 
     const fields = [
         "shorts-script",
+        "shorts-trama",
+        "shorts-keywords",
         "shorts-voice-model",
         "shorts-sub-style",
         "shorts-music",
@@ -948,6 +1015,7 @@ function setupResetButton() {
         };
 
         setVal("shorts-trama", "");
+        setVal("shorts-keywords", "");
         setVal("shorts-script", "");
         setVal("shorts-bg-query", "");
         setVal("shorts-video-title", "");
@@ -1045,25 +1113,6 @@ function setupModalsAndSEO() {
     const modalAutoGeneral = document.getElementById("modal-auto-general");
     const btnCloseAutoGeneral = document.getElementById("close-auto-general-modal-btn");
 
-    const btnOpenGameplayGeneric = document.getElementById("btn-gameplay-generic-modular");
-    const modalGameplayGeneric = document.getElementById("modal-gameplay-generic");
-    const btnCloseGameplayGeneric = document.getElementById("close-gameplay-generic-modal-btn");
-
-    if (btnOpenVoice && modalVoice) {
-        btnOpenVoice.addEventListener("click", async () => {
-            console.log("🎙️ Click en Sintetizar Voz / Subir Audio");
-            modalVoice.classList.add("active");
-            modalVoice.style.display = "flex";
-            await loadVoiceInstructions();
-        });
-    }
-    if (btnCloseVoice && modalVoice) {
-        btnCloseVoice.addEventListener("click", () => {
-            modalVoice.classList.remove("active");
-            modalVoice.style.display = "none";
-        });
-    }
-
     if (btnOpenAutoGeneral && modalAutoGeneral) {
         btnOpenAutoGeneral.addEventListener("click", () => {
             console.log("⚡ Click en Auto General (Tema / IA)");
@@ -1084,21 +1133,6 @@ function setupModalsAndSEO() {
         });
     }
 
-    if (btnOpenGameplayGeneric && modalGameplayGeneric) {
-        btnOpenGameplayGeneric.addEventListener("click", async () => {
-            console.log("🎮 Click en Gameplay Genérico");
-            modalGameplayGeneric.classList.add("active");
-            modalGameplayGeneric.style.display = "flex";
-            await loadGameplayFolders();
-        });
-    }
-    if (btnCloseGameplayGeneric && modalGameplayGeneric) {
-        btnCloseGameplayGeneric.addEventListener("click", () => {
-            modalGameplayGeneric.classList.remove("active");
-            modalGameplayGeneric.style.display = "none";
-        });
-    }
-
     window.addEventListener("click", (e) => {
         if (e.target === modalVoice) {
             modalVoice.classList.remove("active");
@@ -1107,10 +1141,6 @@ function setupModalsAndSEO() {
         if (e.target === modalAutoGeneral) {
             modalAutoGeneral.classList.remove("active");
             modalAutoGeneral.style.display = "none";
-        }
-        if (e.target === modalGameplayGeneric) {
-            modalGameplayGeneric.classList.remove("active");
-            modalGameplayGeneric.style.display = "none";
         }
     });
 
@@ -1191,6 +1221,7 @@ function setupModalsAndSEO() {
                 return alert("Por favor, ingresa un guion en el Paso 1 para poder generar la trama.");
             }
             const tramaInput = document.getElementById("shorts-trama");
+            const keywordsInput = document.getElementById("shorts-keywords");
             if (!tramaInput) return;
             
             const btnOriginalText = btnAIGenerateTrama.innerHTML;
@@ -1200,15 +1231,25 @@ function setupModalsAndSEO() {
             try {
                 const channelSelect = document.getElementById("global-channel-dropdown");
                 const channelName = channelSelect ? channelSelect.value : "";
+                const calculatedDuration = await getActiveNarrationDuration();
+                
                 const res = await fetch(`${API_BASE}/shorts/generate-trama-from-script`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ script: currentScript, channel_name: channelName })
+                    body: JSON.stringify({
+                        script: currentScript,
+                        channel_name: channelName,
+                        audio_duration: calculatedDuration
+                    })
                 });
                 
                 if (res.ok) {
                     const data = await res.json();
-                    tramaInput.value = data.trama;
+                    tramaInput.value = data.trama || "";
+                    if (keywordsInput) {
+                        const kwList = data.keywords || [];
+                        keywordsInput.value = kwList.join(", ");
+                    }
                     saveWizardState();
                 } else {
                     alert("Error al generar trama con IA.");
@@ -1227,16 +1268,19 @@ function setupModalsAndSEO() {
     if (btnGenerateTimelineAI) {
         btnGenerateTimelineAI.addEventListener("click", async () => {
             const trama = document.getElementById("shorts-trama")?.value || "";
-            if (!trama.trim()) {
-                return alert("Por favor, ingresa una Trama o Idea Principal para generar los recursos.");
+            const keywordsText = document.getElementById("shorts-keywords")?.value || "";
+            
+            if (!trama.trim() && !keywordsText.trim()) {
+                return alert("Por favor, ingresa una Trama o Términos de Búsqueda para descargar recursos.");
             }
             
-            const isGameplay = document.getElementById("shorts-gameplay-generic")?.checked || false;
+            const cleanKeywordsText = keywordsText.replace(/(\$?\d+),(\d+)/g, "$1$2");
+            const customKeywords = cleanKeywordsText.split(",").map(k => k.trim()).filter(k => k.length > 0);
             const channelSelect = document.getElementById("global-channel-dropdown");
             const channelName = channelSelect ? channelSelect.value : "";
             const currentScript = document.getElementById("shorts-script")?.value || "";
             
-            updateTimelineStatus("📥 Calculando duración y generando recursos con IA...", true);
+            updateTimelineStatus("📥 Calculando duración y descargando recursos...", true);
             
             try {
                 const calculatedDuration = await getActiveNarrationDuration();
@@ -1248,7 +1292,7 @@ function setupModalsAndSEO() {
                         script: currentScript,
                         channel_name: channelName,
                         audio_duration: calculatedDuration,
-                        intercalar_gameplay: isGameplay
+                        custom_keywords: customKeywords
                     })
                 });
                 
@@ -1344,23 +1388,6 @@ async function loadVoiceInstructions() {
     } catch (e) {
         console.error(e);
         select.innerHTML = `<option value="voice_instructions.txt">voice instructions</option>`;
-    }
-}
-
-async function loadGameplayFolders() {
-    const select = document.getElementById("gameplay-generic-folder");
-    if (!select) return;
-    try {
-        const res = await fetch(`${API_BASE}/assets/gameplay-folders`);
-        const folders = await res.json();
-        if (folders && folders.length > 0) {
-            select.innerHTML = folders.map(f => `<option value="${f}">${f}</option>`).join('');
-        } else {
-            select.innerHTML = `<option value="">Sin carpetas de gameplay locales</option>`;
-        }
-    } catch (e) {
-        console.error(e);
-        select.innerHTML = `<option value="">Error cargando carpetas</option>`;
     }
 }
 

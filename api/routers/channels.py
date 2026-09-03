@@ -321,7 +321,7 @@ INSTRUCTIONS:
 {combined_text[:1500]}"""
 
         try:
-            theme_result = generate_groq_content(prompt, groq_key, model_name="llama-3.3-70b-versatile").strip()
+            theme_result = generate_groq_content(prompt, groq_key, model_name="openai/gpt-oss-120b").strip()
             theme_result = theme_result.replace("\"", "").replace("'", "")
             if not theme_result or len(theme_result) > 30:
                 theme_result = channel_name

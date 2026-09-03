@@ -92,9 +92,10 @@ NEXUS_STUDIO/
 │
 ├── modules/                     # Motores y Clientes de Procesamiento Especializado
 │   ├── analytics_client.py      # Cliente YouTube Data API v3 (estadísticas de canal y retención)
+│   ├── entity_search.py         # Buscador de imágenes referenciales de entidades reales (Bing HTML, Wikimedia, Pollinations AI)
 │   ├── gemini_client.py         # Integración con la API de Google Gemini (guiones y metadatos)
 │   ├── graph_analyzer.py        # Motor de grafos de viralidad de palabras clave con NetworkX
-│   ├── groq_client.py           # Integración con la API de Groq AI (llama-3.3-70b) para guiones y prompts
+│   ├── groq_client.py           # Integración con la API de Groq AI (openai/gpt-oss-120b) para guiones y prompts
 │   ├── pixabay_client.py        # Cliente de búsqueda de imágenes y videos en Pixabay API
 │   ├── render_mix.py            # Compilador principal de video MIX (FFmpeg, Whisper, SFX, B-rolls)
 │   ├── render_utils.py          # Utilidades de FFmpeg, FFprobe, subtítulos ASS, hashing de caché y codificación
@@ -200,7 +201,7 @@ NEXUS_STUDIO/
 *   `GET /api/assets/music`: Lista las canciones `.m4a`, `.mp3`, `.wav` de la biblioteca de música del canal.
 *   `GET /api/assets/story-prompts`: Carga plantillas de prompts de historia.
 *   `GET /api/assets/voice-prompts`: Carga instrucciones de estilo de voz.
-*   `GET /api/assets/narrations`: Lista los audios de locución disponibles en la carpeta `audio` del canal activo.
+*   `GET /api/assets/narrations`: Lista los audios de locución del canal activo enriquecidos automáticamente con transcripción de texto hablado (`preview_text`), código de color determinista único por audio (`color`), antigüedad legible en tiempo relativo (`relative_time`), duración exacta y caché en `cache/audio_preview_cache.json`.
 *   `GET /api/assets/file-preview`: Sirve fragmentos de audio/vídeo mediante `FileResponse` para la vista previa interactiva del reproductor.
 *   `POST /api/assets/download-url`: Descarga un vídeo de YouTube/TikTok a la carpeta del canal en segundo plano.
 *   `POST /api/assets/download-search`: Búsqueda y descarga inteligente de stock de vídeo/fotos desde Pexels, Pixabay o YouTube.
@@ -253,7 +254,7 @@ NEXUS_STUDIO/
 
 ### 4.4. Clientes de Inteligencia Artificial y API (`modules/`)
 *   **`modules/groq_client.py`**:
-    *   `generate_script_with_groq(prompt_master, niche, language)`: Consulta el modelo `llama-3.3-70b-versatile` de Groq para crear historias envolventes adaptadas al idioma del canal.
+    *   `generate_script_with_groq(prompt_master, niche, language)`: Consulta los modelos activos oficiales de Groq (`openai/gpt-oss-120b`) para crear historias envolventes adaptadas al idioma del canal.
     *   `generate_metadata_with_groq(script_text, language)`: Crea títulos de CTR masivo y descripciones SEO.
     *   `generate_master_prompt_with_groq(universal_prompt, channel_name, niche, language)`: Genera un Prompt Maestro especializado por canal.
 *   **`modules/gemini_client.py`**:
@@ -309,6 +310,8 @@ El frontend de **ShortNexus Studio** está construido como una Single Page Appli
 *   **`web/js/main.js`**: Orquestador principal. Escucha el selector global de canal activo `#global-channel-select`, dispara eventos de cambio de canal y gestiona el refresco reactivo de narraciones, clips y vídeos renderizados.
 *   **`web/js/shorts_wizard.js`**:
     *   Controla el flujo secuencial del Wizard de 4 pasos (Paso 1: Guion/Prompts -> Paso 2: Voz/Narraciones -> Paso 3: Timeline/Medios -> Paso 4: Render/Publicación).
+    *   Generación y edición manual de términos de búsqueda visual: El botón `Generar Trama con IA` extrae la trama y $N$ búsquedas cinematográficas en inglés, llenando un `<textarea id="shorts-keywords">` editable antes de iniciar la descarga de recursos.
+    *   Sincronización reactiva de audios del servidor: Polling automático cada 4s en Paso 2, auto-refresco al cambiar a Paso 2 o detectar enfoque en ventana (`focus`), y botón de refresco directo `#btn-refresh-audios`.
     *   Suscribe la conexión SSE a `/api/shorts/progress/{channel_name}` actualizando la barra de progreso fluida `#render-progress-bar`.
     *   Implementa el botón `#btn-reset-draft` para la purga completa de estado y caché.
 *   **`web/js/channels_settings.js`**:
@@ -355,7 +358,7 @@ El frontend de **ShortNexus Studio** está construido como una Single Page Appli
 | `modules/render_utils.py` | `calculate_clip_hash` | Genera hash SHA-256 para la caché de chunks | `input_path, duration, ...` |
 | `modules/render_utils.py` | `create_ass_file` | Construye subtítulos dinámicos `.ass` | `words_data, output_path, style` |
 | `modules/timeline_generator.py` | `generate_timeline_for_narration` | Autogeneración equilibrada de clips de stock | `narration_path, channel_name` |
-| `modules/groq_client.py` | `generate_script_with_groq` | Consulta Groq API (llama-3.3-70b) para historias | `prompt_master, niche, language` |
+| `modules/groq_client.py` | `generate_script_with_groq` | Consulta Groq API (openai/gpt-oss-120b) para historias | `prompt_master, niche, language` |
 | `modules/analytics_client.py` | `get_channel_stats` | Consulta YouTube Data API v3 para métricas | `channel_id: str` |
 | `modules/graph_analyzer.py` | `build_viral_graph` | Construye grafo NetworkX de co-ocurrencias | `video_data: list` |
 | `core/utils.py` | `sanitize_filename` | Limpia strings para nombres seguros de archivo | `name: str` |

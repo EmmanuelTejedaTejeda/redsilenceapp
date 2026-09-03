@@ -127,7 +127,7 @@ def determine_channel_niche(channel_name, description, topic_categories):
                 f"Categorías de YouTube: {categories_str}"
             )
             
-            models = ["llama-3.1-8b-instant", "llama-3.3-70b-specdec", "llama3-8b-8192", "llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama3-70b-8192"]
+            models = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b", "groq/compound"]
             niche = None
             for model in models:
                 try:

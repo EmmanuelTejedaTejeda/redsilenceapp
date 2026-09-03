@@ -568,6 +568,7 @@ def api_get_last_render(channel_name: Optional[str] = None):
 class ScriptGenerateTramaRequest(BaseModel):
     script: str
     channel_name: Optional[str] = None
+    audio_duration: Optional[float] = 60.0
 
 @router.post("/generate-trama-from-script")
 def api_generate_trama_from_script(req: ScriptGenerateTramaRequest):
@@ -586,17 +587,52 @@ def api_generate_trama_from_script(req: ScriptGenerateTramaRequest):
     ch_theme = ch_info.get("theme", "General") if ch_info else "General"
     ch_lang = ch_info.get("language", "es") if ch_info else "es"
 
+    import math
+    duration = req.audio_duration or 60.0
+    num_clips = max(1, int(math.ceil(duration / 3.0)))
+
     prompt = f"""
-Eres un asistente experto en producción visual de videos cortos (TikTok/Shorts).
+Eres un director cinematográfico experto en videos cortos (TikTok/Shorts).
 Analiza el siguiente guion de un canal con temática '{ch_theme}' (idioma del canal: {ch_lang}).
-Extrae la trama visual o idea principal para buscar recursos de video en un máximo de 10 palabras (conciso, descriptivo y directo), en el idioma '{ch_lang}'.
-No incluyas nada más en tu respuesta.
+
+TAREA:
+1. Extrae la trama visual o idea principal en 1 sola frase corta (máximo 10 palabras) en el idioma '{ch_lang}'.
+2. Genera exactamente {num_clips} búsquedas visuales descriptivas.
+   REGLAS CRÍTICAS DE RELEVANCIA:
+   - Si la escena menciona un personaje, sujeto real, juego, película, marca, vehículo o celebridad (ej: 'GTA San Andreas CJ', 'MrBeast', 'Elon Musk', 'iPhone 16', 'Cristiano Ronaldo'), CONSERVA el nombre exacto de la entidad en la búsqueda.
+   - Si la escena es un ambiente abstracto/genérico (ej: 'rainy city night', 'hacker typing on keyboard'), genera un término cinematográfico en inglés para B-Roll.
+
+Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta (sin etiquetas markdown):
+{{
+  "trama": "Texto de la trama aquí",
+  "keywords": ["búsqueda 1", "búsqueda 2", ...]
+}}
 
 GUION:
 {req.script[:1500]}
 """
     try:
-        trama = generate_groq_content(prompt, groq_key)
-        return {"status": "success", "trama": trama.strip().replace('"', '')}
+        raw_res = generate_groq_content(prompt, groq_key)
+        raw_clean = raw_res.strip()
+        if raw_clean.startswith("```json"):
+            raw_clean = raw_clean[7:]
+        if raw_clean.startswith("```"):
+            raw_clean = raw_clean[3:]
+        if raw_clean.endswith("```"):
+            raw_clean = raw_clean[:-3]
+        raw_clean = raw_clean.strip()
+        
+        import json
+        data = json.loads(raw_clean)
+        trama_text = str(data.get("trama", "")).strip().replace('"', '')
+        kw_list = data.get("keywords", [])
+        if not isinstance(kw_list, list):
+            kw_list = []
+        kw_list = [str(k).strip() for k in kw_list if str(k).strip()]
+        return {"status": "success", "trama": trama_text, "keywords": kw_list}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al generar trama: {e}")
+        try:
+            trama_fallback = generate_groq_content(f"Extrae la trama en 10 palabras: {req.script[:1000]}", groq_key)
+            return {"status": "success", "trama": trama_fallback.strip().replace('"', ''), "keywords": []}
+        except Exception as e2:
+            raise HTTPException(status_code=500, detail=f"Error al generar trama y términos: {e}")

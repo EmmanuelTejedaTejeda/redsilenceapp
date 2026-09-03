@@ -12,8 +12,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chart.js para gráficos animados -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Vis.js para el Mapa de Viralidad interactivo -->
-    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <!-- Vis.js para el Mapa de Viralidad interactivo (Local con CDN fallback) -->
+    <script type="text/javascript" src="js/vendor/vis-network.min.js"></script>
+    <script>if (typeof vis === 'undefined') { document.write('<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"><\/script>'); }</script>
     <!-- Estilos locales -->
     <link rel="stylesheet" href="style.css?v=2.9.1">
 </head>
@@ -195,8 +196,10 @@
                                 <div class="form-group">
                                     <label>Motor de Inteligencia Artificial</label>
                                     <select id="shorts-ia-engine">
-                                        <option value="Groq (Llama 3)">Groq (Llama 3.3-70b-versatile)</option>
-                                        <option value="Gemini (Flash)">Gemini 1.5 Flash</option>
+                                        <option value="Groq (GPT-OSS 120B)">Groq (GPT-OSS 120B)</option>
+                                        <option value="Groq (GPT-OSS 20B)">Groq (GPT-OSS 20B)</option>
+                                        <option value="Groq (Qwen 3.6 27B)">Groq (Qwen 3.6 27B)</option>
+                                        <option value="Gemini (Flash)">Gemini (Flash)</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
@@ -283,11 +286,16 @@
                             </div>
 
                             <div class="panel-card" style="display: flex; flex-direction: column;">
-                                <h3><i class="fa-solid fa-microphone-lines"></i> AUDIOS DEL SERVIDOR</h3>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <h3 style="margin: 0;"><i class="fa-solid fa-microphone-lines"></i> AUDIOS DEL SERVIDOR</h3>
+                                    <button id="btn-refresh-audios" class="btn" title="Refrescar lista de audios" style="background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.25); color: #00e5ff; font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" onmouseover="this.style.background='rgba(0, 229, 255, 0.18)'" onmouseout="this.style.background='rgba(0, 229, 255, 0.08)'">
+                                        <i class="fa-solid fa-rotate-right"></i> Refrescar
+                                    </button>
+                                </div>
                                 <div class="server-audios-container" style="display: flex; flex-direction: column; gap: 12px; flex-grow: 1;">
                                     <!-- Buscador integrado -->
                                     <div class="form-group" style="margin: 0;">
-                                        <input type="text" id="audio-search-input" placeholder="🔍 Buscar audios por nombre..." style="width: 100%; padding: 8px 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--color-border); color: #fff; border-radius: 6px; font-size: 12px;">
+                                        <input type="text" id="audio-search-input" placeholder="🔍 Buscar por lo que dice el audio, tema o fecha..." style="width: 100%; padding: 8px 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--color-border); color: #fff; border-radius: 6px; font-size: 12px;">
                                     </div>
 
                                     <!-- Lista integrada -->
@@ -319,17 +327,20 @@
                                             <i class="fa-solid fa-robot"></i> Generar Trama con IA
                                         </button>
                                     </div>
-                                    <textarea id="shorts-trama" rows="3" placeholder="Describe la trama del video para generar recursos precisos..." style="width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); color: white; border-radius: 8px; padding: 10px; font-family: inherit; font-size: 14px; resize: vertical;"></textarea>
+                                    <textarea id="shorts-trama" rows="2" placeholder="Describe la trama del video para generar recursos precisos..." style="width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); color: white; border-radius: 8px; padding: 10px; font-family: inherit; font-size: 13px; resize: vertical;"></textarea>
                                 </div>
                                 
-                                <div class="form-group" style="margin-top: 15px; display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border);">
-                                    <input type="checkbox" id="shorts-gameplay-generic" style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--color-primary);">
-                                    <label for="shorts-gameplay-generic" style="cursor: pointer; margin: 0; font-weight: bold; color: #ddd; flex: 1;">Intercalar Gameplay Genérico (50/50)</label>
+                                <div class="form-group" style="margin-top: 12px;">
+                                    <label for="shorts-keywords" style="margin-bottom: 5px; display: block; font-size: 11px; font-weight: bold; color: #00e5ff;">
+                                        <i class="fa-solid fa-list-check"></i> Términos de Búsqueda Visual (IA / Editables)
+                                    </label>
+                                    <textarea id="shorts-keywords" rows="3" placeholder="Términos de búsqueda en inglés separados por comas. Al presionar 'Generar Trama con IA' se rellenarán automáticamente para que los edites o agregues los tuyos..." style="width: 100%; background: rgba(0,0,0,0.25); border: 1px solid rgba(0, 229, 255, 0.3); color: #00e5ff; border-radius: 8px; padding: 10px; font-family: inherit; font-size: 12px; resize: vertical; line-height: 1.4;"></textarea>
                                 </div>
+
 
                                 <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">
                                     <button class="btn btn-primary" id="btn-generate-timeline-ai" style="background: linear-gradient(135deg, #8b0000, #ff1a1a); border-color: #8b0000; box-shadow: 0 0 10px rgba(255,26,26,0.25);">
-                                        <i class="fa-solid fa-wand-magic-sparkles"></i> GENERAR Y DESCARGAR RECURSOS (IA)
+                                        <i class="fa-solid fa-cloud-arrow-down"></i> DESCARGAR RECURSOS MULTIMEDIA (IA / EDITADOS)
                                     </button>
                                     <button class="btn" id="btn-upload-manual-resources" style="background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.25); color: #00e5ff; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; height: 36px; border-radius: 6px;" onmouseover="this.style.background='rgba(0, 229, 255, 0.15)'" onmouseout="this.style.background='rgba(0, 229, 255, 0.08)'">
                                         <i class="fa-solid fa-file-import"></i> Adjuntar Recursos Manualmente
@@ -1437,32 +1448,7 @@
         </div>
     </div>
 
-    <!-- Ventana Modal de Seleccionar Gameplay Genérico -->
-    <div class="modal" id="modal-gameplay-generic">
-        <div class="modal-content" style="max-width: 500px; background-color: var(--color-bg-panel); border: 1px solid var(--color-border); border-radius: 16px; overflow: hidden; box-shadow: 0 15px 35px rgba(0,0,0,0.7);">
-            <div class="modal-header" style="border-bottom: 1px solid var(--color-border); padding: 18px 24px; background: rgba(0,0,0,0.2); display: flex; justify-content: space-between; align-items: center;">
-                <h2 style="font-size: 15px; font-weight: 800; color: #fff; margin: 0; display: flex; align-items: center; gap: 10px;"><i class="fa-solid fa-gamepad" style="color: var(--color-success);"></i> GAMEPLAY GENÉRICO</h2>
-                <button class="close-modal-btn" id="close-gameplay-generic-modal-btn" style="background: none; border: none; color: var(--color-text-dim); font-size: 24px; cursor: pointer;">&times;</button>
-            </div>
-            <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; align-items: stretch; width: 100%;">
-                <div class="form-group" style="width: 100%;">
-                    <label style="font-size: 10px; text-transform: uppercase; color: var(--color-text-dim); font-weight: bold; margin-bottom: 5px;">Tipo de gameplay local</label>
-                    <select id="gameplay-generic-folder" style="width: 100%; padding: 10px; font-size: 12px; background: var(--color-bg-dark); border: 1px solid var(--color-border); border-radius: 8px; color: #fff;">
-                        <option value="">Cargando carpetas de gameplay...</option>
-                    </select>
-                </div>
-                
-                <div class="form-group" style="width: 100%;">
-                    <label style="font-size: 10px; text-transform: uppercase; color: var(--color-text-dim); font-weight: bold; margin-bottom: 5px;">Tema de escenas píxeles (opcional Pexels)</label>
-                    <input type="text" id="gameplay-generic-pixel-theme" placeholder="Ej: cabaña terror bosque (vacío = solo gameplay)" style="width: 100%; padding: 10px; font-size: 12px; background: var(--color-bg-dark); border: 1px solid var(--color-border); border-radius: 8px; color: #fff;">
-                </div>
 
-                <button class="btn btn-success" id="btn-gameplay-generic-submit" style="background: linear-gradient(135deg, #00803c, #00c853); border: none; font-weight: 700; width: 100%; margin-top: 10px; height: 38px; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                    <i class="fa-solid fa-gamepad"></i> PROCESAR E INTEGRAR AL TIMELINE
-                </button>
-            </div>
-        </div>
-    </div>
  
     <!-- Ventana Modal de Ajustes de Carpetas -->
     <div class="modal" id="folders-settings-modal">
@@ -1549,7 +1535,6 @@
                         <div><strong style="color:var(--color-text-dim);">Tipo Subtítulos:</strong> <span id="gen-sub-style">-</span></div>
                         <div><strong style="color:var(--color-text-dim);">Clips (Fondo):</strong> <span id="gen-clips-count">-</span></div>
                         <div><strong style="color:var(--color-text-dim);">Duración Narración:</strong> <span id="gen-narration-dur">-</span></div>
-                        <div><strong style="color:var(--color-text-dim);">Intercalar Gameplay:</strong> <span id="gen-gameplay">-</span></div>
                         <div><strong style="color:var(--color-text-dim);">Canción:</strong> <span id="gen-music">-</span></div>
                         <div><strong style="color:var(--color-text-dim);">Vols (Narr/Mús):</strong> <span id="gen-volumes">-</span></div>
                         <div style="grid-column: 1 / -1; margin-top: 5px;">

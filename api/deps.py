@@ -303,5 +303,5 @@ class GenerateTimelineRequest(BaseModel):
     script: str
     channel_name: str
     audio_duration: float
-    intercalar_gameplay: bool
+    custom_keywords: Optional[List[str]] = None
 

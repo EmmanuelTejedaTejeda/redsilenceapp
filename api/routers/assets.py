@@ -2,6 +2,8 @@ import os
 import glob
 import re
 import aiofiles
+import time
+import hashlib
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
 from fastapi.responses import FileResponse
@@ -54,6 +56,201 @@ def api_get_voice_prompts():
         raise HTTPException(status_code=500, detail=f"Error leyendo carpeta de prompts de voz: {e}")
 
 
+AUDIO_CACHE_FILE = os.path.join("cache", "audio_preview_cache.json")
+_PREVIEW_WHISPER_MODEL = None
+import threading
+_TRANSCRIBE_LOCK = threading.Lock()
+
+def bg_transcribe_missing_previews(missing_items: list):
+    def worker():
+        if not _TRANSCRIBE_LOCK.acquire(blocking=False):
+            return
+        try:
+            from api.deps import get_groq_api_key
+            groq_key = get_groq_api_key()
+            groq_client = None
+            if groq_key and len(groq_key) > 20:
+                try:
+                    from groq import Groq
+                    groq_client = Groq(api_key=groq_key)
+                except Exception:
+                    groq_client = None
+
+            global _PREVIEW_WHISPER_MODEL
+            if groq_client is None and _PREVIEW_WHISPER_MODEL is None:
+                try:
+                    import whisper
+                    _PREVIEW_WHISPER_MODEL = whisper.load_model("tiny")
+                except Exception as e:
+                    print(f"[TRANSCRIPCIÓN BG] Whisper no disponible: {e}")
+
+            cache_data = load_audio_preview_cache()
+            updated = False
+            for item in missing_items:
+                full_p = item["path"]
+                cache_key = item["cache_key"]
+                fname = item["name"]
+
+                if not os.path.exists(full_p):
+                    continue
+
+                cached_val = cache_data.get(cache_key, {})
+                curr_txt = cached_val.get("preview_text", "")
+                if curr_txt and not curr_txt.startswith("Audio de voz:"):
+                    continue
+
+                try:
+                    print(f"[TRANSCRIPCIÓN BG] Transcribiendo voz para: {fname}...")
+                    text = ""
+                    if groq_client:
+                        with open(full_p, "rb") as af:
+                            tr = groq_client.audio.transcriptions.create(
+                                model="whisper-large-v3-turbo",
+                                file=(fname, af),
+                                language="es"
+                            )
+                            text = getattr(tr, "text", "").strip()
+                    elif _PREVIEW_WHISPER_MODEL:
+                        res = _PREVIEW_WHISPER_MODEL.transcribe(full_p, language="es", fp16=False)
+                        text = res.get("text", "").strip()
+
+                    if text:
+                        clean = " ".join(text.split())
+                        if len(clean) > 130:
+                            clean = clean[:130] + "..."
+                        if cache_key in cache_data:
+                            cache_data[cache_key]["preview_text"] = clean
+                            updated = True
+                            print(f"[TRANSCRIPCIÓN BG] ✅ Transcripción lista para {fname}: \"{clean}\"")
+                except Exception as te:
+                    print(f"[TRANSCRIPCIÓN BG] Error transcribiendo {fname}: {te}")
+
+            if updated:
+                save_audio_preview_cache(cache_data)
+        finally:
+            _TRANSCRIBE_LOCK.release()
+
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+
+def load_audio_preview_cache():
+    if os.path.exists(AUDIO_CACHE_FILE):
+        try:
+            with open(AUDIO_CACHE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_audio_preview_cache(cache_data):
+    try:
+        os.makedirs(os.path.dirname(AUDIO_CACHE_FILE), exist_ok=True)
+        with open(AUDIO_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache_data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[CACHE] Error guardando caché de audios: {e}")
+
+def generate_deterministic_color(identifier: str) -> str:
+    h = int(hashlib.md5(identifier.encode('utf-8')).hexdigest()[:6], 16)
+    hue = h % 360
+    c = 0.85 * 0.4
+    x = c * (1 - abs((hue / 60) % 2 - 1))
+    m = 0.6 - c/2
+    if hue < 60: r, g, b = c, x, 0
+    elif hue < 120: r, g, b = x, c, 0
+    elif hue < 180: r, g, b = 0, c, x
+    elif hue < 240: r, g, b = 0, x, c
+    elif hue < 300: r, g, b = x, 0, c
+    else: r, g, b = c, 0, x
+    r_hex = f"{int((r + m) * 255):02x}"
+    g_hex = f"{int((g + m) * 255):02x}"
+    b_hex = f"{int((b + m) * 255):02x}"
+    return f"#{r_hex}{g_hex}{b_hex}"
+
+def format_relative_time(mtime: float) -> str:
+    if mtime <= 0:
+        return "Desconocido"
+    now = time.time()
+    diff = max(0, now - mtime)
+    if diff < 60:
+        return "Hace unos segundos"
+    elif diff < 3600:
+        mins = int(diff // 60)
+        return f"Hace {mins} min"
+    elif diff < 86400:
+        hrs = int(diff // 3600)
+        return f"Hace {hrs} hrs"
+    elif diff < 172800:
+        import datetime
+        dt = datetime.datetime.fromtimestamp(mtime)
+        return f"Ayer, {dt.strftime('%I:%M %p')}"
+    else:
+        import datetime
+        dt = datetime.datetime.fromtimestamp(mtime)
+        return dt.strftime("%d/%m/%Y %I:%M %p")
+
+def get_audio_duration_fast(path: str) -> float:
+    try:
+        from modules.render_utils import get_video_duration
+        dur = get_video_duration(path)
+        if dur > 0:
+            return dur
+    except Exception:
+        pass
+    try:
+        import wave
+        with wave.open(path, 'rb') as f:
+            frames = f.getnframes()
+            rate = f.getframerate()
+            return frames / float(rate)
+    except Exception:
+        pass
+    return 0.0
+
+def extract_speech_preview_text(full_path: str, filename: str) -> str:
+    base_no_ext = os.path.splitext(full_path)[0]
+    for ext in ['.txt', '.json']:
+        sidecar = base_no_ext + ext
+        if os.path.exists(sidecar):
+            try:
+                with open(sidecar, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                    if content:
+                        if ext == '.json':
+                            data = json.loads(content)
+                            if isinstance(data, dict):
+                                content = data.get("text") or data.get("script") or str(data)
+                        clean = " ".join(content.split())
+                        if len(clean) > 130:
+                            clean = clean[:130] + "..."
+                        return clean
+            except Exception:
+                pass
+
+    dir_name = os.path.dirname(full_path)
+    if os.path.exists(dir_name):
+        txt_files = [os.path.join(dir_name, f) for f in os.listdir(dir_name) if f.lower().endswith('.txt')]
+        if txt_files:
+            audio_mtime = os.path.getmtime(full_path)
+            txt_files.sort(key=lambda x: abs(os.path.getmtime(x) - audio_mtime))
+            best_txt = txt_files[0]
+            if abs(os.path.getmtime(best_txt) - audio_mtime) < 900:
+                try:
+                    with open(best_txt, "r", encoding="utf-8") as f:
+                        content = f.read().strip()
+                        clean = " ".join(content.split())
+                        if clean:
+                            if len(clean) > 130:
+                                clean = clean[:130] + "..."
+                            return clean
+                except Exception:
+                    pass
+
+    clean_name = filename.replace('.wav', '').replace('.mp3', '').replace('.ogg', '').replace('.m4a', '')
+    clean_name = clean_name.replace('_', ' ').replace('-', ' ').strip()
+    return f"Audio de voz: {clean_name}"
+
+
 @router.get("/narrations")
 def api_get_narration_files(channel_name: Optional[str] = None):
     paths = get_channel_paths(channel_name)
@@ -95,7 +292,59 @@ def api_get_narration_files(channel_name: Optional[str] = None):
             continue
             
     result.sort(key=lambda x: x["mtime"], reverse=True)
-    return [{"name": item["name"], "path": item["path"]} for item in result]
+
+    cache_data = load_audio_preview_cache()
+    cache_updated = False
+    items_needing_transcription = []
+    
+    formatted_results = []
+    for item in result:
+        full_p = item["path"]
+        fname = item["name"]
+        mtime = item["mtime"]
+        cache_key = f"{full_p}_{mtime}"
+        
+        if cache_key in cache_data:
+            meta = cache_data[cache_key]
+        else:
+            dur_sec = get_audio_duration_fast(full_p)
+            dur_m = int(dur_sec // 60)
+            dur_s = int(dur_sec % 60)
+            formatted_dur = f"{dur_m}:{dur_s:02d}s" if dur_sec > 0 else "N/A"
+            preview_txt = extract_speech_preview_text(full_p, fname)
+            color_code = generate_deterministic_color(fname)
+            
+            meta = {
+                "name": fname,
+                "path": full_p,
+                "mtime": mtime,
+                "duration": dur_sec,
+                "formatted_duration": formatted_dur,
+                "preview_text": preview_txt,
+                "color": color_code
+            }
+            cache_data[cache_key] = meta
+            cache_updated = True
+
+        if meta.get("preview_text", "").startswith("Audio de voz:"):
+            items_needing_transcription.append({
+                "path": full_p,
+                "cache_key": cache_key,
+                "name": fname,
+                "meta": meta
+            })
+
+        meta_copy = dict(meta)
+        meta_copy["relative_time"] = format_relative_time(mtime)
+        formatted_results.append(meta_copy)
+        
+    if cache_updated:
+        save_audio_preview_cache(cache_data)
+
+    if items_needing_transcription:
+        bg_transcribe_missing_previews(items_needing_transcription)
+        
+    return formatted_results
 
 
 @router.get("/file-preview")
@@ -322,24 +571,7 @@ def api_download_by_search(req: DownloaderSearchRequest, background_tasks: Backg
     return {"status": "success", "message": "Búsqueda y descarga iniciada en segundo plano."}
 
 
-@router.get("/gameplay-folders")
-def api_get_gameplay_folders(channel_name: Optional[str] = None):
-    paths = get_channel_paths(channel_name)
-    video_dir = paths["videos"]
-    cache_gp = paths["cache_gameplays"]
-    
-    folders = []
-    if os.path.exists(video_dir):
-        for d in os.listdir(video_dir):
-            if os.path.isdir(os.path.join(video_dir, d)) and not d.startswith("."):
-                folders.append(d)
-    
-    if os.path.exists(cache_gp):
-        for d in os.listdir(cache_gp):
-            if os.path.isdir(os.path.join(cache_gp, d)) and not d.startswith(".") and d not in folders:
-                folders.append(d)
-                
-    return folders
+
 
 
 @router.post("/upload-audio")
@@ -653,7 +885,7 @@ async def api_save_subtitle_style(req: SubtitleStyleModel):
         except Exception:
             pass
             
-    custom_styles[req.name] = req.dict()
+    custom_styles[req.name] = req.model_dump() if hasattr(req, "model_dump") else req.dict()
     
     try:
         os.makedirs(os.path.dirname(SUBTITLE_STYLES_PATH), exist_ok=True)
@@ -804,7 +1036,7 @@ async def api_save_subtitle_style(req: SubtitleStyleModel):
         except Exception:
             pass
             
-    custom_styles[req.name] = req.dict()
+    custom_styles[req.name] = req.model_dump() if hasattr(req, "model_dump") else req.dict()
     
     try:
         os.makedirs(os.path.dirname(SUBTITLE_STYLES_PATH), exist_ok=True)
