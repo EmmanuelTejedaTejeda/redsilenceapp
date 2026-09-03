@@ -48,6 +48,24 @@ async def startup_event():
         loop.default_exception_handler(context)
     loop.set_exception_handler(custom_exception_handler)
 
+class CachedStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        if response.status_code == 200:
+            if path.endswith(('.css', '.js', '.png', '.jpg', '.jpeg', '.svg', '.woff2', '.ttf', '.ico')):
+                response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            else:
+                response.headers["Cache-Control"] = "no-cache"
+        return response
+
+@app.get("/robots.txt", response_class=Response)
+def get_robots():
+    return Response(content="User-agent: *\nAllow: /\n", media_type="text/plain")
+
+@app.get("/favicon.ico", response_class=Response)
+def favicon():
+    return Response(status_code=204)
+
 @app.get("/sw.js")
 def service_worker_dummy():
     return Response(status_code=204)
@@ -62,5 +80,5 @@ app.include_router(youtube_upload.router)
 # Servir archivos estáticos del frontend (HTML, CSS, JS) en la raíz
 web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 if os.path.exists(web_dir):
-    app.mount("/", StaticFiles(directory=web_dir, html=True), name="static")
+    app.mount("/", CachedStaticFiles(directory=web_dir, html=True), name="static")
 

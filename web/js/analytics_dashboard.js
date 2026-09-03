@@ -4,12 +4,24 @@ import { API_BASE } from './api.js';
 let viewsChartInstance = null;
 let currentChannelVideos = [];
 
+async function ensureChartLoaded() {
+    if (window.Chart) return;
+    return new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+        script.onload = () => resolve();
+        script.onerror = () => resolve();
+        document.head.appendChild(script);
+    });
+}
+
 export async function initAnalyticsModule(channelName) {
     if (!channelName) return;
 
     setupVideosViewEvents(channelName);
 
     try {
+        await ensureChartLoaded();
         // 1. Cargar analíticas generales del canal
         const resStats = await fetch(`${API_BASE}/analytics/${channelName}`);
         if (resStats.ok) {

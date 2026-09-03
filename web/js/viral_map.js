@@ -3,9 +3,21 @@ import { API_BASE } from './api.js';
 
 let networkInstance = null;
 
+async function ensureVisLoaded() {
+    if (window.vis) return;
+    return new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = 'js/vendor/vis-network.min.js';
+        script.onload = () => resolve();
+        script.onerror = () => resolve();
+        document.head.appendChild(script);
+    });
+}
+
 export async function initViralMapModule(channelName) {
     if (!channelName) return;
     try {
+        await ensureVisLoaded();
         const res = await fetch(`${API_BASE}/analytics/viral-graph/${channelName}?video_type=shorts`);
         if (!res.ok) return;
         const graphData = await res.json();
