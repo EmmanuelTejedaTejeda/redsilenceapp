@@ -154,10 +154,6 @@ server.py
 <files>
 This section contains the contents of the repository's files.
 
-<file path="google379c7044fef05a26.html">
-google-site-verification: google379c7044fef05a26.html
-</file>
-
 <file path="api/routers/__init__.py">
 
 </file>
@@ -565,6 +561,10 @@ export async function generateViralAuditReport(channelName)
 <file path="desktop.ini">
 [.ShellClassInfo]
 IconResource=folderico-fld_02f7a201.ico,0
+</file>
+
+<file path="google379c7044fef05a26.html">
+google-site-verification: google379c7044fef05a26.html
 </file>
 
 <file path="Plan_de_Actualizacion_Tecnologica.md">
@@ -3582,6 +3582,7 @@ const assToHex = (assColor) =>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-site-verification" content="xzTHdqSdtLf27ZdbbPV0fucpLukPxv1-cuj5NzNeDMQ" />
     <title>SHORTNEXUS STUDIO | CORE</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
