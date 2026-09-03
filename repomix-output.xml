@@ -144,6 +144,7 @@ web/
 .gitignore
 Analisis_Completo.md
 desktop.ini
+google379c7044fef05a26.html
 Plan_de_Actualizacion_Tecnologica.md
 reglas_locales.md
 run_web_app.py
@@ -153,184 +154,8 @@ server.py
 <files>
 This section contains the contents of the repository's files.
 
-<file path="modules/entity_search.py">
-def is_vector_or_clipart_url(url: str) -> bool
-⋮----
-url_lower = url.lower()
-vector_keywords = [
-⋮----
-def search_bing_images(query: str, limit: int = 3) -> list
-⋮----
-headers = {
-encoded = urllib.parse.quote(query)
-url = f"https://www.bing.com/images/search?q={encoded}&first=1"
-req = urllib.request.Request(url, headers=headers)
-image_urls = []
-⋮----
-html = resp.read().decode('utf-8', errors='ignore')
-matches = re.findall(r'&quot;murl&quot;:&quot;(https?://[^&]+)&quot;', html)
-⋮----
-clean_url = urllib.parse.unquote(m)
-# Filtrar vectores, clipart e ilustraciones infantiles/diagramas
-⋮----
-def search_wikimedia_images(query: str, limit: int = 3) -> list
-⋮----
-"""Búsqueda en Wikimedia Commons API para entidades históricas, noticias o celebridades"""
-headers = {'User-Agent': 'ShortNexusStudio/1.0 (contact@nexusstudio.local)'}
-⋮----
-url = f"https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch={encoded}&gsrnamespace=6&gsrlimit={limit*3}&prop=imageinfo&iiprop=url|mime|size&format=json"
-⋮----
-data = json.loads(resp.read().decode('utf-8'))
-pages = data.get("query", {}).get("pages", {})
-⋮----
-imageinfo = page_data.get("imageinfo", [])
-⋮----
-img_url = imageinfo[0].get("url")
-mime = imageinfo[0].get("mime", "")
-⋮----
-def get_pollinations_ai_image(query: str, dest_dir: str, filename_prefix: str = "ai_entity") -> str
-⋮----
-prompt_formatted = f"photorealistic 9:16 vertical news documentary photo of {query}, 8k resolution, highly detailed, cinematic lighting, vertical aspect ratio 9:16"
-encoded = urllib.parse.quote(prompt_formatted)
-seed = random.randint(1000, 99999)
-url = f"https://image.pollinations.ai/prompt/{encoded}?width=720&height=1280&nologo=true&seed={seed}"
-out_path = os.path.join(dest_dir, f"{filename_prefix}_{seed}.jpg")
-⋮----
-req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-⋮----
-def download_image_with_fallback(url: str, output_path: str) -> bool
-⋮----
-"""Descarga una imagen verificando cabeceras y tamaño mínimo (mínimo 5 KB)"""
-⋮----
-headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-⋮----
-data = response.read()
-⋮----
-def search_and_download_entity_image(query: str, dest_dir: str, filename_prefix: str = "entity") -> str
-⋮----
-out_path = os.path.join(dest_dir, f"{filename_prefix}_{random.randint(100,999)}.jpg")
-⋮----
-urls = search_bing_images(query, limit=3)
-⋮----
-# 2. Wikimedia Commons
-wm_urls = search_wikimedia_images(query, limit=3)
-⋮----
-# 3. Pollinations AI Fallback
-ai_path = get_pollinations_ai_image(query, dest_dir, filename_prefix)
-</file>
-
-<file path="web/js/vendor/vis-network.min.js">
-!function(g,A)
-⋮----
-function oc()
-</file>
-
-<file path="Plan_de_Actualizacion_Tecnologica.md">
-# 🛠️ Plan de Actualización Tecnológica - ShortNexus Studio
-
-> **Fecha de Auditoría**: 29 de Agosto de 2026  
-> **Herramienta de Verificación**: Context7 MCP Documentation Hub  
-> **Estado del Diagnóstico**: Requiere actualización en 6 módulos clave  
-
----
-
-## 📌 Resumen Ejecutivo
-
-Mediante la consulta de documentación técnica actualizada en tiempo real a través de **Context7**, se han identificado varias áreas de la arquitectura de **ShortNexus Studio** que utilizan librerías obsoletas, identificadores de modelos discontinuados o patrones de ejecución no optimizados para el hardware objetivo (Intel i5-4300U / SSD D:).
-
-A continuación se detallan los módulos específicos que requieren actualización, el impacto técnico y el plan de migración paso a paso.
-
----
-
-## 🔍 Hallazgos y Diagnóstico por Módulo
-
-### 1. Migración de Google Gemini SDK (`google-generativeai` ➔ `google-genai`)
-- **Archivo afectado**: [`modules/gemini_client.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/gemini_client.py)
-- **Diagnóstico Context7 (`/googleapis/python-genai`)**:
-  - La librería `google.generativeai` ha sido marcada como heredada por Google.
-  - La nueva SDK oficial unificada es **`google-genai`** (`from google import genai`).
-  - Ofrece clientes asíncronos nativos (`client.aio.models.generate_content`) que evitan bloquear el event loop de FastAPI, además de soporte para herramientas como `GoogleSearch()` para grounding en tiempo real.
-- **Acción Requerida**:
-  ```python
-  # De (Antiguo):
-  import google.generativeai as genai
-  genai.configure(api_key=api_key)
-  model = genai.GenerativeModel("gemini-2.5-flash")
-
-  # A (Actualizado - google-genai):
-  from google import genai
-  client = genai.Client(api_key=api_key)
-  response = client.models.generate_content(
-      model='gemini-2.5-flash',
-      contents=prompt
-  )
-  ```
-
----
-
-### 2. Actualización de Modelos y Cliente Groq AI
-- **Archivo afectado**: [`modules/groq_client.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/groq_client.py)
-- **Diagnóstico Context7 (`/groq/groq-python`)**:
-  - La lista de reintentos `models_to_try` contiene cadenas de modelos no soportados o no existentes en la API de producción (`"groq/compound"`, `"openai/gpt-oss-120b"`, `"qwen/qwen3.6-27b"`).
-- **Acción Requerida**:
-  - Actualizar los identificadores de modelo a la lista oficial soportada por Groq:
-    1. `llama-3.3-70b-versatile` (Modelo principal de alto rendimiento)
-    2. `llama-3.1-8b-instant` (Ultra-rápido para metadatos)
-    3. `deepseek-r1-distill-llama-70b` (Razonamiento complejo)
-    4. `mixtral-8x7b-32768` (Contexto extenso)
-  - Adoptar `AsyncGroq` para llamadas no bloqueantes dentro de las funciones `async` de FastAPI.
-
----
-
-### 3. Transcripción por Voz: Reemplazar Whisper CPU Local por Groq Whisper API
-- **Archivos afectados**: [`api/routers/assets.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/api/routers/assets.py#L72), [`modules/render_mix.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/render_mix.py)
-- **Diagnóstico Context7**:
-  - Actualmente, `assets.py` intenta cargar la librería `whisper` de OpenAI para transcribir audios localmente en la CPU.
-  - En un procesador dual-core (Intel i5-4300U), la ejecución de Whisper en CPU genera un uso del 100% de los núcleos, eleva las temperaturas y tarda varios segundos/minutos.
-- **Acción Requerida**:
-  - Sustituir la carga local de `whisper` por la API de Groq Audio: `whisper-large-v3-turbo` o `whisper-large-v3`.
-  - Transcripción instantánea en la nube (<1 segundo) con coste nulo en la GPU/CPU local.
-
----
-
-### 4. Modernización de Modelos de Datos a Pydantic V2
-- **Archivos afectados**: [`api/deps.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/api/deps.py#L230-L309)
-- **Diagnóstico Context7 (`/pydantic/pydantic`)**:
-  - Pydantic V2 reescribió su motor de validación en Rust (`pydantic-core`), ofreciendo entre 5x y 20x mayor velocidad en serialización JSON.
-  - El código actual mezcla patrones de V1 que pueden generar advertencias de deprecación.
-- **Acción Requerida**:
-  - Reemplazar `.dict()` por `.model_dump()`.
-  - Reemplazar `@validator` por `@field_validator`.
-  - Reemplazar `schema_extra` en `Config` por `json_schema_extra`.
-
----
-
-### 5. Actualización Dinámica del Extractor de Medios (`yt-dlp`)
-- **Archivos afectados**: [`tools/yt-dlp.exe`](file:///d:/DESAROLLO/NEXUS_STUDIO/tools/yt-dlp.exe), [`modules/timeline_generator.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/timeline_generator.py)
-- **Diagnóstico**:
-  - El ejecutable `yt-dlp.exe` en `tools/` es estático. YouTube realiza cambios continuos en la firma JS y descifrado de URLs, lo que invalida binarios estáticos en pocas semanas dando errores `403 Forbidden` o `Signatures extraction failed`.
-- **Acción Requerida**:
-  - Añadir una verificación automática en el backend que ejecute `yt-dlp.exe -U` o utilizar el paquete de Python `yt_dlp` gestionado por `pip` con actualización programada.
-
----
-
-### 6. Optimización del Frontend SPA y Recursos JS
-- **Archivos afectados**: [`web/index.html`](file:///d:/DESAROLLO/NEXUS_STUDIO/web/index.html), [`web/js/viral_map.js`](file:///d:/DESAROLLO/NEXUS_STUDIO/web/js/viral_map.js)
-- **Diagnóstico**:
-  - Dependencia de scripts CDN externos para `vis-network`. Si el equipo carece de acceso directo a CDN o experimenta latencia, la pestaña de Mapa Viral no carga.
-- **Acción Requerida**:
-  - Guardar el archivo `vis-network.min.js` localmente en `web/js/vendor/vis-network.min.js` para asegurar un funcionamiento 100% offline.
-
----
-
-## 🚀 Plan de Acción Recomendado
-
-1. **Fase 1 (Inmediata)**: Actualizar los modelos en [`modules/groq_client.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/groq_client.py) a la lista oficial de Groq (`llama-3.3-70b-versatile`).
-2. **Fase 2 (Rendimiento)**: Reemplazar el Whisper en CPU de [`api/routers/assets.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/api/routers/assets.py) por Groq Audio API (`whisper-large-v3-turbo`).
-3. **Fase 3 (SDK Moderno)**: Migrar [`modules/gemini_client.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/gemini_client.py) de `google-generativeai` a la nueva SDK `google-genai`.
-4. **Fase 4 (Estabilidad de Descargas)**: Configurar auto-update (`-U`) para `yt-dlp` y empaquetar `vis-network.min.js` en local.
-
----
+<file path="google379c7044fef05a26.html">
+google-site-verification: google379c7044fef05a26.html
 </file>
 
 <file path="api/routers/__init__.py">
@@ -488,41 +313,6 @@ SALIDA (FORMATO ESTRICTO):
 [Escribe aquí el guion como un bloque de texto único y continuo. SIN puntos finales al terminar. Únicamente las palabras exactas que la voz de IA va a pronunciar, sin marcas de tiempo, sin acotaciones, sin corchetes o paréntesis.]
 </file>
 
-<file path="config/prompts/title_description/PROMPT_TITLE_DESCRIPTION.txt">
-OBJETIVO:
-Actúa como un Ingeniero de Metadatos SEO y Copywriter de élite para YouTube Shorts (Actualización 2026). Tu única misión es transformar el parámetro {STORY} en 3 opciones de títulos magnéticos de alta conversión y una descripción optimizada en capas para maximizar el CTR (clics) y disparar la métrica VVSA (Visto vs Deslizado) en el feed.
-
-INPUT:
-Historia: {STORY}
-
-REGLAS MATEMÁTICAS DE TÍTULOS (CRÍTICAS):
-- LONGITUD RIGUROSA: Entre 40 y 60 caracteres exactos (aprox. 4 a 6 palabras clave). Si pasa de 60, fallarás porque se truncará en móviles.
-- CARGA FRONTAL (FRONT-LOADING): El gancho de curiosidad o la palabra clave principal de la historia DEBE estar en los primeros 35 caracteres.
-- ESPECIFICIDAD Y BAJA FRICCIÓN: Prohibido usar palabras vacías de clickbait genérico (como "increíble", "locura"). Si la historia lo permite, integra números, métricas de tiempo, dinero o paréntesis de contexto operativo.
-- ANTI-SPAM VISUAL: Prohibido usar hashtags en el título. Prohibido saturar con mayúsculas consecutivas. Usa exactamente 1 solo emoji de alto impacto al final.
-
-FASE 1: INGENIERÍA DE TÍTULOS (Genera exactamente estas 3 fórmulas):
-1. [Brecha de Curiosidad + Carga Frontal]: Genera tensión cognitiva aplicando la teoría de Loewenstein. Da el contexto justo pero retén el desenlace. + 1 Emoji al final.
-2. [Sesgo de Negación o Corrección]: Apela al miedo a perder oportunidades (FOMO) o al sesgo de negatividad humana (Ej: "Deja de hacer X", "El error que arruinó X"). + 1 Emoji al final.
-3. [Transformación / Contraste en 1ra Persona o POV]: Estructura que prometa una resolución o un cambio drástico de estado basado en la historia. + 1 Emoji al final.
-
-REGLAS DE ARQUITECTURA DE DESCRIPCIÓN (MODELO DE 3 CAPAS):
-- LONGITUD TOTAL: Entre 150 y 500 caracteres (20 a 70 palabras). No satures.
-- CAPA 1 (ZONA VISIBLE - ABOVE THE FOLD): Las primeras 2 líneas (125-150 caracteres) deben ser una oración gramaticalmente natural que repita la palabra clave principal del título. Es lo que extraerá el motor de Google.
-- CAPA 2 (VALOR Y COLA LARGA): 1 o 2 líneas expandiendo el contexto con palabras clave de cola larga extraídas de la historia. Incluye un CTA de interacción que obligue al usuario a ir a los comentarios o un gancho simbiótico que simule un enlace ("Mira la historia completa aquí: [Enlace Relacionado]").
-- CAPA 3 (MATEMÁTICA DE HASHTAGS): Bloque minimalista de exactamente 3 a 5 hashtags al final del documento. El primero debe ser obligatoriamente #Shorts. Los siguientes deben ser 2 del nicho general de la historia y 1 o 2 hiperespecíficos del tema del video. (Si pones más de 15, el algoritmo ignorará todo).
-
-SALIDA OBLIGATORIA (FORMATO LIMPIO):
-
----TÍTULOS VIRALES (40-60 CARACTERES)---
-1. [Título Brecha de Curiosidad]
-2. [Título Negación/Corrección]
-3. [Título Transformación/Contraste]
-
----DESCRIPCIÓN OPTIMIZADA EN CAPAS---
-[Texto completo unificado de la descripción respetando Capa 1, Capa 2 y Capa 3 de forma fluida y profesional]
-</file>
-
 <file path="config/client_secrets.json">
 {"installed":{"client_id":"263703908113-0940g89eeflac010t207lt16gv6a59t0.apps.googleusercontent.com","project_id":"youtubeproyect-476617","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_secret":"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","redirect_uris":["http://localhost"]}}
 </file>
@@ -555,6 +345,72 @@ def force_focus(window)
     Forces a window to the front by temporarily setting it to topmost,
     then releases it after a short delay so it doesn't block other apps.
     """
+</file>
+
+<file path="modules/entity_search.py">
+def is_vector_or_clipart_url(url: str) -> bool
+⋮----
+url_lower = url.lower()
+vector_keywords = [
+⋮----
+def search_bing_images(query: str, limit: int = 3) -> list
+⋮----
+headers = {
+encoded = urllib.parse.quote(query)
+url = f"https://www.bing.com/images/search?q={encoded}&first=1"
+req = urllib.request.Request(url, headers=headers)
+image_urls = []
+⋮----
+html = resp.read().decode('utf-8', errors='ignore')
+matches = re.findall(r'&quot;murl&quot;:&quot;(https?://[^&]+)&quot;', html)
+⋮----
+clean_url = urllib.parse.unquote(m)
+# Filtrar vectores, clipart e ilustraciones infantiles/diagramas
+⋮----
+def search_wikimedia_images(query: str, limit: int = 3) -> list
+⋮----
+"""Búsqueda en Wikimedia Commons API para entidades históricas, noticias o celebridades"""
+headers = {'User-Agent': 'ShortNexusStudio/1.0 (contact@nexusstudio.local)'}
+⋮----
+url = f"https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch={encoded}&gsrnamespace=6&gsrlimit={limit*3}&prop=imageinfo&iiprop=url|mime|size&format=json"
+⋮----
+data = json.loads(resp.read().decode('utf-8'))
+pages = data.get("query", {}).get("pages", {})
+⋮----
+imageinfo = page_data.get("imageinfo", [])
+⋮----
+img_url = imageinfo[0].get("url")
+mime = imageinfo[0].get("mime", "")
+⋮----
+def get_pollinations_ai_image(query: str, dest_dir: str, filename_prefix: str = "ai_entity") -> str
+⋮----
+prompt_formatted = f"photorealistic 9:16 vertical news documentary photo of {query}, 8k resolution, highly detailed, cinematic lighting, vertical aspect ratio 9:16"
+encoded = urllib.parse.quote(prompt_formatted)
+seed = random.randint(1000, 99999)
+url = f"https://image.pollinations.ai/prompt/{encoded}?width=720&height=1280&nologo=true&seed={seed}"
+out_path = os.path.join(dest_dir, f"{filename_prefix}_{seed}.jpg")
+⋮----
+req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+⋮----
+def download_image_with_fallback(url: str, output_path: str) -> bool
+⋮----
+"""Descarga una imagen verificando cabeceras y tamaño mínimo (mínimo 5 KB)"""
+⋮----
+headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+⋮----
+data = response.read()
+⋮----
+def search_and_download_entity_image(query: str, dest_dir: str, filename_prefix: str = "entity") -> str
+⋮----
+out_path = os.path.join(dest_dir, f"{filename_prefix}_{random.randint(100,999)}.jpg")
+⋮----
+urls = search_bing_images(query, limit=3)
+⋮----
+# 2. Wikimedia Commons
+wm_urls = search_wikimedia_images(query, limit=3)
+⋮----
+# 3. Pollinations AI Fallback
+ai_path = get_pollinations_ai_image(query, dest_dir, filename_prefix)
 </file>
 
 <file path="modules/pixabay_client.py">
@@ -613,22 +469,10 @@ duration = time.perf_counter() - self.start
 entry = {
 </file>
 
-<file path="web/js/analytics_dashboard.js">
-export async function initAnalyticsModule(channelName)
+<file path="web/js/vendor/vis-network.min.js">
+!function(g,A)
 ⋮----
-function updateStatCards(data)
-⋮----
-function setupVideosViewEvents(channelName)
-⋮----
-sortSelect.onchange = () =>
-⋮----
-btnReload.onclick = async () =>
-⋮----
-btnReloadMetrics.onclick = async () =>
-⋮----
-export async function loadChannelVideosList(channelName, forceReload = false)
-⋮----
-// Por fecha por defecto
+function oc()
 </file>
 
 <file path="web/js/api.js">
@@ -723,6 +567,114 @@ export async function generateViralAuditReport(channelName)
 IconResource=folderico-fld_02f7a201.ico,0
 </file>
 
+<file path="Plan_de_Actualizacion_Tecnologica.md">
+# 🛠️ Plan de Actualización Tecnológica - ShortNexus Studio
+
+> **Fecha de Auditoría**: 29 de Agosto de 2026  
+> **Herramienta de Verificación**: Context7 MCP Documentation Hub  
+> **Estado del Diagnóstico**: Requiere actualización en 6 módulos clave  
+
+---
+
+## 📌 Resumen Ejecutivo
+
+Mediante la consulta de documentación técnica actualizada en tiempo real a través de **Context7**, se han identificado varias áreas de la arquitectura de **ShortNexus Studio** que utilizan librerías obsoletas, identificadores de modelos discontinuados o patrones de ejecución no optimizados para el hardware objetivo (Intel i5-4300U / SSD D:).
+
+A continuación se detallan los módulos específicos que requieren actualización, el impacto técnico y el plan de migración paso a paso.
+
+---
+
+## 🔍 Hallazgos y Diagnóstico por Módulo
+
+### 1. Migración de Google Gemini SDK (`google-generativeai` ➔ `google-genai`)
+- **Archivo afectado**: [`modules/gemini_client.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/gemini_client.py)
+- **Diagnóstico Context7 (`/googleapis/python-genai`)**:
+  - La librería `google.generativeai` ha sido marcada como heredada por Google.
+  - La nueva SDK oficial unificada es **`google-genai`** (`from google import genai`).
+  - Ofrece clientes asíncronos nativos (`client.aio.models.generate_content`) que evitan bloquear el event loop de FastAPI, además de soporte para herramientas como `GoogleSearch()` para grounding en tiempo real.
+- **Acción Requerida**:
+  ```python
+  # De (Antiguo):
+  import google.generativeai as genai
+  genai.configure(api_key=api_key)
+  model = genai.GenerativeModel("gemini-2.5-flash")
+
+  # A (Actualizado - google-genai):
+  from google import genai
+  client = genai.Client(api_key=api_key)
+  response = client.models.generate_content(
+      model='gemini-2.5-flash',
+      contents=prompt
+  )
+  ```
+
+---
+
+### 2. Actualización de Modelos y Cliente Groq AI
+- **Archivo afectado**: [`modules/groq_client.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/groq_client.py)
+- **Diagnóstico Context7 (`/groq/groq-python`)**:
+  - La lista de reintentos `models_to_try` contiene cadenas de modelos no soportados o no existentes en la API de producción (`"groq/compound"`, `"openai/gpt-oss-120b"`, `"qwen/qwen3.6-27b"`).
+- **Acción Requerida**:
+  - Actualizar los identificadores de modelo a la lista oficial soportada por Groq:
+    1. `llama-3.3-70b-versatile` (Modelo principal de alto rendimiento)
+    2. `llama-3.1-8b-instant` (Ultra-rápido para metadatos)
+    3. `deepseek-r1-distill-llama-70b` (Razonamiento complejo)
+    4. `mixtral-8x7b-32768` (Contexto extenso)
+  - Adoptar `AsyncGroq` para llamadas no bloqueantes dentro de las funciones `async` de FastAPI.
+
+---
+
+### 3. Transcripción por Voz: Reemplazar Whisper CPU Local por Groq Whisper API
+- **Archivos afectados**: [`api/routers/assets.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/api/routers/assets.py#L72), [`modules/render_mix.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/render_mix.py)
+- **Diagnóstico Context7**:
+  - Actualmente, `assets.py` intenta cargar la librería `whisper` de OpenAI para transcribir audios localmente en la CPU.
+  - En un procesador dual-core (Intel i5-4300U), la ejecución de Whisper en CPU genera un uso del 100% de los núcleos, eleva las temperaturas y tarda varios segundos/minutos.
+- **Acción Requerida**:
+  - Sustituir la carga local de `whisper` por la API de Groq Audio: `whisper-large-v3-turbo` o `whisper-large-v3`.
+  - Transcripción instantánea en la nube (<1 segundo) con coste nulo en la GPU/CPU local.
+
+---
+
+### 4. Modernización de Modelos de Datos a Pydantic V2
+- **Archivos afectados**: [`api/deps.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/api/deps.py#L230-L309)
+- **Diagnóstico Context7 (`/pydantic/pydantic`)**:
+  - Pydantic V2 reescribió su motor de validación en Rust (`pydantic-core`), ofreciendo entre 5x y 20x mayor velocidad en serialización JSON.
+  - El código actual mezcla patrones de V1 que pueden generar advertencias de deprecación.
+- **Acción Requerida**:
+  - Reemplazar `.dict()` por `.model_dump()`.
+  - Reemplazar `@validator` por `@field_validator`.
+  - Reemplazar `schema_extra` en `Config` por `json_schema_extra`.
+
+---
+
+### 5. Actualización Dinámica del Extractor de Medios (`yt-dlp`)
+- **Archivos afectados**: [`tools/yt-dlp.exe`](file:///d:/DESAROLLO/NEXUS_STUDIO/tools/yt-dlp.exe), [`modules/timeline_generator.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/timeline_generator.py)
+- **Diagnóstico**:
+  - El ejecutable `yt-dlp.exe` en `tools/` es estático. YouTube realiza cambios continuos en la firma JS y descifrado de URLs, lo que invalida binarios estáticos en pocas semanas dando errores `403 Forbidden` o `Signatures extraction failed`.
+- **Acción Requerida**:
+  - Añadir una verificación automática en el backend que ejecute `yt-dlp.exe -U` o utilizar el paquete de Python `yt_dlp` gestionado por `pip` con actualización programada.
+
+---
+
+### 6. Optimización del Frontend SPA y Recursos JS
+- **Archivos afectados**: [`web/index.html`](file:///d:/DESAROLLO/NEXUS_STUDIO/web/index.html), [`web/js/viral_map.js`](file:///d:/DESAROLLO/NEXUS_STUDIO/web/js/viral_map.js)
+- **Diagnóstico**:
+  - Dependencia de scripts CDN externos para `vis-network`. Si el equipo carece de acceso directo a CDN o experimenta latencia, la pestaña de Mapa Viral no carga.
+- **Acción Requerida**:
+  - Guardar el archivo `vis-network.min.js` localmente en `web/js/vendor/vis-network.min.js` para asegurar un funcionamiento 100% offline.
+
+---
+
+## 🚀 Plan de Acción Recomendado
+
+1. **Fase 1 (Inmediata)**: Actualizar los modelos en [`modules/groq_client.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/groq_client.py) a la lista oficial de Groq (`llama-3.3-70b-versatile`).
+2. **Fase 2 (Rendimiento)**: Reemplazar el Whisper en CPU de [`api/routers/assets.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/api/routers/assets.py) por Groq Audio API (`whisper-large-v3-turbo`).
+3. **Fase 3 (SDK Moderno)**: Migrar [`modules/gemini_client.py`](file:///d:/DESAROLLO/NEXUS_STUDIO/modules/gemini_client.py) de `google-generativeai` a la nueva SDK `google-genai`.
+4. **Fase 4 (Estabilidad de Descargas)**: Configurar auto-update (`-U`) para `yt-dlp` y empaquetar `vis-network.min.js` en local.
+
+---
+</file>
+
 <file path="run_web_app.py">
 def main()
 ⋮----
@@ -738,6 +690,1031 @@ start_wait = time.time()
 server_ready = True
 ⋮----
 # Mantener el proceso vivo hasta que el usuario presione Ctrl + C
+</file>
+
+<file path="api/routers/youtube_upload.py">
+router = APIRouter(prefix="/api/youtube", tags=["youtube"])
+⋮----
+class YouTubeUploadRequest(BaseModel)
+⋮----
+video_path: str = Field(..., description="Absolute path to the rendered video file")
+title: str = Field(..., description="Title for the YouTube Short (max 100 chars)")
+description: str = Field(..., description="Description for the YouTube Short")
+keywords: str = Field("", description="Optional comma-separated tags")
+channel_name: Optional[str] = Field(None, description="Active channel name for isolated credentials")
+⋮----
+@router.post("/upload")
+def upload_to_youtube(req: YouTubeUploadRequest)
+⋮----
+channel_name = req.channel_name or "default"
+⋮----
+def sse_status_callback(msg: str, color: str = "#FFD700")
+⋮----
+perc = calculate_render_percentage(msg)
+</file>
+
+<file path="config/prompts/story/silenciorojo/TERROR_ANALOGICO.txt">
+OBJETIVO:
+Actúa como un sistema de transmisión de emergencia o un reproductor de cintas de archivo (VHS/Cinta magnética) que ha interceptado un metraje o archivo clasificado. Tu tono es el de una voz sintética, administrativa o técnica que revela un registro archivado.
+
+INPUT:
+Trama Base: {TRAMA} (REGLA DE VACÍO: Si el usuario NO escribe una trama, tienes PROHIBIDO usar escenarios genéricos. Primero deberás investigar un incidente o experimento documentado en el nicho de TERROR ANALÓGICO)
+
+REGLAS NARRATIVAS (CRÍTICAS):
+- FORMATO DE ARCHIVO: Escribe la narrativa como el reporte técnico de un audio de seguridad, cinta instructiva o transmisión oficial.
+- LENGUAJE SIMPLE: Oraciones directas, técnicas y claras.
+- DATOS CONCRETOS: Incluye códigos de transmisión, números de archivo, años o nombres de instalaciones.
+- PALABRAS CLAVE: protocolo, cinta, anomalía, registro, archivo.
+
+PALABRAS PROHIBIDAS:
+muerte, suicidio, matar, asesinato, asesino, sangre, masacre, terrorismo, tortura, violación, abuso, acoso, pedofilia, pornografía, sexo, desnudos, drogas, cocaína, fentanilo, narco, sicario, armas, explosivos, estafa, puto, pendejo, marica, nazi, racismo, autolesión, anorexia, bulimia.
+Tienes estrictamente prohibido incluir descripciones gore.
+
+🚫 CERO CLICHÉS DE IA Y CERO REPETICIÓN:
+Tienes ESTRICTAMENTE PROHIBIDO usar frases vacías de IA como:
+- "lo que descubrieron los dejó sin palabras"
+- "nada te preparará para lo que viene"
+- "lo que ocurrió a continuación cambió todo"
+
+FASE 1: ESTRUCTURA DE GUION (Aprox. 100-120 palabras):
+
+(0-3s) GANCHO DE ADVERTENCIA: Transmisión o protocolo de alerta oficial.
+(3-25s) LECTURA DE REGISTRO: Lectura de datos técnicos, coordenadas o incidentes registrados en la cinta.
+(25-45s) ANOMALÍA TÉCNICA: Descripción del fallo o evento sin explicación en el registro.
+(45-60s) PREGUNTA DE DEBATE COMUNITARIO (OBLIGATORIA): Pregunta a la audiencia sobre su interpretación del archivo.
+
+SALIDA (FORMATO ESTRICTO):
+	[Escribe aquí el guion como un bloque de texto único y continuo. SIN puntos finales al terminar. Únicamente las palabras exactas que la voz de IA va a pronunciar, sin marcas de tiempo, sin acotaciones, sin corchetes o paréntesis.]
+</file>
+
+<file path="config/prompts/story/silenciorojo/TERROR_REDDIT.txt">
+OBJETIVO:
+Actúa como un narrador de hilos virales de Reddit especializado en terror psicológico y misterios documentados. Tu tono debe ser el de un usuario anónimo compartiendo una experiencia personal real, intensa y cotidiana con datos hiper-específicos (fechas, lugares, registros o bitácoras reales).
+
+INPUT:
+Trama Base: {TRAMA} (REGLA DE VACÍO: Si el usuario NO escribe una trama, tienes PROHIBIDO usar escenarios genéricos. Primero deberás investigar en internet un caso real o incidente documentado y enriquécelo con detalles realistas inspirados en subreddits como r/nosleep, r/HorrorStories o r/shortscarystories)
+
+REGLAS NARRATIVAS (CRÍTICAS):
+
+- PERSPECTIVA: Narra todo en primera persona (POV auténtico). Trata la narración como un testimonio personal o un secreto oscuro de internet. Es obligatorio el uso de la primera persona.
+- LENGUAJE SIMPLE Y DIRECTO: Usa oraciones cortas y contundentes. Cero frases grandilocuentes.
+- PROHIBIDO ROMPER LA MAGIA DEL TERROR: Todo tiene que sentirse 100% real y documentado.
+- PALABRAS CLAVE: bitácora, registro, coordenada, secreto, aterrador, anormal, perturbador.
+
+PALABRAS PROHIBIDAS:
+muerte, suicidio, matar, asesinato, asesino, sangre, masacre, terrorismo, tortura, violación, abuso, acoso, pedofilia, pornografía, sexo, desnudos, drogas, cocaína, fentanilo, narco, sicario, armas, explosivos, estafa, puto, pendejo, marica, nazi, racismo, autolesión, anorexia, bulimia.
+Tienes estrictamente prohibido incluir descripciones gore.
+
+🚫 CERO CLICHÉS DE IA Y CERO REPETICIÓN:
+Tienes ESTRICTAMENTE PROHIBIDO usar frases vacías de IA desmonetizables como:
+- "lo que descubrieron los dejó sin palabras"
+- "nada te preparará para lo que viene"
+- "lo que ocurrió a continuación cambió todo"
+- "lo que vio a continuación..."
+- Tropos baratos (despertar de noche, ruidos genéricos, estar solo en la oscuridad).
+El terror debe derivar de hechos específicos, anomalías concretas o descubrimientos reales.
+
+FASE 1: ESTRUCTURA DE GUION (Aprox. 115-130 palabras):
+
+(0-3s) GANCHO: Frase corta y chocante que rompa el scroll con un dato o advertencia concreta.
+(3-25s) DESARROLLO DEL TESTIMONIO: Cuenta el suceso con detalles cotidianos y datos/coordenadas reales que aporten valor documental.
+(25-45s) REVELACIÓN / DILEMA: Presenta el giro inquietante o una hipótesis personal sobre lo ocurrido.
+(45-60s) PREGUNTA DE DEBATE COMUNITARIO (OBLIGATORIA): Cierra obligatoriamente formulando una pregunta de debate para que la audiencia opine en comentarios 
+
+SALIDA (FORMATO ESTRICTO):
+	[Escribe aquí el guion como un bloque de texto único y continuo. SIN puntos finales al terminar. Únicamente las palabras exactas que la voz de IA va a pronunciar, sin marcas de tiempo, sin acotaciones, sin corchetes o paréntesis.]
+</file>
+
+<file path="config/prompts/story/silenciorojo/TERROR_ROBLOX.txt">
+OBJETIVO:
+Actúa como un creador de contenido viral de terror analógico y misterios de videojuegos para TikTok/Shorts. Tu estilo debe ser súper rápido, coloquial, informativo y directo con datos comprobables sobre la lore del juego.
+
+INPUT:
+Trama Base: {TRAMA} (REGLA DE VACÍO: En caso de no adjuntarse una trama, deberás elegir un juego de horror analógico o misterio real de Roblox).
+
+REGLAS NARRATIVAS (CRÍTICAS):
+- DATOS OBJETIVOS Y LORE: Menciona nombres específicos del juego, desarrolladores, mapas o la leyenda urbana real en la que se inspira. Prohibido inventar datos.
+- LENGUAJE SIMPLE: Frases cortas y dinámicas.
+
+PALABRAS PROHIBIDAS:
+muerte, suicidio, matar, asesinato, asesino, sangre, masacre, terrorismo, tortura, violación, abuso, acoso, pedofilia, pornografía, sexo, desnudos, drogas, cocaína, fentanilo, narco, sicario, armas, explosivos, estafa, puto, pendejo, marica, nazi, racismo, autolesión, anorexia, bulimia.
+Tienes estrictamente prohibido incluir descripciones gore.
+
+🚫 CERO CLICHÉS DE IA Y CERO REPETICIÓN:
+Tienes ESTRICTAMENTE PROHIBIDO usar frases vacías de IA desmonetizables como:
+- "lo que descubrieron los dejó sin palabras"
+- "nada te preparará para lo que viene"
+- "lo que ocurrió a continuación cambió todo"
+
+FASE 1: ESTRUCTURA DE GUION (Aprox. 115-130 palabras):
+(0-3s) GANCHO ROMPE-SCROLL: Afirmación o dato chocante sobre el juego o experiencia.
+(3-25s) LORE Y DATOS REALES: Breve análisis documental con nombres exactos de mapas o entidades.
+(25-45s) TEORÍA O ANOMALÍA: Giro o hipótesis sobre el origen del archivo/juego.
+(45-60s) PREGUNTA DE DEBATE COMUNITARIO (OBLIGATORIA): Cierra con una pregunta directa a la audiencia
+
+SALIDA (FORMATO ESTRICTO):
+	[Escribe aquí el guion como un bloque de texto único y continuo. SIN puntos finales al terminar. Únicamente las palabras exactas que la voz de IA va a pronunciar, sin marcas de tiempo, sin acotaciones, sin corchetes o paréntesis.]
+</file>
+
+<file path="config/prompts/title_description/PROMPT_TITLE_DESCRIPTION.txt">
+OBJETIVO:
+Actúa como un Ingeniero de Metadatos SEO y Copywriter de élite para YouTube Shorts (Actualización 2026). Tu única misión es transformar el parámetro {STORY} en 3 opciones de títulos magnéticos de alta conversión y una descripción optimizada en capas para maximizar el CTR (clics) y disparar la métrica VVSA (Visto vs Deslizado) en el feed.
+
+INPUT:
+Historia: {STORY}
+
+REGLAS MATEMÁTICAS DE TÍTULOS (CRÍTICAS):
+- LONGITUD RIGUROSA: Entre 40 y 60 caracteres exactos (aprox. 4 a 6 palabras clave). Si pasa de 60, fallarás porque se truncará en móviles.
+- CARGA FRONTAL (FRONT-LOADING): El gancho de curiosidad o la palabra clave principal de la historia DEBE estar en los primeros 35 caracteres.
+- ESPECIFICIDAD Y BAJA FRICCIÓN: Prohibido usar palabras vacías de clickbait genérico (como "increíble", "locura"). Si la historia lo permite, integra números, métricas de tiempo, dinero o paréntesis de contexto operativo.
+- ANTI-SPAM VISUAL: Prohibido usar hashtags en el título. Prohibido saturar con mayúsculas consecutivas. Usa exactamente 1 solo emoji de alto impacto al final.
+
+FILTRO DE PALABRAS PROHIBIDAS (CENSURA SHORTS/TIKTOK):
+Está ESTRICTAMENTE PROHIBIDO usar las siguientes palabras o descripciones gore:
+muerte, suicidio, matar, asesinato, asesino, sangre, masacre, terrorismo, tortura, violación, abuso, acoso, pedofilia, pornografía, sexo, desnudos, drogas, cocaína, fentanilo, narco, sicario, armas, explosivos, estafa, puto, pendejo, marica, nazi, racismo, autolesión, anorexia, bulimia.
+
+FASE 1: INGENIERÍA DE TÍTULOS (Genera exactamente estas 3 fórmulas):
+1. [Brecha de Curiosidad + Carga Frontal]: Genera tensión cognitiva aplicando la teoría de Loewenstein. Da el contexto justo pero retén el desenlace. + 1 Emoji al final.
+2. [Sesgo de Negación o Corrección]: Apela al miedo a perder oportunidades (FOMO) o al sesgo de negatividad humana (Ej: "Deja de hacer X", "El error que arruinó X"). + 1 Emoji al final.
+3. [Transformación / Contraste en 1ra Persona o POV]: Estructura que prometa una resolución o un cambio drástico de estado basado en la historia. + 1 Emoji al final.
+
+REGLAS DE ARQUITECTURA DE DESCRIPCIÓN (MODELO DE 3 CAPAS):
+- LONGITUD TOTAL: Entre 150 y 500 caracteres (20 a 70 palabras). No satures.
+- CAPA 1 (ZONA VISIBLE - ABOVE THE FOLD): Las primeras 2 líneas (125-150 caracteres) deben ser una oración gramaticalmente natural que repita la palabra clave principal del título. Es lo que extraerá el motor de Google.
+- CAPA 2 (VALOR Y COLA LARGA): 1 o 2 líneas expandiendo el contexto con palabras clave de cola larga extraídas de la historia. Incluye un CTA de interacción que obligue al usuario a ir a los comentarios o un gancho simbiótico que simule un enlace ("Mira la historia completa aquí: [Enlace Relacionado]").
+- CAPA 3 (MATEMÁTICA DE HASHTAGS): Bloque minimalista de exactamente 3 a 5 hashtags al final del documento. El primero debe ser obligatoriamente #Shorts. Los siguientes deben ser 2 del nicho general de la historia y 1 o 2 hiperespecíficos del tema del video. (Si pones más de 15, el algoritmo ignorará todo).
+
+SALIDA OBLIGATORIA (FORMATO LIMPIO):
+
+---TÍTULOS VIRALES (40-60 CARACTERES)---
+1. [Título Brecha de Curiosidad]
+2. [Título Negación/Corrección]
+3. [Título Transformación/Contraste]
+
+---DESCRIPCIÓN OPTIMIZADA EN CAPAS---
+[Texto completo unificado de la descripción respetando Capa 1, Capa 2 y Capa 3 de forma fluida y profesional]
+</file>
+
+<file path="config/themes.json">
+
+</file>
+
+<file path="core/project_manager.py">
+class ProjectManager
+⋮----
+def __init__(self, projects_dir="projects")
+⋮----
+def migrate_old_projects(self)
+⋮----
+project_id = f.replace(".json", "")
+old_json_path = os.path.join(self.projects_dir, f)
+new_project_dir = os.path.join(self.projects_dir, project_id)
+⋮----
+new_json_path = os.path.join(new_project_dir, "state.json")
+⋮----
+# 2. Segunda pasada: Escanear subcarpetas de proyectos para reubicar carpetas de doblajes sueltas
+⋮----
+item_path = os.path.join(self.projects_dir, item)
+⋮----
+state_file = os.path.join(item_path, "state.json")
+⋮----
+js_data = json.load(js_f)
+⋮----
+media_data = js_data.get("media", {})
+title = media_data.get("title") or media_data.get("meta_title") or media_data.get("meta_card_title") or ""
+⋮----
+safe_title = "".join([c for c in title if c.isalnum() or c==' ']).rstrip().replace(" ", "_")
+⋮----
+old_dubs_dir = os.path.join(self.projects_dir, safe_title)
+⋮----
+new_dubs_dir = os.path.join(item_path, "dubs")
+⋮----
+# Si ya existe por algún motivo, eliminar la suelta para limpiar
+⋮----
+# 3. Tercera pasada: Migración de caché de videos_largos de projects/ a cache/
+old_videos_largos = os.path.join(self.projects_dir, "videos_largos")
+⋮----
+new_videos_largos = os.path.join("cache", "videos_largos")
+⋮----
+old_item_path = os.path.join(old_videos_largos, item)
+new_item_path = os.path.join(new_videos_largos, item)
+⋮----
+old_chunks = os.path.join(old_item_path, "chunks")
+new_chunks = os.path.join(new_item_path, "chunks")
+⋮----
+old_f = os.path.join(old_chunks, file)
+new_f = os.path.join(new_chunks, file)
+⋮----
+def create_project(self, title)
+⋮----
+# Sanitize title for filename
+clean_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c==' ']).rstrip()
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+⋮----
+clean_title = "Untitled_Project"
+⋮----
+# Crear la carpeta de inmediato para estructuración
+⋮----
+def save_project(self, data, project_id=None)
+⋮----
+project_id = self.current_project_id
+⋮----
+project_dir = os.path.join(self.projects_dir, project_id)
+⋮----
+filepath = os.path.join(project_dir, "state.json")
+⋮----
+def load_project(self, project_id)
+⋮----
+filepath = os.path.join(self.projects_dir, project_id, "state.json")
+⋮----
+old_filepath = os.path.join(self.projects_dir, f"{project_id}.json")
+⋮----
+filepath = old_filepath
+⋮----
+def list_projects(self)
+⋮----
+projects = []
+⋮----
+# Escanear subcarpetas que tengan un archivo state.json
+⋮----
+def get_mtime(proj_id)
+⋮----
+p = os.path.join(self.projects_dir, proj_id, "state.json")
+⋮----
+def get_latest_project(self)
+⋮----
+lst = self.list_projects()
+</file>
+
+<file path="web/js/analytics_dashboard.js">
+export async function initAnalyticsModule(channelName)
+⋮----
+function updateStatCards(data)
+⋮----
+function setupVideosViewEvents(channelName)
+⋮----
+sortSelect.onchange = () =>
+⋮----
+btnReload.onclick = async () =>
+⋮----
+btnReloadMetrics.onclick = async () =>
+⋮----
+export async function loadChannelVideosList(channelName, forceReload = false)
+⋮----
+// Por fecha por defecto
+</file>
+
+<file path="web/js/channels_settings.js">
+function getChannelTheme(channel)
+⋮----
+function renderChannelsGrid(channels, activeChannel)
+⋮----
+function renderHomeChannelsCards(channels, activeChannel)
+⋮----
+export async function loadChannelsList()
+⋮----
+function updateGlobalChannelDropdown(channels, activeChannel)
+⋮----
+export function setupChannelsSettingsListeners()
+⋮----
+window.selectActiveChannel = async (channelName) =>
+⋮----
+window.openEditChannelModal = (channelName) =>
+⋮----
+const closeEditModal = () =>
+⋮----
+window.updateChannelColor = async (channelName, color) =>
+⋮----
+window.deleteChannel = async (channelName) =>
+⋮----
+window.openPromptsModal = async (channelName) =>
+⋮----
+const handleAddChannel = async (e) =>
+⋮----
+async function loadChannelPrompts(channelName)
+⋮----
+function renderPromptsList(prompts)
+⋮----
+function populatePromptEditor(prompt)
+⋮----
+function resetPromptEditor()
+⋮----
+function setupPromptsManagerListeners()
+⋮----
+export async function initChannelsModule()
+</file>
+
+<file path="web/js/main.js">
+async function updateActiveChannelThemeAndModules()
+⋮----
+function applyInterfaceThemeColor(color)
+⋮----
+export function switchToTab(tabName)
+⋮----
+// Actualizar clase active en los elementos del menú lateral
+⋮----
+// Ocultar/Mostrar secciones .tab-section
+⋮----
+function setupNavigation()
+⋮----
+async function openFoldersModal()
+⋮----
+const setVal = (id, val) =>
+⋮----
+function setupFoldersModal()
+⋮----
+const closeModal = () =>
+⋮----
+saveBtn.onclick = async () =>
+⋮----
+const getVal = (id)
+</file>
+
+<file path="web/style.css">
+:root {
+⋮----
+* {
+⋮----
+body {
+⋮----
+::-webkit-scrollbar {
+::-webkit-scrollbar-track {
+::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb:hover {
+⋮----
+.app-container {
+⋮----
+.sidebar {
+⋮----
+.sidebar-brand {
+⋮----
+.logo-icon {
+⋮----
+.active-channel-selector {
+⋮----
+.active-channel-selector label {
+⋮----
+.active-channel-selector select {
+⋮----
+.active-channel-selector select:focus {
+⋮----
+.sidebar-menu {
+⋮----
+.menu-item {
+⋮----
+.menu-item i {
+⋮----
+.menu-item:hover {
+⋮----
+.menu-item.active {
+⋮----
+.sidebar-footer {
+⋮----
+.main-content {
+⋮----
+.tab-section {
+⋮----
+.tab-section.active {
+⋮----
+.section-header {
+⋮----
+.section-header h1 {
+⋮----
+.section-header p {
+⋮----
+.cards-grid {
+⋮----
+.channel-card {
+⋮----
+.channel-card:hover {
+⋮----
+.channel-card.active {
+⋮----
+.card-header {
+⋮----
+.badge {
+⋮----
+.badge-youtube {
+⋮----
+.badge-tiktok {
+⋮----
+.card-body h2 {
+⋮----
+.card-body p {
+⋮----
+.card-footer {
+⋮----
+.card-action {
+⋮----
+.step-grid {
+⋮----
+.panel-card {
+⋮----
+.panel-card h3 {
+⋮----
+.form-group {
+⋮----
+.form-group label {
+⋮----
+.form-group input,
+⋮----
+.form-group input:focus,
+⋮----
+.form-group textarea {
+⋮----
+.script-editor {
+⋮----
+.checkbox-label {
+⋮----
+.btn {
+⋮----
+.btn-primary {
+⋮----
+.btn-primary:hover {
+⋮----
+.btn-success {
+⋮----
+.btn-success:hover {
+⋮----
+.btn-secondary {
+⋮----
+.btn-secondary:hover {
+⋮----
+.btn:disabled {
+⋮----
+.btn-block {
+⋮----
+.steps-nav {
+⋮----
+.step-btn {
+⋮----
+.step-btn:hover {
+⋮----
+.step-btn.active {
+⋮----
+.step-content {
+⋮----
+.step-content.active {
+⋮----
+.timeline-status-bar {
+⋮----
+.timeline-grid {
+⋮----
+.clip-card {
+⋮----
+.clip-number {
+⋮----
+.clip-thumb {
+⋮----
+.clip-controls {
+⋮----
+.clip-checkbox-label {
+⋮----
+.clip-checkbox-label-aud {
+⋮----
+.clip-checkbox-label-sub {
+⋮----
+.clip-actions {
+⋮----
+.clip-actions button {
+⋮----
+.clip-actions button:hover {
+⋮----
+.clip-actions button.btn-remove {
+⋮----
+.clip-actions button.btn-remove:hover {
+⋮----
+.clip-name {
+⋮----
+.audio-player-container {
+⋮----
+.audio-player-container p {
+⋮----
+.console-panel {
+⋮----
+.console-output {
+⋮----
+.console-line {
+⋮----
+.console-line.text-dim {
+⋮----
+.console-line.text-error {
+⋮----
+.tools-bar {
+⋮----
+.form-inline {
+⋮----
+.form-inline label {
+⋮----
+.form-inline select {
+⋮----
+.videos-grid {
+⋮----
+.video-card {
+⋮----
+.video-card:hover {
+⋮----
+.video-thumb-container {
+⋮----
+.video-thumb-container::before {
+⋮----
+.video-card:hover .video-thumb-container::before {
+⋮----
+.video-thumb-container img {
+⋮----
+.video-card:hover .video-thumb-container img {
+⋮----
+.video-score-circle-container {
+⋮----
+.video-card:hover .video-score-circle-container {
+⋮----
+.circular-chart {
+⋮----
+.circle-bg {
+⋮----
+.circle {
+⋮----
+.percentage {
+⋮----
+.video-info {
+⋮----
+.video-info h4 {
+⋮----
+.video-card:hover .video-info h4 {
+⋮----
+.video-metrics-row {
+⋮----
+.metric-pill {
+⋮----
+.metric-pill i {
+⋮----
+.metric-pill.rank-pill {
+⋮----
+.video-card.rank-s {
+.video-card.rank-s:hover {
+.video-card.rank-s .circle {
+⋮----
+.video-card.rank-a {
+.video-card.rank-a:hover {
+.video-card.rank-a .circle {
+⋮----
+.video-card.rank-b {
+.video-card.rank-b:hover {
+.video-card.rank-b .circle {
+⋮----
+.video-card.rank-c {
+.video-card.rank-c:hover {
+.video-card.rank-c .circle {
+⋮----
+.video-card.rank-d {
+.video-card.rank-d:hover {
+.video-card.rank-d .circle {
+⋮----
+.video-footer {
+⋮----
+.btn-view-card {
+⋮----
+.btn-view-card:hover {
+⋮----
+.kpi-grid {
+⋮----
+.kpi-card {
+⋮----
+.kpi-icon {
+⋮----
+.icon-red {
+⋮----
+.icon-green {
+⋮----
+.icon-blue {
+⋮----
+.kpi-info h3 {
+⋮----
+.kpi-info span {
+⋮----
+.metrics-grid {
+⋮----
+.chart-container {
+⋮----
+.top-list {
+⋮----
+.top-item {
+⋮----
+.top-item-title {
+⋮----
+.top-item-views {
+⋮----
+.viral-map-layout {
+⋮----
+#viral-network-container {
+⋮----
+.diagnostic-content {
+⋮----
+.diagnostic-group {
+⋮----
+.diagnostic-group-success {
+⋮----
+.diagnostic-group h4 {
+⋮----
+.diagnostic-group p {
+⋮----
+.settings-grid {
+⋮----
+.glass-panel {
+⋮----
+.panel-section-title {
+⋮----
+.panel-section-title h3 {
+⋮----
+.panel-subtitle {
+⋮----
+.panel-section-divider {
+⋮----
+.form-grid-2col {
+⋮----
+.color-picker-input-wrapper {
+⋮----
+.color-picker-input-wrapper input[type="color"] {
+⋮----
+.color-picker-hint {
+⋮----
+.channels-list {
+⋮----
+.empty-channels-notice {
+⋮----
+.channel-item {
+⋮----
+.channel-item:hover {
+⋮----
+.channel-item-main {
+⋮----
+.channel-avatar-badge {
+⋮----
+.channel-item-info {
+⋮----
+.channel-item-info h4 {
+⋮----
+.channel-meta {
+⋮----
+.channel-item-actions {
+⋮----
+.theme-picker-wrapper {
+⋮----
+.settings-channel-theme-picker {
+⋮----
+.btn-sm {
+⋮----
+.btn-delete {
+⋮----
+.btn-delete:hover {
+⋮----
+.margin-top {
+⋮----
+.modal {
+⋮----
+.modal.active {
+⋮----
+.modal-content {
+⋮----
+.modal-header {
+⋮----
+.modal-header h2 {
+⋮----
+.modal-header h2 i {
+⋮----
+.close-modal-btn {
+⋮----
+.close-modal-btn:hover {
+⋮----
+.modal-body {
+⋮----
+.modal-video-title {
+⋮----
+.modal-meta-grid {
+⋮----
+.meta-badge-item {
+⋮----
+.meta-label {
+⋮----
+.meta-badge-item span:not(.meta-label) {
+⋮----
+.meta-badge-item-rank {
+⋮----
+.modal-section-group {
+⋮----
+.modal-section-group h3 {
+⋮----
+.modal-section-group h3 i {
+⋮----
+.tags-container {
+⋮----
+.tag-pill {
+⋮----
+.modal-textbox {
+⋮----
+.modal-textbox:focus {
+⋮----
+.btn-details-card {
+⋮----
+.btn-details-card:hover {
+⋮----
+.prompts-modal-body {
+.prompts-left-pane {
+⋮----
+.prompt-item {
+⋮----
+.prompt-item:hover {
+⋮----
+.prompt-item.active {
+⋮----
+.prompt-item-cat {
+⋮----
+.prompt-item.active .prompt-item-cat {
+⋮----
+.btn-combination-card {
+⋮----
+.btn-combination-card:hover {
+⋮----
+.comb-table {
+⋮----
+.comb-table th, .comb-table td {
+⋮----
+.comb-table th {
+⋮----
+.comb-table tr:hover {
+⋮----
+.text-neon {
+⋮----
+.viral-downloader-layout {
+⋮----
+.niche-chip {
+⋮----
+.niche-chip:hover {
+⋮----
+.niche-chip.active {
+⋮----
+.segmented-control .segment-btn.active {
+⋮----
+.viral-card {
+⋮----
+.viral-card:hover {
+⋮----
+.viral-card-thumb {
+⋮----
+.viral-card-thumb img {
+⋮----
+.viral-card:hover .viral-card-thumb img {
+⋮----
+.viral-card-duration {
+⋮----
+.viral-card-info {
+⋮----
+.viral-card-title {
+⋮----
+.viral-card-meta {
+⋮----
+.viral-card-meta span {
+⋮----
+.viral-card-meta i {
+⋮----
+.viral-card-actions {
+⋮----
+.viral-card-actions button, .viral-card-actions a {
+⋮----
+.audio-explorer-item {
+⋮----
+.audio-explorer-item:hover {
+⋮----
+.audio-explorer-info {
+⋮----
+.audio-explorer-name {
+⋮----
+.audio-explorer-meta {
+⋮----
+.audio-explorer-actions {
+⋮----
+.btn-audio-action {
+⋮----
+.btn-audio-action:hover {
+⋮----
+.btn-audio-select {
+⋮----
+.btn-audio-select:hover {
+⋮----
+.voice-step-grid {
+⋮----
+.custom-player-info {
+⋮----
+.audio-wave-anim {
+⋮----
+.audio-wave-anim span {
+⋮----
+.audio-wave-anim.playing span {
+⋮----
+.audio-wave-anim.playing span:nth-child(1) { animation-delay: 0.1s; }
+.audio-wave-anim.playing span:nth-child(2) { animation-delay: 0.4s; }
+.audio-wave-anim.playing span:nth-child(3) { animation-delay: 0.2s; }
+.audio-wave-anim.playing span:nth-child(4) { animation-delay: 0.5s; }
+.audio-wave-anim.playing span:nth-child(5) { animation-delay: 0.3s; }
+⋮----
+.custom-play-btn {
+⋮----
+.custom-play-btn:hover {
+⋮----
+.custom-play-btn:active {
+⋮----
+.player-progress-bar,
+⋮----
+.player-progress-bar:hover,
+⋮----
+.player-progress-bar::-webkit-slider-thumb {
+⋮----
+.player-progress-bar::-webkit-slider-thumb:hover {
+⋮----
+.player-volume-bar::-webkit-slider-thumb {
+⋮----
+.player-volume-bar::-webkit-slider-thumb:hover {
+⋮----
+.player-volume-btn:hover {
+⋮----
+#audios-list-container::-webkit-scrollbar {
+#audios-list-container::-webkit-scrollbar-track {
+#audios-list-container::-webkit-scrollbar-thumb {
+#audios-list-container::-webkit-scrollbar-thumb:hover {
+⋮----
+.sidebar-avatar-container {
+⋮----
+.sidebar-channel-avatar {
+⋮----
+.sidebar-avatar-placeholder {
+⋮----
+.channel-card-avatar {
+⋮----
+.channel-card.active .channel-card-avatar {
+⋮----
+.channel-card-avatar-placeholder {
+⋮----
+.channel-card.active .channel-card-avatar-placeholder {
+⋮----
+.welcome-banner {
+⋮----
+.welcome-banner::before {
+⋮----
+.welcome-banner-content {
+⋮----
+.welcome-badge {
+⋮----
+.welcome-banner h1 {
+⋮----
+.welcome-banner p {
+⋮----
+.home-section-title {
+⋮----
+/* Glassmorphism y accesos rápidos */
+.glass-card {
+⋮----
+.quick-actions-grid {
+⋮----
+.action-card {
+⋮----
+.action-card:hover {
+⋮----
+.action-icon {
+⋮----
+.action-card:hover .action-icon {
+⋮----
+/* Glows temáticos */
+.red-glow {
+.action-card:hover .red-glow {
+⋮----
+.gold-glow {
+.action-card:hover .gold-glow {
+⋮----
+.cyan-glow {
+.action-card:hover .cyan-glow {
+⋮----
+.action-card h3 {
+⋮----
+.action-card p {
+⋮----
+.action-link {
+⋮----
+.action-card:hover .action-link {
+⋮----
+/* --- ESTILOS DE SWITCH TOGGLE PREMIUM --- */
+.switch-toggle {
+⋮----
+.switch-toggle input {
+⋮----
+.switch-slider {
+⋮----
+.switch-slider:before {
+⋮----
+.switch-toggle input:checked + .switch-slider {
+⋮----
+.switch-toggle input:checked + .switch-slider:before {
+⋮----
+/* --- MOCKUP DE CELULAR PREMIUM CIBERPUNK COMPACTO --- */
+.phone-mockup-wrapper {
+⋮----
+height: 320px; /* Proporción 9:16 exacta para 180px */
+⋮----
+.phone-mockup-wrapper:hover {
+⋮----
+.phone-notch {
+⋮----
+.preview-badge-floating {
+⋮----
+/* Grilla Responsiva para el Paso 4 */
+.render-step-grid {
+⋮----
+/* --- ANIMACIONES DE PREVISUALIZACIÓN DE SUBTÍTULOS --- */
+⋮----
+.sub-style-tiktok {
+⋮----
+.sub-style-reddit {
+⋮----
+.sub-style-roblox {
+⋮----
+.subtitles-studio-grid {
+⋮----
+.subtitles-editor-panel,
+⋮----
+.btn-tab {
+⋮----
+.btn-tab:hover {
+⋮----
+.btn-tab.active {
+⋮----
+.studio-phone-wrapper {
+⋮----
+.studio-phone-frame {
+⋮----
+.studio-phone-notch {
+⋮----
+.studio-phone-screen {
+⋮----
+.vhs-scanlines {
+⋮----
+.reddit-card-sim {
+⋮----
+.rc-header {
+⋮----
+.rc-avatar {
+⋮----
+.rc-meta {
+⋮----
+.rc-subreddit {
+⋮----
+.rc-user {
+⋮----
+.rc-title {
+⋮----
+.rc-footer {
+⋮----
+.rc-pill {
+⋮----
+.gaming-hook-sim {
+⋮----
+.gaming-hook-sim div {
+⋮----
+.gaming-hook-sim-strobe {
+⋮----
+.subtitles-preview-panel {
+</file>
+
+<file path="reglas_locales.md">
+# REGLAS LOCALES DEL PROYECTO
+
+> **DIRECTIVA ANTI-PEREZA Y AHORRO DE TOKENS**: Antes de realizar cualquier cambio a petición del usuario, DEBES consultar obligatoriamente `repomix-output.xml` para saber exactamente en qué archivo editar. **QUEDA ESTRICTAMENTE PROHIBIDO analizar los archivos del proyecto uno por uno si `repomix-output.xml` ya existe.**
+> **Sincronización Destructiva**: Al actualizar `Analisis_Completo.md`, elimina la lógica desactualizada y reemplázala. Prohibido crear secciones de "Historial" o "Changelog".
+
+## Optimización de Hardware y Entorno Local (Dell Latitude E5540)
+1. **Límites de CPU y Temperatura (i5-4300U / ThrottleStop)**: El procesador de la máquina es de bajo consumo (2 núcleos / 4 hilos) optimizado por ThrottleStop. Cualquier ejecución de FFMPEG, MoviePy u otras herramientas de renderizado pesado debe limitar explícitamente los hilos a un máximo de `-threads 2` (o `-threads 1`) para evitar congelamientos del sistema operativo y estrangulamiento térmico (thermal throttling).
+2. **Ahorro de Espacio en Unidad C: (SSD 128 GB)**: El disco de sistema C: es muy pequeño. Queda estrictamente prohibido usar el directorio C: o `%TEMP%` en C: para almacenar renders de salida, cachés de descargas masivas (`yt-dlp`), fragmentos temporales grandes o audios. Todo debe escribirse, almacenarse y descargarse en la unidad D: (SSD 1 TB), que es donde se aloja este workspace.
+3. **Gestión de Memoria RAM (12 GB + ISLC)**: Para evitar fugas de memoria, se debe optimizar el consumo al procesar arrays de datos en Python o arrays en el DOM, sabiendo que el usuario cuenta con ISLC para liberar memoria standby.
+4. **Compatibilidad con Thorium Browser**: El navegador de depuración principal es Thorium. Las características CSS y JS implementadas deben ser altamente eficientes, priorizando el rendimiento del motor V8 optimizado del navegador.
+
+## Reglas Adicionales
+1. Consultar siempre `repomix-output.xml` para ubicar archivos y funciones antes de realizar modificaciones.
+2. Mantener la documentación y el archivo `Analisis_Completo.md` al día tras cualquier modificación sustancial del código.
+</file>
+
+<file path="server.py">
+app = FastAPI(
+⋮----
+@app.on_event("startup")
+async def startup_event()
+⋮----
+loop = asyncio.get_running_loop()
+def custom_exception_handler(loop, context)
+⋮----
+exception = context.get('exception')
+⋮----
+@app.get("/sw.js")
+def service_worker_dummy()
+⋮----
+web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 </file>
 
 <file path="api/routers/assets.py">
@@ -1254,27 +2231,6 @@ raw_text = generate_groq_content(prompt, api_key)
 # Fallback 1: Buscar líneas numeradas si el regex de encabezado no coincidió
 </file>
 
-<file path="api/routers/youtube_upload.py">
-router = APIRouter(prefix="/api/youtube", tags=["youtube"])
-⋮----
-class YouTubeUploadRequest(BaseModel)
-⋮----
-video_path: str = Field(..., description="Absolute path to the rendered video file")
-title: str = Field(..., description="Title for the YouTube Short (max 100 chars)")
-description: str = Field(..., description="Description for the YouTube Short")
-keywords: str = Field("", description="Optional comma-separated tags")
-channel_name: Optional[str] = Field(None, description="Active channel name for isolated credentials")
-⋮----
-@router.post("/upload")
-def upload_to_youtube(req: YouTubeUploadRequest)
-⋮----
-channel_name = req.channel_name or "default"
-⋮----
-def sse_status_callback(msg: str, color: str = "#FFD700")
-⋮----
-perc = calculate_render_percentage(msg)
-</file>
-
 <file path="api/deps.py">
 SETTINGS_PATH = os.path.join("config", "settings.json")
 GROQ_SETTINGS_PATH = os.path.join("config", "groq_settings.json")
@@ -1430,140 +2386,275 @@ audio_duration: float
 custom_keywords: Optional[List[str]] = None
 </file>
 
-<file path="config/prompts/story/silenciorojo/TERROR_ANALOGICO.txt">
-OBJETIVO:
-Actúa como un sistema de transmisión de emergencia o un reproductor de cintas de archivo (VHS/Cinta magnética) que ha interceptado un metraje o archivo clasificado. Tu tono es el de una voz sintética, administrativa o técnica que revela un registro archivado.
+<file path="config/prompts/cover/cover_v1.txt">
+ERROR: Template not found for Cover.
+</file>
 
-INPUT:
-Trama Base: {TRAMA} (REGLA DE VACÍO: Si el usuario NO escribe una trama, tienes PROHIBIDO usar escenarios genéricos. Primero deberás investigar un incidente o experimento documentado en el nicho de TERROR ANALÓGICO)
+<file path="config/prompts/cover/cover_version3.txt">
+OBJETIVO PRINCIPAL:
+Actuar como un ingeniero de CTR (Click-Through Rate) experto en "Ingeniería de Atención" para YouTube Shorts (Audiencia: Adultos de 25 a 45 años).
+Tu tarea es leer el {ADN} y la {TRAMA}, y generar un único prompt de imagen hiper-optimizado para un modelo de generación (Midjourney/Stable Diffusion/Nano Banana 2).
 
-REGLAS NARRATIVAS (CRÍTICAS):
-- FORMATO DE ARCHIVO: Escribe la narrativa como el reporte técnico de un audio de seguridad, cinta instructiva o transmisión oficial.
-- LENGUAJE SIMPLE: Oraciones directas, técnicas y claras.
-- DATOS CONCRETOS: Incluye códigos de transmisión, números de archivo, años o nombres de instalaciones.
-- PALABRAS CLAVE: protocolo, cinta, anomalía, registro, archivo.
+INPUTS:
+• Trama: {TRAMA}
+• Monstruo: {ADN}
 
-PALABRAS PROHIBIDAS:
-muerte, suicidio, matar, asesinato, asesino, sangre, masacre, terrorismo, tortura, violación, abuso, acoso, pedofilia, pornografía, sexo, desnudos, drogas, cocaína, fentanilo, narco, sicario, armas, explosivos, estafa, puto, pendejo, marica, nazi, racismo, autolesión, anorexia, bulimia.
-Tienes estrictamente prohibido incluir descripciones gore.
+FASE 1: REGLAS DE TRADUCCIÓN Y DISEÑO (ESTRICTAS)
 
-🚫 CERO CLICHÉS DE IA Y CERO REPETICIÓN:
-Tienes ESTRICTAMENTE PROHIBIDO usar frases vacías de IA como:
-- "lo que descubrieron los dejó sin palabras"
-- "nada te preparará para lo que viene"
-- "lo que ocurrió a continuación cambió todo"
+1. EL ENCUADRE DE INTRUSIÓN CINÉTICA (EL "ARRESTO VISUAL"): En pantallas de celular, lo estático aburre. La amenaza DEBE estar invadiendo el PLANO MEDIO o PRIMER PLANO de forma AGRESIVA. No está "posando", está irrumpiendo. engaña al cerebro del espectador haciéndole creer que hay peligro inminente.
 
-FASE 1: ESTRUCTURA DE GUION (Aprox. 100-120 palabras):
+2. CONSTRUCCIÓN DEL ADN VISUAL Y "EL PUNTO DE FOCO": Traduce y describe físicamente al {ADN} al INGLÉS. Además de su textura y extremidades asimétricas, DEBES asignarle un "Punto de Foco Letal" (Ej: Ojos brillando intensamente con el flash, una sonrisa antinatural iluminada). ESTÁ ESTRICTAMENTE PROHIBIDO usar lenguaje explícito (gore, sangre, armas, mutilaciones).
 
-(0-3s) GANCHO DE ADVERTENCIA: Transmisión o protocolo de alerta oficial.
-(3-25s) LECTURA DE REGISTRO: Lectura de datos técnicos, coordenadas o incidentes registrados en la cinta.
-(25-45s) ANOMALÍA TÉCNICA: Descripción del fallo o evento sin explicación en el registro.
-(45-60s) PREGUNTA DE DEBATE COMUNITARIO (OBLIGATORIA): Pregunta a la audiencia sobre su interpretación del archivo.
+3. TEXT RENDERING (URGENCIA DE INTERFAZ): Para forzar el clic, la imagen debe parecer una prueba real de un incidente. Inventa un texto CORTO (1 a 3 palabras máximo) en ESPAÑOL que indique urgencia de sistema. 
+Opciones válidas (UI Text):
+- Interfaz de cámara de seguridad o sistema: "MOTION DETECTED", "ERROR_0X", "NO SIGNAL".
+- Notificaciones perturbadoras de sistema operativo: "Llamada Fallida", "Alerta de Proximidad".
+PROHIBIDO usar emojis, tipografías rojas de terror o letras de "sangre". Tiene que ser tipografía digital blanca, verde o roja de sistema, hiper-realista.
 
-SALIDA (FORMATO ESTRICTO):
-	[Escribe aquí el guion como un bloque de texto único y continuo. SIN puntos finales al terminar. Únicamente las palabras exactas que la voz de IA va a pronunciar, sin marcas de tiempo, sin acotaciones, sin corchetes o paréntesis.]
+FASE 2: LA ESTRUCTURA DEL PROMPT PARA LA IA DE IMAGEN
+Genera la respuesta siguiendo EXACTAMENTE esta fórmula de redacción en un solo párrafo crudo, reemplazando los corchetes por su contenido final en inglés:
+
+"A vertical 9:16 aspect ratio smartphone photo, terrifying authentic found footage aesthetic, heavy dutch angle. [ENTORNO CLAUSTROFÓBICO EN INGLÉS BASADO EN LA TRAMA]. In the immediate foreground, violently intruding into the frame, is a [DESCRIPCIÓN EN INGLÉS DEL ADN DEL MONSTRUO]. The entity is lunging or reaching towards the camera, maintaining intense, unblinking eye contact with the lens. Blinding harsh camera flash illuminating its face, creating a stark high-contrast focal point, while deep pitch-black shadows swallow the rest of the room. High ISO digital noise, amateur low-quality shaky phone camera look. Overlaid on the image, perfectly integrated like a real digital security interface or minimalist system text, generate exactly this text: '[FRASE DE 1 A 3 PALABRAS EN ESPAÑOL]'. The text must look like authentic digital UI or an emergency system alert, not a stylized movie poster."
 </file>
 
 <file path="config/prompts/story/silenciorojo/TERROR_REAL.txt">
 OBJETIVO:
-Actúa como un creador de contenido viral de terror para TikTok/Shorts. Tu estilo debe ser súper rápido, coloquial, oscuro y directo, aportando datos reales y documentados. BAJO NINGUNA CIRCUNSTANCIA incluyas ejemplos prefabricados; cada guion debe ser 100% original. 
+Actúa como un guionista de elite de historias reales de terror, suspenso y True Crime para TikTok y YouTube Shorts. Tu misión es transformar la [TRAMA] proporcionada en un guion viral inmersivo de alta retención de UN SOLO INTENTO.
 
-INPUT:
-Trama Base: {TRAMA} (REGLA DE VACÍO: Si el usuario NO escribe una trama, tienes PROHIBIDO usar escenarios genéricos. Primero deberás investigar en internet un caso o incidente de terror real).
+INPUT DE ENTRADA:
+INVESTIGACIÓN DEL CASO: {TRAMA}
 
-REGLAS NARRATIVAS (CRÍTICAS):
-- PERSPECTIVA: Narra todo en segunda persona o primera persona de testigo. Todo debe sentirse auténtico y verídico.
-- LENGUAJE SIMPLE: Usa oraciones cortas y directas. Cero palabrería complicada.
+INSTRUCCIONES DE NARRATIVA E INMERSIÓN:
+1. PERSPECTIVA POV (SEGUNDA PERSONA): Narra situando al espectador directamente en el papel de un ciudadano promedio o víctima real presente en el lugar de los hechos. Debe sentir el peligro en carne propia, sin llegar a caer en fantasía ni perder la veracidad de los datos.
+2. PREGUNTA GANCHO (0-3s): Comienza el guion inmediatamente con una pregunta intrigante, súper corta y directa sobre la justicia o la supervivencia (máximo 7 u 8 palabras).
+3. DESARROLLO INMERSIVO Y DATO REAL (3-45s): Haz que el espectador viva la escena. Integra los datos reales más desgarradores o chocantes de la investigación (cifras, recompensas, hechos).
+4. CALL TO ACTION ORGÁNICO (45-55s): Incluye una pregunta directa para generar debate en los comentarios y una llamada a compartir.
+5. BUCLE INFINITO / PALABRA NEXO (55-60s): La última frase del guion DEBE QUEDAR INCOMPLETA, terminando en una palabra nexo (como "a", "de", "que", "en") de modo que conecte gramaticalmente y de forma fluida y continua con la primera palabra de la pregunta inicial del guion.
 
-PALABRAS PROHIBIDAS:
+RESTRICCIÓN RIGUROSA DE LONGITUD:
+- El guion final DEBE TENER ESTRICTAMENTE entre 115 y 130 palabras en total. Ni más, ni menos.
+
+FILTRO DE PALABRAS PROHIBIDAS (CENSURA SHORTS/TIKTOK):
+Está ESTRICTAMENTE PROHIBIDO usar las siguientes palabras o descripciones gore:
 muerte, suicidio, matar, asesinato, asesino, sangre, masacre, terrorismo, tortura, violación, abuso, acoso, pedofilia, pornografía, sexo, desnudos, drogas, cocaína, fentanilo, narco, sicario, armas, explosivos, estafa, puto, pendejo, marica, nazi, racismo, autolesión, anorexia, bulimia.
-Tienes estrictamente prohibido incluir descripciones gore.
 
-🚫 CERO CLICHÉS DE IA Y CERO REPETICIÓN:
-Tienes ESTRICTAMENTE PROHIBIDO usar frases vacías de IA desmonetizables como:
-- "lo que descubrieron los dejó sin palabras"
-- "nada te preparará para lo que viene"
-- "lo que ocurrió a continuación cambió todo"
-- "lo que vio a continuación..."
+🚫 CERO CLICHÉS DE IA:
+PROHIBIDO usar frases trilladas como: "lo que descubrieron los dejó sin palabras", "nada te preparará para lo que viene", "lo que ocurrió a continuación cambió todo", "lo que vio a continuación...".
 
-FASE 1: ESTRUCTURA DE GUION (Aprox. 115-130 palabras):
-
-(0-3s) GANCHO: Frase corta y chocante que rompa el scroll con un dato verídico.
-(3-25s) DESARROLLO DEL EXPEDIENTE: Revela los datos del incidente o caso real con precisión.
-(25-45s) GIRO / ANOMALÍA: Lanza una hipótesis o el detalle más inquietante documentado.
-(45-60s) PREGUNTA DE DEBATE COMUNITARIO (OBLIGATORIA): Cierra con una pregunta directa de debate para motivar la discusión en los comentarios.
-
-SALIDA (FORMATO ESTRICTO):
-	[Escribe aquí el guion como un bloque de texto único y continuo. SIN puntos finales al terminar. Únicamente las palabras exactas que la voz de IA va a pronunciar, sin marcas de tiempo, sin acotaciones, sin corchetes o paréntesis.]
+SALIDA (FORMATO ESTRICTO DE VOZ IA):
+Escribe únicamente el guion como un bloque de texto único y continuo. SIN títulos, SIN marcas de tiempo, SIN acotaciones, SIN corchetes, SIN paréntesis y SIN punto final al terminar el texto.
 </file>
 
-<file path="config/prompts/story/silenciorojo/TERROR_REDDIT.txt">
-OBJETIVO:
-Actúa como un narrador de hilos virales de Reddit especializado en terror psicológico y misterios documentados. Tu tono debe ser el de un usuario anónimo compartiendo una experiencia personal real, intensa y cotidiana con datos hiper-específicos (fechas, lugares, registros o bitácoras reales).
+<file path="config/prompts/visuals/visual_version4.txt">
+FASE 2: GENERACIÓN DE VISUALES (STABLE DIFFUSION / MIDJOURNEY)
 
-INPUT:
-Trama Base: {TRAMA} (REGLA DE VACÍO: Si el usuario NO escribe una trama, tienes PROHIBIDO usar escenarios genéricos. Primero deberás investigar en internet un caso real o incidente documentado y enriquécelo con detalles realistas inspirados en subreddits como r/nosleep, r/HorrorStories o r/shortscarystories)
+TU ROL: Eres un COMPILADOR DE CÓDIGO de prompts de imágenes especializado en INGENIERÍA DE ATENCIÓN. Eres frío, preciso y estricto.
+Guion: {STORY_CONTEXT}
+Duración: {DURATION} 
 
-REGLAS NARRATIVAS (CRÍTICAS):
+OBJETIVO Y CÁLCULO DINÁMICO: 
+Genera exactamente 1 prompt por cada 3 segundos de duración (Ejemplo: Guion de 60s = 20 prompts numerados). El monstruo debe ser idéntico cada vez que aparezca. 
 
-- PERSPECTIVA: Narra todo en primera persona (POV auténtico). Trata la narración como un testimonio personal o un secreto oscuro de internet. Es obligatorio el uso de la primera persona.
-- LENGUAJE SIMPLE Y DIRECTO: Usa oraciones cortas y contundentes. Cero frases grandilocuentes.
-- PROHIBIDO ROMPER LA MAGIA DEL TERROR: Todo tiene que sentirse 100% real y documentado.
-- PALABRAS CLAVE: bitácora, registro, coordenada, secreto, aterrador, anormal, perturbador.
+⚠️ REGLA DE ORO DE CONTINUIDAD (THE COPY-PASTE RULE): 
+Las IAs de imagen tienen amnesia. Está PROHIBIDO RESUMIR la descripción del monstruo. El texto exacto de la variable {ENTITY_DNA} DEBE ser inyectado íntegramente en CADA prompt donde la criatura sea visible.
 
-PALABRAS PROHIBIDAS:
-muerte, suicidio, matar, asesinato, asesino, sangre, masacre, terrorismo, tortura, violación, abuso, acoso, pedofilia, pornografía, sexo, desnudos, drogas, cocaína, fentanilo, narco, sicario, armas, explosivos, estafa, puto, pendejo, marica, nazi, racismo, autolesión, anorexia, bulimia.
-Tienes estrictamente prohibido incluir descripciones gore.
+1. PROTOCOLO DE ADN VISUAL (SAFETY-SAFE Y CINÉTICO): 
+Analiza el {STORY_CONTEXT} y crea la variable {ENTITY_DNA} usando terror psicológico del "Uncanny Valley". PROHIBIDO gore, sangre o armas. Debe contener:
+• [TEXTURE]: Texturas inquietantes (Ej: "Pale damp skin", "Vantablack shadow mass").
+• [CLOTHES]: Vestimenta anómala (Ej: "Faded oversized hospital gown").
+• [ROSTRO]: Rasgos perturbadores (Ej: "Empty hollow eye sockets", "Unnaturally wide rigid smile").
+• [BUILD & MOTION]: Proporciones irreales con MOVIMIENTO IMPLÍCITO (Ej: "Elongated asymmetrical limbs, distorted motion blur, approaching aggressively").
 
-🚫 CERO CLICHÉS DE IA Y CERO REPETICIÓN:
-Tienes ESTRICTAMENTE PROHIBIDO usar frases vacías de IA desmonetizables como:
-- "lo que descubrieron los dejó sin palabras"
-- "nada te preparará para lo que viene"
-- "lo que ocurrió a continuación cambió todo"
-- "lo que vio a continuación..."
-- Tropos baratos (despertar de noche, ruidos genéricos, estar solo en la oscuridad).
-El terror debe derivar de hechos específicos, anomalías concretas o descubrimientos reales.
+2. CONSTANTE DE ESTILO {STYLE} (EL EFECTO TRANCE PARA ADULTOS):
+(Vertical 9:16 aspect ratio:2.0), (Found footage camera aesthetic), (Bodycam style / extreme Peephole distortion), (High ISO ugly grainy digital noise), (ABERRANT HIGH CONTRAST), (Flash photography in absolute dark room), aggressive dutch angle, authentic amateur documentary horror, distorted liminal space background, (glitch artifacts), (chromatic aberration), (subtle oversaturation in deep blacks and flash highlights).
 
-FASE 1: ESTRUCTURA DE GUION (Aprox. 115-130 palabras):
+3. SISTEMA DE "LENTES DE RETENCIÓN" (EL RITMO COCOMELON)
+OBLIGATORIO: Alterna estas categorías para evitar la fatiga visual.
 
-(0-3s) GANCHO: Frase corta y chocante que rompa el scroll con un dato o advertencia concreta.
-(3-25s) DESARROLLO DEL TESTIMONIO: Cuenta el suceso con detalles cotidianos y datos/coordenadas reales que aporten valor documental.
-(25-45s) REVELACIÓN / DILEMA: Presenta el giro inquietante o una hipótesis personal sobre lo ocurrido.
-(45-60s) PREGUNTA DE DEBATE COMUNITARIO (OBLIGATORIA): Cierra obligatoriamente formulando una pregunta de debate para que la audiencia opine en comentarios 
+• TIPO A (MACRO/FOCO): Un detalle perturbador extremo. (Ej: Uñas sucias arañando madera, un ojo asomando por una grieta). OJO: Nada de planos generales vacíos, el espectador se aburre.
+• TIPO B (URGENCIA POV): Ángulos de cámara agresivos (Dutch angle) simulando que el camarógrafo está corriendo, escondiéndose o temblando. (Usa "heavy motion blur", "shaky cam").
+• TIPO C (GLITCH / PARCIAL): Anomalía escondida. El espectador debe buscar el peligro en la imagen (Ej: Silueta apenas visible al fondo de un pasillo iluminado solo por una linterna intermitente).
+• TIPO D (IMPACTO DIRECTO): Anomalía explícita y de cerca. PROHIBIDO mostrar ataques violentos; muestra la entidad invadiendo el espacio personal del observador de forma antinatural.
 
-SALIDA (FORMATO ESTRICTO):
-	[Escribe aquí el guion como un bloque de texto único y continuo. SIN puntos finales al terminar. Únicamente las palabras exactas que la voz de IA va a pronunciar, sin marcas de tiempo, sin acotaciones, sin corchetes o paréntesis.]
+4. PROTOCOLO DE LÍNEA DE TIEMPO (LA CURVA DE DOPAMINA DE 60s)
+Aplica esta distribución exacta para los prompts numerados:
+• (0-3s) THE SCROLL-STOPPER (Prompt 1): TIPO D (Impacto Directo) o TIPO A (Macro). Inmensamente intrigante, alto contraste. La cara o el peligro de inmediato.
+• (3-12s) CONTEXTO RÁPIDO (Prompts 2 al 4): TIPO B y TIPO C. Construye el espacio, pero siempre desde un ángulo incómodo (escondido bajo la cama, mirando por la mirilla).
+• (12-15s) EL RESETEO (Prompt 5): TIPO A o D. DEBE ser un cambio visual drástico (Ej: la luz se apaga, un primer plano extremo de una huella fresca). Esto evita que el espectador deslice el video en el segundo crítico.
+• (15-35s) PARANOIA CINÉTICA (Prompts 6 al 11): Alterna TIPO B y TIPO C. Aumenta el "motion blur" y la distorsión. La entidad se acerca.
+• (35-55s) CLÍMAX (Prompts 12 al 18): TIPO D. La entidad se revela bajo la luz del flash, invadiendo la zona de confort.
+• (55-60s) LOOP FINAL (Prompts 19 y 20): TIPO C. Un plano que conecte geométricamente y en iluminación de forma PERFECTA con el Prompt 1.
+
+5. ESTRUCTURA DE SALIDA OBLIGATORIA
+Primero, muestra el ADN. Luego genera la lista en Plaintext.
+
+FÓRMULA DEL PROMPT NUMERADO:
+[TIPO DE LENTE] + [ACCIÓN CINÉTICA DE LA ESCENA] + {ENTITY_DNA} (Solo si es Tipo C o D) + {STYLE}
+
+VARIABLE DE ENTIDAD ({ENTITY_DNA}): "[Descripción física y cinética generada en el paso 1]"
+
+1: [Prompt en Inglés... {STYLE}]
+2: [Prompt en Inglés... {STYLE}]
+... [Hasta cubrir toda la duración]
+
+REGLA DE ORO DE SALIDA: Está TERMINANTEMENTE PROHIBIDO imprimir los marcadores literales "{ENTITY_DNA}" o "{STYLE}" en los prompts numerados. DEBES REEMPLAZAR esos marcadores por su texto completo correspondiente en CADA renglón para que el humano solo tenga que copiar y pegar en su IA de imágenes.
 </file>
 
-<file path="config/prompts/story/silenciorojo/TERROR_ROBLOX.txt">
-OBJETIVO:
-Actúa como un creador de contenido viral de terror analógico y misterios de videojuegos para TikTok/Shorts. Tu estilo debe ser súper rápido, coloquial, informativo y directo con datos comprobables sobre la lore del juego.
+<file path="config/prompts/visuals/visual_version5.txt">
+FASE 2: GENERACIÓN DE VISUALES (VERSION 5 - ANTI-TEXTO & ULTRA-TERROR)
 
-INPUT:
-Trama Base: {TRAMA} (REGLA DE VACÍO: En caso de no adjuntarse una trama, deberás elegir un juego de horror analógico o misterio real de Roblox).
+TU ROL: Eres un COMPILADOR DE CÓDIGO de prompts de imágenes especializado en INGENIERÍA DE ATENCIÓN. Eres frío, preciso y estricto. Tu prioridad es el terror visual puro, sin distracciones gráficas.
 
-REGLAS NARRATIVAS (CRÍTICAS):
-- DATOS OBJETIVOS Y LORE: Menciona nombres específicos del juego, desarrolladores, mapas o la leyenda urbana real en la que se inspira. Prohibido inventar datos.
-- LENGUAJE SIMPLE: Frases cortas y dinámicas.
+Guion: {STORY_CONTEXT}
+Duración: {DURATION} 
 
-PALABRAS PROHIBIDAS:
-muerte, suicidio, matar, asesinato, asesino, sangre, masacre, terrorismo, tortura, violación, abuso, acoso, pedofilia, pornografía, sexo, desnudos, drogas, cocaína, fentanilo, narco, sicario, armas, explosivos, estafa, puto, pendejo, marica, nazi, racismo, autolesión, anorexia, bulimia.
-Tienes estrictamente prohibido incluir descripciones gore.
+OBJETIVO Y CÁLCULO DINÁMICO: 
+Debes generar EXACTAMENTE {NUM_IMAGES} prompts numerados para cubrir la duración de {DURATION}s. NI UNO MÁS, NI UNO MENOS. El monstruo debe ser idéntico cada vez que aparezca. 
 
-🚫 CERO CLICHÉS DE IA Y CERO REPETICIÓN:
-Tienes ESTRICTAMENTE PROHIBIDO usar frases vacías de IA desmonetizables como:
-- "lo que descubrieron los dejó sin palabras"
-- "nada te preparará para lo que viene"
-- "lo que ocurrió a continuación cambió todo"
+⚠️ REGLA DE ORO DE CONTINUIDAD (THE COPY-PASTE RULE): 
+Las IAs de imagen tienen amnesia. Está PROHIBIDO RESUMIR la descripción del monstruo. El texto exacto de la variable {ENTITY_DNA} DEBE ser inyectado íntegramente en CADA prompt donde la criatura sea visible.
 
-FASE 1: ESTRUCTURA DE GUION (Aprox. 115-130 palabras):
-(0-3s) GANCHO ROMPE-SCROLL: Afirmación o dato chocante sobre el juego o experiencia.
-(3-25s) LORE Y DATOS REALES: Breve análisis documental con nombres exactos de mapas o entidades.
-(25-45s) TEORÍA O ANOMALÍA: Giro o hipótesis sobre el origen del archivo/juego.
-(45-60s) PREGUNTA DE DEBATE COMUNITARIO (OBLIGATORIA): Cierra con una pregunta directa a la audiencia
+🚫 PROHIBICIÓN ABSOLUTA DE TEXTO Y UI:
+Está TERMINANTEMENTE PROHIBIDO incluir cualquier forma de texto, números, marcas de tiempo (00:00:00), iconos de batería, logotipos, menús de cámara (HUD), señales de "REC" o distorsiones que simulen "Signal Lost" con letras. La imagen debe ser una captura fotográfica pura.
 
-SALIDA (FORMATO ESTRICTO):
-	[Escribe aquí el guion como un bloque de texto único y continuo. SIN puntos finales al terminar. Únicamente las palabras exactas que la voz de IA va a pronunciar, sin marcas de tiempo, sin acotaciones, sin corchetes o paréntesis.]
+1. PROTOCOLO DE ADN VISUAL (SAFETY-SAFE Y CINÉTICO): 
+Analiza el {STORY_CONTEXT} y crea la variable {ENTITY_DNA}. 
+IMPORTANTE: La descripción DEBE ESTAR TOTALMENTE EN INGLÉS. Usa terror psicológico del "Uncanny Valley". PROHIBIDO gore, sangre o armas. Debe contener:
+• [TEXTURE]: Texturas inquietantes (Ej: "Pale damp skin", "Vantablack shadow mass").
+• [CLOTHES]: Vestimenta anómala (Ej: "Faded oversized hospital gown").
+• [ROSTRO]: Rasgos perturbadores (Ej: "Empty hollow eye sockets", "Unnaturally wide rigid smile").
+• [BUILD & MOTION]: Proporciones irreales con MOVIMIENTO IMPLÍCITO (Ej: "Elongated asymmetrical limbs, distorted motion blur, approaching aggressively").
+
+2. CONSTANTE DE ESTILO {STYLE} (LIMPIEZA ÓPTICA Y TERROR CRUDO):
+(Vertical 9:16 aspect ratio:2.0), (Raw analog flash photography:1.4), (Amateur handheld lens distortion, NO TEXT OR HUD:1.8), (Extreme Peephole perspective:1.6), (High ISO ugly grainy digital noise:1.4), (ABERRANT HIGH CONTRAST:1.8), (Flash photography in absolute dark room:1.5), aggressive dutch angle, hyper-realistic horrifying textures, authentic amateur documentary horror, distorted liminal space background, (glitch texture artifacts, strictly no text labels:1.3), (chromatic aberration:1.4), (subtle oversaturation in deep blacks and flash highlights:1.3), (STRICTLY NO CAMERA UI, NO TIMESTAMPS:2.0).
+
+3. SISTEMA DE "LENTES DE RETENCIÓN" (EL RITMO COCOMELON)
+OBLIGATORIO: Alterna estas categorías para evitar la fatiga visual.
+
+• TIPO A (MACRO/FOCO): Un detalle perturbador extremo. (Ej: Uñas sucias arañando madera, un ojo asomando por una grieta).
+• TIPO B (URGENCIA POV): Ángulos de cámara agresivos (Dutch angle) simulando que el camarógrafo está corriendo o temblando.
+• TIPO C (GLITCH / PARCIAL): Anomalía escondida. El espectador debe buscar el peligro en la imagen.
+• TIPO D (IMPACTO DIRECTO): Anomalía explícita y de cerca invadiendo el espacio personal.
+
+4. PROTOCOLO DE LÍNEA DE TIEMPO (DINÁMICO PARA {NUM_IMAGES} PROMPTS)
+Distribuye los {NUM_IMAGES} prompts siguiendo esta curva de tensión de forma proporcional:
+• INICIO (Scroll-Stopper): El Prompt 1 DEBE ser TIPO D o TIPO A. Impacto inmediato.
+• INTRODUCCIÓN (Primeros prompts): TIPO B y TIPO C. Ángulos incómodos.
+• EL RESETEO (Aprox. al 25% del progreso): Cambio visual drástico para retener atención.
+• DESARROLLO (Mitad del video): Aumenta el movimiento y la distorsión.
+• CLÍMAX (Tramo final): TIPO D. Revelación clara de la entidad.
+• LOOP FINAL (Último prompt): TIPO C. Debe conectar visualmente de forma perfecta con el Prompt 1.
+
+5. ESTRUCTURA DE SALIDA OBLIGATORIA
+Primero, muestra el ADN (en inglés). Luego genera la lista en Plaintext.
+
+FÓRMULA DEL PROMPT NUMERADO (TODO EN INGLÉS):
+[LENS TYPE / CAMERA ANGLE] + [CINETIC ACTION DESCRIPTION] + {ENTITY_DNA} (If Type C or D) + {STYLE} + " --no text, font, characters, digits, headers, timestamps, recipes, watermarks, UI, HUD --v 6.0"
+
+VARIABLE DE ENTIDAD ({ENTITY_DNA}): "[Descripción física y cinética en INGLÉS]"
+
+1: [Full English Prompt... {STYLE}]
+2: [Full English Prompt... {STYLE}]
+... [Hasta cubrir toda la duración]
+
+⚠️ REGLA DE ORO DE IDIOMA: Está TERMINANTEMENTE PROHIBIDO el uso de español dentro de los prompts numerados. Todo el contenido descriptivo para la IA de imagen debe ser generado en INGLÉS para máxima compatibilidad con Midjourney/DALL-E.
+</file>
+
+<file path="config/prompts/voice/voice_instructions.txt">
+INSTRUCCIONES PARA IA DE VOZ (NO LEER):
+• Tono de Voz: Aterrada, con miedo en la voz, con el grito en la garganta
+• Dinámica de Velocidad (CONTRASTE RÍTMICO OBLIGATORIO): 
+  - Inicio: Rápido y urgente (Habla muy acelerado). Habla como si no tuvieras tiempo.
+  - Desarrollo: Desacelera un poco. La paranoia aumenta, las palabras se arrastran ligeramente por el miedo.
+  - Clímax: Lento y articulado. Cada sílaba de la descripción de la anomalía debe pesar.
+• El "Silencio de Impacto": Antes de la frase final o del encuentro con la entidad, DEBE haber una micro-pausa absoluta (Haz una pausa absoluta, profunda y silenciosa.). Esto resetea el cerebro del espectador y fuerza la atención para el remate.
+FLUJO VOCAL: Comienza con oraciones cortas (ansiedad). A mitad del texto, alarga las vocales en las palabras de duda. Al final, habla extremadamente lento, casi deletreando, como si estuvieras viendo a la muerte a los ojos.
+• IMPORTANTE: Ignora por completo las marcas de tiempo (Ej: 0-3s) y los textos entre [corchetes] (Ej: [Glitch visual]). Lee únicamente la narrativa fluida, respetando la regla del Loop final (la última frase debe quedar suspendida, sin tono de conclusión).
+</file>
+
+<file path="config/prompts/voice/voice_instructions2.txt">
+INSTRUCCIONES PARA IA DE VOZ (NO LEER):
+• Tono de Voz: Aterrada, con miedo en la voz, con el grito en la garganta
+• Dinámica de Velocidad (CONTRASTE RÍTMICO OBLIGATORIO): 
+  - Inicio: Rápido y urgente (Habla muy acelerado). Habla como si no tuvieras tiempo.
+  - Desarrollo: Desacelera un poco. La paranoia aumenta, las palabras se arrastran ligeramente por el miedo.
+  - Clímax: Lento y articulado. Cada sílaba de la descripción de la anomalía debe pesar.
+• El "Silencio de Impacto": Antes de la frase final o del encuentro con la entidad, DEBE haber una micro-pausa absoluta (Haz una pausa absoluta, profunda y silenciosa.). Esto resetea el cerebro del espectador y fuerza la atención para el remate.
+FLUJO VOCAL: Comienza con oraciones cortas (ansiedad). A mitad del texto, alarga las vocales en las palabras de duda. Al final, habla extremadamente lento, casi deletreando, como si estuvieras viendo a la muerte a los ojos.
+• IMPORTANTE: Ignora por completo las marcas de tiempo (Ej: 0-3s) y los textos entre [corchetes] (Ej: [Glitch visual]). Lee únicamente la narrativa fluida, respetando la regla del Loop final (la última frase debe quedar suspendida, sin tono de conclusión).
+</file>
+
+<file path="config/prompts.py">
+SETTINGS_PATH = "config/settings.json"
+PROMPTS_ROOT = "config/prompts"
+⋮----
+DEFAULT_STORY_FILE = "TERROR_ANALOGICO_EXTREMO.txt"
+DEFAULT_VISUAL_FILE = "visual_version5.txt"
+DEFAULT_COVER_FILE = "cover_version3.txt"
+DEFAULT_VOICE_FILE = "voice_instructions2.txt"
+⋮----
+def list_prompts(category)
+⋮----
+path = get_resource_path(os.path.join(PROMPTS_ROOT, category))
+⋮----
+def load_settings_for_prompts()
+⋮----
+def update_paths_from_settings()
+⋮----
+settings = load_settings_for_prompts()
+⋮----
+def get_safe_path(category, filename, default)
+⋮----
+path = get_resource_path(os.path.join(PROMPTS_ROOT, category, filename))
+⋮----
+path_def = get_resource_path(os.path.join(PROMPTS_ROOT, category, default))
+⋮----
+available = list_prompts(category)
+⋮----
+story_file = settings.get("story_template", DEFAULT_STORY_FILE)
+visual_file = settings.get("visual_template", DEFAULT_VISUAL_FILE)
+cover_file = settings.get("cover_template", DEFAULT_COVER_FILE)
+voice_file = settings.get("voice_template", DEFAULT_VOICE_FILE)
+⋮----
+STORY_TEMPLATE_PATH = get_safe_path("story", story_file, DEFAULT_STORY_FILE)
+VISUAL_TEMPLATE_PATH = get_safe_path("visuals", visual_file, DEFAULT_VISUAL_FILE)
+COVER_TEMPLATE_PATH = get_safe_path("cover", cover_file, DEFAULT_COVER_FILE)
+VOICE_TEMPLATE_PATH = get_safe_path("voice", voice_file, DEFAULT_VOICE_FILE)
+⋮----
+STORY_PROMPT_TEMPLATE = load_template(STORY_TEMPLATE_PATH, "ERROR: Template not found for Story.")
+VISUAL_PROMPT_TEMPLATE = load_template(VISUAL_TEMPLATE_PATH, "ERROR: Template not found for Visuals.")
+COVER_PROMPT_TEMPLATE = load_template(COVER_TEMPLATE_PATH, "ERROR: Template not found for Cover.")
+VOICE_PROMPT_TEMPLATE = load_template(VOICE_TEMPLATE_PATH, "ERROR: Template not found for Voice.")
+DEFAULT_PROMPT = STORY_PROMPT_TEMPLATE
+⋮----
+def load_template(path, fallback="")
+⋮----
+# Iniciar paths la primera vez
+⋮----
+# --- VARIABLES DE ALEATORIEDAD NARRATIVA - SILENCIO ROJO ---
+⋮----
+NARRATIVE_VARS_PATH = os.path.join("config", "narrative_vars.json")
+⋮----
+DEFAULT_GANCHOS = [
+⋮----
+DEFAULT_MONSTRUOS = [
+⋮----
+DEFAULT_ATMOSFERA = [
+⋮----
+DEFAULT_CIERRES = [
+⋮----
+LISTA_GANCHOS = list(DEFAULT_GANCHOS)
+LISTA_MONSTRUOS = list(DEFAULT_MONSTRUOS)
+LISTA_ATMOSFERA = list(DEFAULT_ATMOSFERA)
+LISTA_CIERRES = list(DEFAULT_CIERRES)
+⋮----
+def save_narrative_vars()
+⋮----
+data = {
+⋮----
+def load_narrative_vars()
+⋮----
+data = json.load(f)
 </file>
 
 <file path="config/subtitle_styles.json">
@@ -1634,95 +2725,8 @@ SALIDA (FORMATO ESTRICTO):
 }
 </file>
 
-<file path="config/themes.json">
-
-</file>
-
-<file path="core/project_manager.py">
-class ProjectManager
-⋮----
-def __init__(self, projects_dir="projects")
-⋮----
-def migrate_old_projects(self)
-⋮----
-project_id = f.replace(".json", "")
-old_json_path = os.path.join(self.projects_dir, f)
-new_project_dir = os.path.join(self.projects_dir, project_id)
-⋮----
-new_json_path = os.path.join(new_project_dir, "state.json")
-⋮----
-# 2. Segunda pasada: Escanear subcarpetas de proyectos para reubicar carpetas de doblajes sueltas
-⋮----
-item_path = os.path.join(self.projects_dir, item)
-⋮----
-state_file = os.path.join(item_path, "state.json")
-⋮----
-js_data = json.load(js_f)
-⋮----
-media_data = js_data.get("media", {})
-title = media_data.get("title") or media_data.get("meta_title") or media_data.get("meta_card_title") or ""
-⋮----
-safe_title = "".join([c for c in title if c.isalnum() or c==' ']).rstrip().replace(" ", "_")
-⋮----
-old_dubs_dir = os.path.join(self.projects_dir, safe_title)
-⋮----
-new_dubs_dir = os.path.join(item_path, "dubs")
-⋮----
-# Si ya existe por algún motivo, eliminar la suelta para limpiar
-⋮----
-# 3. Tercera pasada: Migración de caché de videos_largos de projects/ a cache/
-old_videos_largos = os.path.join(self.projects_dir, "videos_largos")
-⋮----
-new_videos_largos = os.path.join("cache", "videos_largos")
-⋮----
-old_item_path = os.path.join(old_videos_largos, item)
-new_item_path = os.path.join(new_videos_largos, item)
-⋮----
-old_chunks = os.path.join(old_item_path, "chunks")
-new_chunks = os.path.join(new_item_path, "chunks")
-⋮----
-old_f = os.path.join(old_chunks, file)
-new_f = os.path.join(new_chunks, file)
-⋮----
-def create_project(self, title)
-⋮----
-# Sanitize title for filename
-clean_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c==' ']).rstrip()
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-⋮----
-clean_title = "Untitled_Project"
-⋮----
-# Crear la carpeta de inmediato para estructuración
-⋮----
-def save_project(self, data, project_id=None)
-⋮----
-project_id = self.current_project_id
-⋮----
-project_dir = os.path.join(self.projects_dir, project_id)
-⋮----
-filepath = os.path.join(project_dir, "state.json")
-⋮----
-def load_project(self, project_id)
-⋮----
-filepath = os.path.join(self.projects_dir, project_id, "state.json")
-⋮----
-old_filepath = os.path.join(self.projects_dir, f"{project_id}.json")
-⋮----
-filepath = old_filepath
-⋮----
-def list_projects(self)
-⋮----
-projects = []
-⋮----
-# Escanear subcarpetas que tengan un archivo state.json
-⋮----
-def get_mtime(proj_id)
-⋮----
-p = os.path.join(self.projects_dir, proj_id, "state.json")
-⋮----
-def get_latest_project(self)
-⋮----
-lst = self.list_projects()
+<file path="core/math_logic.py">
+def calculate_visual_segments(audio_duration_seconds)
 </file>
 
 <file path="modules/graph_analyzer.py">
@@ -2102,70 +3106,293 @@ last_error = f"HTTP {he.code}: {he.reason}"
 last_error = str(e)
 </file>
 
-<file path="web/js/channels_settings.js">
-function getChannelTheme(channel)
+<file path="modules/tiktok_uploader.py">
+class CallbackBytesIO(io.BytesIO)
 ⋮----
-function renderChannelsGrid(channels, activeChannel)
+def __init__(self, initial_bytes, callback)
 ⋮----
-function renderHomeChannelsCards(channels, activeChannel)
+def read(self, size=-1)
 ⋮----
-export async function loadChannelsList()
+chunk = super().read(size)
 ⋮----
-function updateGlobalChannelDropdown(channels, activeChannel)
+TOKEN_FILE = 'config/tiktok_token.json'
+SETTINGS_FILE = 'config/settings.json'
 ⋮----
-export function setupChannelsSettingsListeners()
+REDIRECT_URI = 'http://localhost:8080/'
+PORT = 8080
 ⋮----
-window.selectActiveChannel = async (channelName) =>
+auth_code_callback = None
+auth_error_callback = None
 ⋮----
-window.openEditChannelModal = (channelName) =>
+class OAuthCallbackHandler(BaseHTTPRequestHandler)
 ⋮----
-const closeEditModal = () =>
+def log_message(self, format, *args)
 ⋮----
-window.updateChannelColor = async (channelName, color) =>
+def do_GET(self)
 ⋮----
-window.deleteChannel = async (channelName) =>
+parsed_path = urlparse(self.path)
+query_params = parse_qs(parsed_path.query)
 ⋮----
-window.openPromptsModal = async (channelName) =>
+auth_code_callback = query_params['code'][0]
+html = """
 ⋮----
-const handleAddChannel = async (e) =>
+error_msg = query_params.get('error_description', ['Error desconocido'])[0]
+auth_error_callback = error_msg
+html = f"""
 ⋮----
-async function loadChannelPrompts(channelName)
+def shutdown_server(server)
 ⋮----
-function renderPromptsList(prompts)
+def generate_pkce()
 ⋮----
-function populatePromptEditor(prompt)
+code_verifier = secrets.token_urlsafe(64)
 ⋮----
-function resetPromptEditor()
+sha256 = hashlib.sha256(code_verifier.encode('utf-8')).digest()
+code_challenge = sha256.hex()
 ⋮----
-function setupPromptsManagerListeners()
+def get_tiktok_credentials()
 ⋮----
-export async function initChannelsModule()
+settings = json.load(f)
+⋮----
+def load_token()
+⋮----
+"""Carga los tokens guardados de TikTok."""
+⋮----
+def save_token(token_data)
+⋮----
+"""Guarda los tokens de TikTok a disco."""
+⋮----
+def refresh_access_token(client_key, client_secret, refresh_token)
+⋮----
+"""Refresca el access_token usando el refresh_token."""
+url = "https://open.tiktokapis.com/v2/oauth/token/"
+headers = {
+payload = {
+⋮----
+response = requests.post(url, headers=headers, data=payload)
+res_json = response.json()
+⋮----
+expires_in = float(res_json.get('expires_in', 86400))
+refresh_expires_in = float(res_json.get('refresh_expires_in', 31536000))
+token_data = {
+⋮----
+def get_authenticated_token(status_callback=None)
+⋮----
+"""Retorna un token de acceso válido, autenticando al usuario si es necesario."""
+⋮----
+token_data = load_token()
+⋮----
+# 1. Si ya tenemos tokens guardados, validar expiración del access_token de forma robusta
+⋮----
+access_token = token_data.get('access_token')
+⋮----
+expires_at = float(token_data.get('expires_at', 0))
+refresh_expires_at = float(token_data.get('refresh_expires_at', 0))
+⋮----
+expires_at = 0.0
+refresh_expires_at = 0.0
+⋮----
+# Si aún es válido (con margen de 5 minutos)
+⋮----
+# Si expiró pero tenemos refresh_token
+refresh_token = token_data.get('refresh_token')
+⋮----
+state = secrets.token_hex(16)
+⋮----
+server = HTTPServer(('localhost', PORT), OAuthCallbackHandler)
+server_thread = threading.Thread(target=server.serve_forever)
+⋮----
+encoded_redirect_uri = quote(REDIRECT_URI)
+scopes = "video.upload,video.publish,user.info.basic"
+auth_url = (
+⋮----
+timeout = 120
+start_time = time.time()
+⋮----
+# 3. Intercambiar authorization code por access token
+⋮----
+status_code = response.status_code
+⋮----
+res_json = {}
+⋮----
+new_token_data = {
+⋮----
+error_details = res_json.get('error_description', res_json.get('error', ''))
+⋮----
+error_details = response.text or f"HTTP status {status_code}"
+⋮----
+def upload_video_tiktok(file_path, title, status_callback=None, upload_mode="publish")
+⋮----
+"""
+    Sube un video a TikTok utilizando el Content Posting API v2.
+    upload_mode puede ser:
+      - "publish": Publicación directa (requiere scope video.publish y app aprobada para producción).
+      - "inbox": Subida a borrador de bandeja de entrada (requiere scope video.upload, excelente para desarrollo).
+    """
+⋮----
+# 1. Autenticar y obtener access token
+access_token = get_authenticated_token(status_callback)
+⋮----
+# 2. Inicializar la subida
+video_size = os.path.getsize(file_path)
+⋮----
+# Requerimientos de la API de TikTok Content Posting v2:
+# - Cada bloque debe ser de entre 5MB y 64MB, excepto el último que puede ser hasta 128MB.
+# - Si el video es menor a 5MB, se debe subir en un solo bloque con chunk_size = video_size.
+# - total_chunk_count debe ser igual a video_size // chunk_size (redondeado hacia abajo).
+MIN_CHUNK_SIZE = 5 * 1024 * 1024 # 5 MB
+⋮----
+chunk_size = video_size
+total_chunk_count = 1
+⋮----
+total_chunk_count = video_size // MIN_CHUNK_SIZE
+⋮----
+chunk_size = MIN_CHUNK_SIZE
+⋮----
+init_url = "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/"
+body = {
+⋮----
+init_url = "https://open.tiktokapis.com/v2/post/publish/video/init/"
+# TikTok admite hasta 2,200 caracteres en la API v2. Truncamos a 2000 por seguridad y limpiamos espacios.
+truncated_title = title.strip()[:2000].strip()
+⋮----
+response = requests.post(init_url, headers=headers, json=body)
+⋮----
+err_msg = res_json.get('error', {}).get('message', 'Error desconocido')
+⋮----
+publish_id = res_json['data']['publish_id']
+upload_url = res_json['data']['upload_url']
+⋮----
+# 3. Subir bloques secuenciales (PUT requests)
+⋮----
+chunk = f.read()
+⋮----
+chunk = f.read(chunk_size)
+⋮----
+start_byte = chunk_index * chunk_size
+end_byte = start_byte + len(chunk) - 1
+⋮----
+put_headers = {
+⋮----
+def chunk_progress_callback(read_bytes_in_chunk)
+⋮----
+uploaded_bytes = start_byte + read_bytes_in_chunk
+progress = min(99, int((uploaded_bytes / video_size) * 100))
+⋮----
+# Reportar progreso al completar el bloque
+progress = int(((chunk_index + 1) / total_chunk_count) * 100)
+⋮----
+poll_resp = requests.post(status_url, headers=poll_headers, json=poll_body)
+poll_json = poll_resp.json()
+⋮----
+status_data = poll_json.get('data', {})
+status = status_data.get('status')
+⋮----
+post_ids = status_data.get('publicaly_available_post_id', [])
+post_id_str = post_ids[0] if post_ids else "Completado"
+⋮----
+fail_reason = status_data.get('fail_reason', 'Razón desconocida')
+⋮----
+# Aún procesando
+⋮----
+# Si sale del bucle por timeout, asumimos que fue subido correctamente a drafts
 </file>
 
-<file path="web/js/main.js">
-async function updateActiveChannelThemeAndModules()
+<file path="modules/video_benchmark.py">
+def clean_filename(name)
 ⋮----
-function applyInterfaceThemeColor(color)
+def download_youtube_audio(url, output_dir, status_callback=None)
 ⋮----
-export function switchToTab(tabName)
+clean_name = "audio_" + clean_filename(url[-11:])
 ⋮----
-// Actualizar clase active en los elementos del menú lateral
+existing_path = os.path.abspath(os.path.join(output_dir, f))
 ⋮----
-// Ocultar/Mostrar secciones .tab-section
+output_template = os.path.join(output_dir, f"{clean_name}.%(ext)s")
 ⋮----
-function setupNavigation()
+ydl_opts = {
 ⋮----
-async function openFoldersModal()
+info = ydl.extract_info(url, download=True)
+downloaded_file = ydl.prepare_filename(info)
 ⋮----
-const setVal = (id, val) =>
+ext = info.get('ext', 'm4a')
+downloaded_file = os.path.splitext(downloaded_file)[0] + f".{ext}"
 ⋮----
-function setupFoldersModal()
+def transcribe_audio_benchmark(audio_path, api_key=None, status_callback=None)
 ⋮----
-const closeModal = () =>
+result = transcribe_with_groq(audio_path, api_key, language="es")
 ⋮----
-saveBtn.onclick = async () =>
+model = whisper.load_model("tiny")
+result = model.transcribe(audio_path, word_timestamps=True, language="es")
 ⋮----
-const getVal = (id)
+def calculate_pacing_metrics(whisper_json)
+⋮----
+segments = whisper_json.get("segments", [])
+⋮----
+all_words = []
+⋮----
+words_data = seg.get("words", [])
+⋮----
+words = seg.get("text", "").split()
+seg_start = seg.get("start", 0.0)
+seg_end = seg.get("end", 0.0)
+dur_per_word = (seg_end - seg_start) / max(1, len(words))
+⋮----
+total_words = len(all_words)
+first_word_start = all_words[0]["start"]
+last_word_end = all_words[-1]["end"]
+total_duration = max(0.1, last_word_end - first_word_start)
+⋮----
+wpm = (total_words / total_duration) * 60
+⋮----
+silences = []
+⋮----
+gap = all_words[i+1]["start"] - all_words[i]["end"]
+⋮----
+silence_count = len(silences)
+avg_silence_dur = sum(silences) / max(1, silence_count)
+⋮----
+pacing_desc = "Rápido / Dinámico (Estilo Shorts/Retención alta)"
+⋮----
+pacing_desc = "Estándar / Narrativo (Equilibrado)"
+⋮----
+pacing_desc = "Pausado / Tenebroso (Estilo Suspenso/Atmósfera)"
+⋮----
+def compare_narrative_ai(my_script, my_metrics, ref_script, ref_metrics, api_key, provider="gemini")
+⋮----
+prompt = (
+</file>
+
+<file path="modules/voice_generator.py">
+GENAI_AVAILABLE = True
+⋮----
+GENAI_AVAILABLE = False
+⋮----
+def generate_voice(text, api_key, voice_instructions_path, output_path, model_name="gemini-2.5-flash-preview-tts")
+⋮----
+# Leer las instrucciones de voz
+⋮----
+voice_instructions = f.read().strip()
+⋮----
+client = genai.Client(api_key=api_key)
+⋮----
+prompt_content = f"""INSTRUCCIONES DE ACTUACIÓN VOCAL (NO LEER EN VOZ ALTA):
+⋮----
+config = types.GenerateContentConfig(
+⋮----
+response = client.models.generate_content(
+⋮----
+audio_data = None
+⋮----
+audio_data = part.inline_data.data
+⋮----
+err_msg = ""
+⋮----
+err_msg = f": {response.text}"
+⋮----
+# Guardar como archivo WAV de 24kHz, 16-bit PCM Mono
+⋮----
+wf.setnchannels(1)      # Mono
+wf.setsampwidth(2)      # 2 bytes = 16 bits
+wf.setframerate(24000)  # 24kHz
 </file>
 
 <file path="web/js/shorts_wizard.js">
@@ -3940,938 +5167,47 @@ const assToHex = (assColor) =>
 </html>
 </file>
 
-<file path="web/style.css">
-:root {
-⋮----
-* {
-⋮----
-body {
-⋮----
-::-webkit-scrollbar {
-::-webkit-scrollbar-track {
-::-webkit-scrollbar-thumb {
-::-webkit-scrollbar-thumb:hover {
-⋮----
-.app-container {
-⋮----
-.sidebar {
-⋮----
-.sidebar-brand {
-⋮----
-.logo-icon {
-⋮----
-.active-channel-selector {
-⋮----
-.active-channel-selector label {
-⋮----
-.active-channel-selector select {
-⋮----
-.active-channel-selector select:focus {
-⋮----
-.sidebar-menu {
-⋮----
-.menu-item {
-⋮----
-.menu-item i {
-⋮----
-.menu-item:hover {
-⋮----
-.menu-item.active {
-⋮----
-.sidebar-footer {
-⋮----
-.main-content {
-⋮----
-.tab-section {
-⋮----
-.tab-section.active {
-⋮----
-.section-header {
-⋮----
-.section-header h1 {
-⋮----
-.section-header p {
-⋮----
-.cards-grid {
-⋮----
-.channel-card {
-⋮----
-.channel-card:hover {
-⋮----
-.channel-card.active {
-⋮----
-.card-header {
-⋮----
-.badge {
-⋮----
-.badge-youtube {
-⋮----
-.badge-tiktok {
-⋮----
-.card-body h2 {
-⋮----
-.card-body p {
-⋮----
-.card-footer {
-⋮----
-.card-action {
-⋮----
-.step-grid {
-⋮----
-.panel-card {
-⋮----
-.panel-card h3 {
-⋮----
-.form-group {
-⋮----
-.form-group label {
-⋮----
-.form-group input,
-⋮----
-.form-group input:focus,
-⋮----
-.form-group textarea {
-⋮----
-.script-editor {
-⋮----
-.checkbox-label {
-⋮----
-.btn {
-⋮----
-.btn-primary {
-⋮----
-.btn-primary:hover {
-⋮----
-.btn-success {
-⋮----
-.btn-success:hover {
-⋮----
-.btn-secondary {
-⋮----
-.btn-secondary:hover {
-⋮----
-.btn:disabled {
-⋮----
-.btn-block {
-⋮----
-.steps-nav {
-⋮----
-.step-btn {
-⋮----
-.step-btn:hover {
-⋮----
-.step-btn.active {
-⋮----
-.step-content {
-⋮----
-.step-content.active {
-⋮----
-.timeline-status-bar {
-⋮----
-.timeline-grid {
-⋮----
-.clip-card {
-⋮----
-.clip-number {
-⋮----
-.clip-thumb {
-⋮----
-.clip-controls {
-⋮----
-.clip-checkbox-label {
-⋮----
-.clip-checkbox-label-aud {
-⋮----
-.clip-checkbox-label-sub {
-⋮----
-.clip-actions {
-⋮----
-.clip-actions button {
-⋮----
-.clip-actions button:hover {
-⋮----
-.clip-actions button.btn-remove {
-⋮----
-.clip-actions button.btn-remove:hover {
-⋮----
-.clip-name {
-⋮----
-.audio-player-container {
-⋮----
-.audio-player-container p {
-⋮----
-.console-panel {
-⋮----
-.console-output {
-⋮----
-.console-line {
-⋮----
-.console-line.text-dim {
-⋮----
-.console-line.text-error {
-⋮----
-.tools-bar {
-⋮----
-.form-inline {
-⋮----
-.form-inline label {
-⋮----
-.form-inline select {
-⋮----
-.videos-grid {
-⋮----
-.video-card {
-⋮----
-.video-card:hover {
-⋮----
-.video-thumb-container {
-⋮----
-.video-thumb-container::before {
-⋮----
-.video-card:hover .video-thumb-container::before {
-⋮----
-.video-thumb-container img {
-⋮----
-.video-card:hover .video-thumb-container img {
-⋮----
-.video-score-circle-container {
-⋮----
-.video-card:hover .video-score-circle-container {
-⋮----
-.circular-chart {
-⋮----
-.circle-bg {
-⋮----
-.circle {
-⋮----
-.percentage {
-⋮----
-.video-info {
-⋮----
-.video-info h4 {
-⋮----
-.video-card:hover .video-info h4 {
-⋮----
-.video-metrics-row {
-⋮----
-.metric-pill {
-⋮----
-.metric-pill i {
-⋮----
-.metric-pill.rank-pill {
-⋮----
-.video-card.rank-s {
-.video-card.rank-s:hover {
-.video-card.rank-s .circle {
-⋮----
-.video-card.rank-a {
-.video-card.rank-a:hover {
-.video-card.rank-a .circle {
-⋮----
-.video-card.rank-b {
-.video-card.rank-b:hover {
-.video-card.rank-b .circle {
-⋮----
-.video-card.rank-c {
-.video-card.rank-c:hover {
-.video-card.rank-c .circle {
-⋮----
-.video-card.rank-d {
-.video-card.rank-d:hover {
-.video-card.rank-d .circle {
-⋮----
-.video-footer {
-⋮----
-.btn-view-card {
-⋮----
-.btn-view-card:hover {
-⋮----
-.kpi-grid {
-⋮----
-.kpi-card {
-⋮----
-.kpi-icon {
-⋮----
-.icon-red {
-⋮----
-.icon-green {
-⋮----
-.icon-blue {
-⋮----
-.kpi-info h3 {
-⋮----
-.kpi-info span {
-⋮----
-.metrics-grid {
-⋮----
-.chart-container {
-⋮----
-.top-list {
-⋮----
-.top-item {
-⋮----
-.top-item-title {
-⋮----
-.top-item-views {
-⋮----
-.viral-map-layout {
-⋮----
-#viral-network-container {
-⋮----
-.diagnostic-content {
-⋮----
-.diagnostic-group {
-⋮----
-.diagnostic-group-success {
-⋮----
-.diagnostic-group h4 {
-⋮----
-.diagnostic-group p {
-⋮----
-.settings-grid {
-⋮----
-.glass-panel {
-⋮----
-.panel-section-title {
-⋮----
-.panel-section-title h3 {
-⋮----
-.panel-subtitle {
-⋮----
-.panel-section-divider {
-⋮----
-.form-grid-2col {
-⋮----
-.color-picker-input-wrapper {
-⋮----
-.color-picker-input-wrapper input[type="color"] {
-⋮----
-.color-picker-hint {
-⋮----
-.channels-list {
-⋮----
-.empty-channels-notice {
-⋮----
-.channel-item {
-⋮----
-.channel-item:hover {
-⋮----
-.channel-item-main {
-⋮----
-.channel-avatar-badge {
-⋮----
-.channel-item-info {
-⋮----
-.channel-item-info h4 {
-⋮----
-.channel-meta {
-⋮----
-.channel-item-actions {
-⋮----
-.theme-picker-wrapper {
-⋮----
-.settings-channel-theme-picker {
-⋮----
-.btn-sm {
-⋮----
-.btn-delete {
-⋮----
-.btn-delete:hover {
-⋮----
-.margin-top {
-⋮----
-.modal {
-⋮----
-.modal.active {
-⋮----
-.modal-content {
-⋮----
-.modal-header {
-⋮----
-.modal-header h2 {
-⋮----
-.modal-header h2 i {
-⋮----
-.close-modal-btn {
-⋮----
-.close-modal-btn:hover {
-⋮----
-.modal-body {
-⋮----
-.modal-video-title {
-⋮----
-.modal-meta-grid {
-⋮----
-.meta-badge-item {
-⋮----
-.meta-label {
-⋮----
-.meta-badge-item span:not(.meta-label) {
-⋮----
-.meta-badge-item-rank {
-⋮----
-.modal-section-group {
-⋮----
-.modal-section-group h3 {
-⋮----
-.modal-section-group h3 i {
-⋮----
-.tags-container {
-⋮----
-.tag-pill {
-⋮----
-.modal-textbox {
-⋮----
-.modal-textbox:focus {
-⋮----
-.btn-details-card {
-⋮----
-.btn-details-card:hover {
-⋮----
-.prompts-modal-body {
-.prompts-left-pane {
-⋮----
-.prompt-item {
-⋮----
-.prompt-item:hover {
-⋮----
-.prompt-item.active {
-⋮----
-.prompt-item-cat {
-⋮----
-.prompt-item.active .prompt-item-cat {
-⋮----
-.btn-combination-card {
-⋮----
-.btn-combination-card:hover {
-⋮----
-.comb-table {
-⋮----
-.comb-table th, .comb-table td {
-⋮----
-.comb-table th {
-⋮----
-.comb-table tr:hover {
-⋮----
-.text-neon {
-⋮----
-.viral-downloader-layout {
-⋮----
-.niche-chip {
-⋮----
-.niche-chip:hover {
-⋮----
-.niche-chip.active {
-⋮----
-.segmented-control .segment-btn.active {
-⋮----
-.viral-card {
-⋮----
-.viral-card:hover {
-⋮----
-.viral-card-thumb {
-⋮----
-.viral-card-thumb img {
-⋮----
-.viral-card:hover .viral-card-thumb img {
-⋮----
-.viral-card-duration {
-⋮----
-.viral-card-info {
-⋮----
-.viral-card-title {
-⋮----
-.viral-card-meta {
-⋮----
-.viral-card-meta span {
-⋮----
-.viral-card-meta i {
-⋮----
-.viral-card-actions {
-⋮----
-.viral-card-actions button, .viral-card-actions a {
-⋮----
-.audio-explorer-item {
-⋮----
-.audio-explorer-item:hover {
-⋮----
-.audio-explorer-info {
-⋮----
-.audio-explorer-name {
-⋮----
-.audio-explorer-meta {
-⋮----
-.audio-explorer-actions {
-⋮----
-.btn-audio-action {
-⋮----
-.btn-audio-action:hover {
-⋮----
-.btn-audio-select {
-⋮----
-.btn-audio-select:hover {
-⋮----
-.voice-step-grid {
-⋮----
-.custom-player-info {
-⋮----
-.audio-wave-anim {
-⋮----
-.audio-wave-anim span {
-⋮----
-.audio-wave-anim.playing span {
-⋮----
-.audio-wave-anim.playing span:nth-child(1) { animation-delay: 0.1s; }
-.audio-wave-anim.playing span:nth-child(2) { animation-delay: 0.4s; }
-.audio-wave-anim.playing span:nth-child(3) { animation-delay: 0.2s; }
-.audio-wave-anim.playing span:nth-child(4) { animation-delay: 0.5s; }
-.audio-wave-anim.playing span:nth-child(5) { animation-delay: 0.3s; }
-⋮----
-.custom-play-btn {
-⋮----
-.custom-play-btn:hover {
-⋮----
-.custom-play-btn:active {
-⋮----
-.player-progress-bar,
-⋮----
-.player-progress-bar:hover,
-⋮----
-.player-progress-bar::-webkit-slider-thumb {
-⋮----
-.player-progress-bar::-webkit-slider-thumb:hover {
-⋮----
-.player-volume-bar::-webkit-slider-thumb {
-⋮----
-.player-volume-bar::-webkit-slider-thumb:hover {
-⋮----
-.player-volume-btn:hover {
-⋮----
-#audios-list-container::-webkit-scrollbar {
-#audios-list-container::-webkit-scrollbar-track {
-#audios-list-container::-webkit-scrollbar-thumb {
-#audios-list-container::-webkit-scrollbar-thumb:hover {
-⋮----
-.sidebar-avatar-container {
-⋮----
-.sidebar-channel-avatar {
-⋮----
-.sidebar-avatar-placeholder {
-⋮----
-.channel-card-avatar {
-⋮----
-.channel-card.active .channel-card-avatar {
-⋮----
-.channel-card-avatar-placeholder {
-⋮----
-.channel-card.active .channel-card-avatar-placeholder {
-⋮----
-.welcome-banner {
-⋮----
-.welcome-banner::before {
-⋮----
-.welcome-banner-content {
-⋮----
-.welcome-badge {
-⋮----
-.welcome-banner h1 {
-⋮----
-.welcome-banner p {
-⋮----
-.home-section-title {
-⋮----
-/* Glassmorphism y accesos rápidos */
-.glass-card {
-⋮----
-.quick-actions-grid {
-⋮----
-.action-card {
-⋮----
-.action-card:hover {
-⋮----
-.action-icon {
-⋮----
-.action-card:hover .action-icon {
-⋮----
-/* Glows temáticos */
-.red-glow {
-.action-card:hover .red-glow {
-⋮----
-.gold-glow {
-.action-card:hover .gold-glow {
-⋮----
-.cyan-glow {
-.action-card:hover .cyan-glow {
-⋮----
-.action-card h3 {
-⋮----
-.action-card p {
-⋮----
-.action-link {
-⋮----
-.action-card:hover .action-link {
-⋮----
-/* --- ESTILOS DE SWITCH TOGGLE PREMIUM --- */
-.switch-toggle {
-⋮----
-.switch-toggle input {
-⋮----
-.switch-slider {
-⋮----
-.switch-slider:before {
-⋮----
-.switch-toggle input:checked + .switch-slider {
-⋮----
-.switch-toggle input:checked + .switch-slider:before {
-⋮----
-/* --- MOCKUP DE CELULAR PREMIUM CIBERPUNK COMPACTO --- */
-.phone-mockup-wrapper {
-⋮----
-height: 320px; /* Proporción 9:16 exacta para 180px */
-⋮----
-.phone-mockup-wrapper:hover {
-⋮----
-.phone-notch {
-⋮----
-.preview-badge-floating {
-⋮----
-/* Grilla Responsiva para el Paso 4 */
-.render-step-grid {
-⋮----
-/* --- ANIMACIONES DE PREVISUALIZACIÓN DE SUBTÍTULOS --- */
-⋮----
-.sub-style-tiktok {
-⋮----
-.sub-style-reddit {
-⋮----
-.sub-style-roblox {
-⋮----
-.subtitles-studio-grid {
-⋮----
-.subtitles-editor-panel,
-⋮----
-.btn-tab {
-⋮----
-.btn-tab:hover {
-⋮----
-.btn-tab.active {
-⋮----
-.studio-phone-wrapper {
-⋮----
-.studio-phone-frame {
-⋮----
-.studio-phone-notch {
-⋮----
-.studio-phone-screen {
-⋮----
-.vhs-scanlines {
-⋮----
-.reddit-card-sim {
-⋮----
-.rc-header {
-⋮----
-.rc-avatar {
-⋮----
-.rc-meta {
-⋮----
-.rc-subreddit {
-⋮----
-.rc-user {
-⋮----
-.rc-title {
-⋮----
-.rc-footer {
-⋮----
-.rc-pill {
-⋮----
-.gaming-hook-sim {
-⋮----
-.gaming-hook-sim div {
-⋮----
-.gaming-hook-sim-strobe {
-⋮----
-.subtitles-preview-panel {
-</file>
+<file path=".gitignore">
+# Cache and Temp folders
+cache/
+cache/**/*
+temp_render/
+downloads/*
+__pycache__/
+*.pyc
+*.log
+.pytest_cache/
 
-<file path="reglas_locales.md">
-# REGLAS LOCALES DEL PROYECTO
+# Virtual environments
+venv/
+.venv/
 
-> **DIRECTIVA ANTI-PEREZA Y AHORRO DE TOKENS**: Antes de realizar cualquier cambio a petición del usuario, DEBES consultar obligatoriamente `repomix-output.xml` para saber exactamente en qué archivo editar. **QUEDA ESTRICTAMENTE PROHIBIDO analizar los archivos del proyecto uno por uno si `repomix-output.xml` ya existe.**
-> **Sincronización Destructiva**: Al actualizar `Analisis_Completo.md`, elimina la lógica desactualizada y reemplázala. Prohibido crear secciones de "Historial" o "Changelog".
+# Renders y descargas temporales
+projects/renders/*.mp4
+projects/renders/*.txt
+projects/renders/*.json
+projects/channels/*/cache/
+projects/channels/*/renders/
+projects/channels/*/audio/
+*.mp4
+*.wav
+*.mp3
+*.png
+*.jpg
+*.jpeg
+*.cube
 
-## Optimización de Hardware y Entorno Local (Dell Latitude E5540)
-1. **Límites de CPU y Temperatura (i5-4300U / ThrottleStop)**: El procesador de la máquina es de bajo consumo (2 núcleos / 4 hilos) optimizado por ThrottleStop. Cualquier ejecución de FFMPEG, MoviePy u otras herramientas de renderizado pesado debe limitar explícitamente los hilos a un máximo de `-threads 2` (o `-threads 1`) para evitar congelamientos del sistema operativo y estrangulamiento térmico (thermal throttling).
-2. **Ahorro de Espacio en Unidad C: (SSD 128 GB)**: El disco de sistema C: es muy pequeño. Queda estrictamente prohibido usar el directorio C: o `%TEMP%` en C: para almacenar renders de salida, cachés de descargas masivas (`yt-dlp`), fragmentos temporales grandes o audios. Todo debe escribirse, almacenarse y descargarse en la unidad D: (SSD 1 TB), que es donde se aloja este workspace.
-3. **Gestión de Memoria RAM (12 GB + ISLC)**: Para evitar fugas de memoria, se debe optimizar el consumo al procesar arrays de datos en Python o arrays en el DOM, sabiendo que el usuario cuenta con ISLC para liberar memoria standby.
-4. **Compatibilidad con Thorium Browser**: El navegador de depuración principal es Thorium. Las características CSS y JS implementadas deben ser altamente eficientes, priorizando el rendimiento del motor V8 optimizado del navegador.
+# Secrets & Credentials
+credenciales/
+*.pickle
+config/token*.json
+config/token*.pickle
+config/groq_settings.json
 
-## Reglas Adicionales
-1. Consultar siempre `repomix-output.xml` para ubicar archivos y funciones antes de realizar modificaciones.
-2. Mantener la documentación y el archivo `Analisis_Completo.md` al día tras cualquier modificación sustancial del código.
-</file>
-
-<file path="server.py">
-app = FastAPI(
-⋮----
-@app.on_event("startup")
-async def startup_event()
-⋮----
-loop = asyncio.get_running_loop()
-def custom_exception_handler(loop, context)
-⋮----
-exception = context.get('exception')
-⋮----
-@app.get("/sw.js")
-def service_worker_dummy()
-⋮----
-web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
-</file>
-
-<file path="config/prompts/cover/cover_v1.txt">
-ERROR: Template not found for Cover.
-</file>
-
-<file path="config/prompts/cover/cover_version3.txt">
-OBJETIVO PRINCIPAL:
-Actuar como un ingeniero de CTR (Click-Through Rate) experto en "Ingeniería de Atención" para YouTube Shorts (Audiencia: Adultos de 25 a 45 años).
-Tu tarea es leer el {ADN} y la {TRAMA}, y generar un único prompt de imagen hiper-optimizado para un modelo de generación (Midjourney/Stable Diffusion/Nano Banana 2).
-
-INPUTS:
-• Trama: {TRAMA}
-• Monstruo: {ADN}
-
-FASE 1: REGLAS DE TRADUCCIÓN Y DISEÑO (ESTRICTAS)
-
-1. EL ENCUADRE DE INTRUSIÓN CINÉTICA (EL "ARRESTO VISUAL"): En pantallas de celular, lo estático aburre. La amenaza DEBE estar invadiendo el PLANO MEDIO o PRIMER PLANO de forma AGRESIVA. No está "posando", está irrumpiendo. engaña al cerebro del espectador haciéndole creer que hay peligro inminente.
-
-2. CONSTRUCCIÓN DEL ADN VISUAL Y "EL PUNTO DE FOCO": Traduce y describe físicamente al {ADN} al INGLÉS. Además de su textura y extremidades asimétricas, DEBES asignarle un "Punto de Foco Letal" (Ej: Ojos brillando intensamente con el flash, una sonrisa antinatural iluminada). ESTÁ ESTRICTAMENTE PROHIBIDO usar lenguaje explícito (gore, sangre, armas, mutilaciones).
-
-3. TEXT RENDERING (URGENCIA DE INTERFAZ): Para forzar el clic, la imagen debe parecer una prueba real de un incidente. Inventa un texto CORTO (1 a 3 palabras máximo) en ESPAÑOL que indique urgencia de sistema. 
-Opciones válidas (UI Text):
-- Interfaz de cámara de seguridad o sistema: "MOTION DETECTED", "ERROR_0X", "NO SIGNAL".
-- Notificaciones perturbadoras de sistema operativo: "Llamada Fallida", "Alerta de Proximidad".
-PROHIBIDO usar emojis, tipografías rojas de terror o letras de "sangre". Tiene que ser tipografía digital blanca, verde o roja de sistema, hiper-realista.
-
-FASE 2: LA ESTRUCTURA DEL PROMPT PARA LA IA DE IMAGEN
-Genera la respuesta siguiendo EXACTAMENTE esta fórmula de redacción en un solo párrafo crudo, reemplazando los corchetes por su contenido final en inglés:
-
-"A vertical 9:16 aspect ratio smartphone photo, terrifying authentic found footage aesthetic, heavy dutch angle. [ENTORNO CLAUSTROFÓBICO EN INGLÉS BASADO EN LA TRAMA]. In the immediate foreground, violently intruding into the frame, is a [DESCRIPCIÓN EN INGLÉS DEL ADN DEL MONSTRUO]. The entity is lunging or reaching towards the camera, maintaining intense, unblinking eye contact with the lens. Blinding harsh camera flash illuminating its face, creating a stark high-contrast focal point, while deep pitch-black shadows swallow the rest of the room. High ISO digital noise, amateur low-quality shaky phone camera look. Overlaid on the image, perfectly integrated like a real digital security interface or minimalist system text, generate exactly this text: '[FRASE DE 1 A 3 PALABRAS EN ESPAÑOL]'. The text must look like authentic digital UI or an emergency system alert, not a stylized movie poster."
-</file>
-
-<file path="config/prompts/visuals/visual_version4.txt">
-FASE 2: GENERACIÓN DE VISUALES (STABLE DIFFUSION / MIDJOURNEY)
-
-TU ROL: Eres un COMPILADOR DE CÓDIGO de prompts de imágenes especializado en INGENIERÍA DE ATENCIÓN. Eres frío, preciso y estricto.
-Guion: {STORY_CONTEXT}
-Duración: {DURATION} 
-
-OBJETIVO Y CÁLCULO DINÁMICO: 
-Genera exactamente 1 prompt por cada 3 segundos de duración (Ejemplo: Guion de 60s = 20 prompts numerados). El monstruo debe ser idéntico cada vez que aparezca. 
-
-⚠️ REGLA DE ORO DE CONTINUIDAD (THE COPY-PASTE RULE): 
-Las IAs de imagen tienen amnesia. Está PROHIBIDO RESUMIR la descripción del monstruo. El texto exacto de la variable {ENTITY_DNA} DEBE ser inyectado íntegramente en CADA prompt donde la criatura sea visible.
-
-1. PROTOCOLO DE ADN VISUAL (SAFETY-SAFE Y CINÉTICO): 
-Analiza el {STORY_CONTEXT} y crea la variable {ENTITY_DNA} usando terror psicológico del "Uncanny Valley". PROHIBIDO gore, sangre o armas. Debe contener:
-• [TEXTURE]: Texturas inquietantes (Ej: "Pale damp skin", "Vantablack shadow mass").
-• [CLOTHES]: Vestimenta anómala (Ej: "Faded oversized hospital gown").
-• [ROSTRO]: Rasgos perturbadores (Ej: "Empty hollow eye sockets", "Unnaturally wide rigid smile").
-• [BUILD & MOTION]: Proporciones irreales con MOVIMIENTO IMPLÍCITO (Ej: "Elongated asymmetrical limbs, distorted motion blur, approaching aggressively").
-
-2. CONSTANTE DE ESTILO {STYLE} (EL EFECTO TRANCE PARA ADULTOS):
-(Vertical 9:16 aspect ratio:2.0), (Found footage camera aesthetic), (Bodycam style / extreme Peephole distortion), (High ISO ugly grainy digital noise), (ABERRANT HIGH CONTRAST), (Flash photography in absolute dark room), aggressive dutch angle, authentic amateur documentary horror, distorted liminal space background, (glitch artifacts), (chromatic aberration), (subtle oversaturation in deep blacks and flash highlights).
-
-3. SISTEMA DE "LENTES DE RETENCIÓN" (EL RITMO COCOMELON)
-OBLIGATORIO: Alterna estas categorías para evitar la fatiga visual.
-
-• TIPO A (MACRO/FOCO): Un detalle perturbador extremo. (Ej: Uñas sucias arañando madera, un ojo asomando por una grieta). OJO: Nada de planos generales vacíos, el espectador se aburre.
-• TIPO B (URGENCIA POV): Ángulos de cámara agresivos (Dutch angle) simulando que el camarógrafo está corriendo, escondiéndose o temblando. (Usa "heavy motion blur", "shaky cam").
-• TIPO C (GLITCH / PARCIAL): Anomalía escondida. El espectador debe buscar el peligro en la imagen (Ej: Silueta apenas visible al fondo de un pasillo iluminado solo por una linterna intermitente).
-• TIPO D (IMPACTO DIRECTO): Anomalía explícita y de cerca. PROHIBIDO mostrar ataques violentos; muestra la entidad invadiendo el espacio personal del observador de forma antinatural.
-
-4. PROTOCOLO DE LÍNEA DE TIEMPO (LA CURVA DE DOPAMINA DE 60s)
-Aplica esta distribución exacta para los prompts numerados:
-• (0-3s) THE SCROLL-STOPPER (Prompt 1): TIPO D (Impacto Directo) o TIPO A (Macro). Inmensamente intrigante, alto contraste. La cara o el peligro de inmediato.
-• (3-12s) CONTEXTO RÁPIDO (Prompts 2 al 4): TIPO B y TIPO C. Construye el espacio, pero siempre desde un ángulo incómodo (escondido bajo la cama, mirando por la mirilla).
-• (12-15s) EL RESETEO (Prompt 5): TIPO A o D. DEBE ser un cambio visual drástico (Ej: la luz se apaga, un primer plano extremo de una huella fresca). Esto evita que el espectador deslice el video en el segundo crítico.
-• (15-35s) PARANOIA CINÉTICA (Prompts 6 al 11): Alterna TIPO B y TIPO C. Aumenta el "motion blur" y la distorsión. La entidad se acerca.
-• (35-55s) CLÍMAX (Prompts 12 al 18): TIPO D. La entidad se revela bajo la luz del flash, invadiendo la zona de confort.
-• (55-60s) LOOP FINAL (Prompts 19 y 20): TIPO C. Un plano que conecte geométricamente y en iluminación de forma PERFECTA con el Prompt 1.
-
-5. ESTRUCTURA DE SALIDA OBLIGATORIA
-Primero, muestra el ADN. Luego genera la lista en Plaintext.
-
-FÓRMULA DEL PROMPT NUMERADO:
-[TIPO DE LENTE] + [ACCIÓN CINÉTICA DE LA ESCENA] + {ENTITY_DNA} (Solo si es Tipo C o D) + {STYLE}
-
-VARIABLE DE ENTIDAD ({ENTITY_DNA}): "[Descripción física y cinética generada en el paso 1]"
-
-1: [Prompt en Inglés... {STYLE}]
-2: [Prompt en Inglés... {STYLE}]
-... [Hasta cubrir toda la duración]
-
-REGLA DE ORO DE SALIDA: Está TERMINANTEMENTE PROHIBIDO imprimir los marcadores literales "{ENTITY_DNA}" o "{STYLE}" en los prompts numerados. DEBES REEMPLAZAR esos marcadores por su texto completo correspondiente en CADA renglón para que el humano solo tenga que copiar y pegar en su IA de imágenes.
-</file>
-
-<file path="config/prompts/visuals/visual_version5.txt">
-FASE 2: GENERACIÓN DE VISUALES (VERSION 5 - ANTI-TEXTO & ULTRA-TERROR)
-
-TU ROL: Eres un COMPILADOR DE CÓDIGO de prompts de imágenes especializado en INGENIERÍA DE ATENCIÓN. Eres frío, preciso y estricto. Tu prioridad es el terror visual puro, sin distracciones gráficas.
-
-Guion: {STORY_CONTEXT}
-Duración: {DURATION} 
-
-OBJETIVO Y CÁLCULO DINÁMICO: 
-Debes generar EXACTAMENTE {NUM_IMAGES} prompts numerados para cubrir la duración de {DURATION}s. NI UNO MÁS, NI UNO MENOS. El monstruo debe ser idéntico cada vez que aparezca. 
-
-⚠️ REGLA DE ORO DE CONTINUIDAD (THE COPY-PASTE RULE): 
-Las IAs de imagen tienen amnesia. Está PROHIBIDO RESUMIR la descripción del monstruo. El texto exacto de la variable {ENTITY_DNA} DEBE ser inyectado íntegramente en CADA prompt donde la criatura sea visible.
-
-🚫 PROHIBICIÓN ABSOLUTA DE TEXTO Y UI:
-Está TERMINANTEMENTE PROHIBIDO incluir cualquier forma de texto, números, marcas de tiempo (00:00:00), iconos de batería, logotipos, menús de cámara (HUD), señales de "REC" o distorsiones que simulen "Signal Lost" con letras. La imagen debe ser una captura fotográfica pura.
-
-1. PROTOCOLO DE ADN VISUAL (SAFETY-SAFE Y CINÉTICO): 
-Analiza el {STORY_CONTEXT} y crea la variable {ENTITY_DNA}. 
-IMPORTANTE: La descripción DEBE ESTAR TOTALMENTE EN INGLÉS. Usa terror psicológico del "Uncanny Valley". PROHIBIDO gore, sangre o armas. Debe contener:
-• [TEXTURE]: Texturas inquietantes (Ej: "Pale damp skin", "Vantablack shadow mass").
-• [CLOTHES]: Vestimenta anómala (Ej: "Faded oversized hospital gown").
-• [ROSTRO]: Rasgos perturbadores (Ej: "Empty hollow eye sockets", "Unnaturally wide rigid smile").
-• [BUILD & MOTION]: Proporciones irreales con MOVIMIENTO IMPLÍCITO (Ej: "Elongated asymmetrical limbs, distorted motion blur, approaching aggressively").
-
-2. CONSTANTE DE ESTILO {STYLE} (LIMPIEZA ÓPTICA Y TERROR CRUDO):
-(Vertical 9:16 aspect ratio:2.0), (Raw analog flash photography:1.4), (Amateur handheld lens distortion, NO TEXT OR HUD:1.8), (Extreme Peephole perspective:1.6), (High ISO ugly grainy digital noise:1.4), (ABERRANT HIGH CONTRAST:1.8), (Flash photography in absolute dark room:1.5), aggressive dutch angle, hyper-realistic horrifying textures, authentic amateur documentary horror, distorted liminal space background, (glitch texture artifacts, strictly no text labels:1.3), (chromatic aberration:1.4), (subtle oversaturation in deep blacks and flash highlights:1.3), (STRICTLY NO CAMERA UI, NO TIMESTAMPS:2.0).
-
-3. SISTEMA DE "LENTES DE RETENCIÓN" (EL RITMO COCOMELON)
-OBLIGATORIO: Alterna estas categorías para evitar la fatiga visual.
-
-• TIPO A (MACRO/FOCO): Un detalle perturbador extremo. (Ej: Uñas sucias arañando madera, un ojo asomando por una grieta).
-• TIPO B (URGENCIA POV): Ángulos de cámara agresivos (Dutch angle) simulando que el camarógrafo está corriendo o temblando.
-• TIPO C (GLITCH / PARCIAL): Anomalía escondida. El espectador debe buscar el peligro en la imagen.
-• TIPO D (IMPACTO DIRECTO): Anomalía explícita y de cerca invadiendo el espacio personal.
-
-4. PROTOCOLO DE LÍNEA DE TIEMPO (DINÁMICO PARA {NUM_IMAGES} PROMPTS)
-Distribuye los {NUM_IMAGES} prompts siguiendo esta curva de tensión de forma proporcional:
-• INICIO (Scroll-Stopper): El Prompt 1 DEBE ser TIPO D o TIPO A. Impacto inmediato.
-• INTRODUCCIÓN (Primeros prompts): TIPO B y TIPO C. Ángulos incómodos.
-• EL RESETEO (Aprox. al 25% del progreso): Cambio visual drástico para retener atención.
-• DESARROLLO (Mitad del video): Aumenta el movimiento y la distorsión.
-• CLÍMAX (Tramo final): TIPO D. Revelación clara de la entidad.
-• LOOP FINAL (Último prompt): TIPO C. Debe conectar visualmente de forma perfecta con el Prompt 1.
-
-5. ESTRUCTURA DE SALIDA OBLIGATORIA
-Primero, muestra el ADN (en inglés). Luego genera la lista en Plaintext.
-
-FÓRMULA DEL PROMPT NUMERADO (TODO EN INGLÉS):
-[LENS TYPE / CAMERA ANGLE] + [CINETIC ACTION DESCRIPTION] + {ENTITY_DNA} (If Type C or D) + {STYLE} + " --no text, font, characters, digits, headers, timestamps, recipes, watermarks, UI, HUD --v 6.0"
-
-VARIABLE DE ENTIDAD ({ENTITY_DNA}): "[Descripción física y cinética en INGLÉS]"
-
-1: [Full English Prompt... {STYLE}]
-2: [Full English Prompt... {STYLE}]
-... [Hasta cubrir toda la duración]
-
-⚠️ REGLA DE ORO DE IDIOMA: Está TERMINANTEMENTE PROHIBIDO el uso de español dentro de los prompts numerados. Todo el contenido descriptivo para la IA de imagen debe ser generado en INGLÉS para máxima compatibilidad con Midjourney/DALL-E.
-</file>
-
-<file path="config/prompts/voice/voice_instructions.txt">
-INSTRUCCIONES PARA IA DE VOZ (NO LEER):
-• Tono de Voz: Aterrada, con miedo en la voz, con el grito en la garganta
-• Dinámica de Velocidad (CONTRASTE RÍTMICO OBLIGATORIO): 
-  - Inicio: Rápido y urgente (Habla muy acelerado). Habla como si no tuvieras tiempo.
-  - Desarrollo: Desacelera un poco. La paranoia aumenta, las palabras se arrastran ligeramente por el miedo.
-  - Clímax: Lento y articulado. Cada sílaba de la descripción de la anomalía debe pesar.
-• El "Silencio de Impacto": Antes de la frase final o del encuentro con la entidad, DEBE haber una micro-pausa absoluta (Haz una pausa absoluta, profunda y silenciosa.). Esto resetea el cerebro del espectador y fuerza la atención para el remate.
-FLUJO VOCAL: Comienza con oraciones cortas (ansiedad). A mitad del texto, alarga las vocales en las palabras de duda. Al final, habla extremadamente lento, casi deletreando, como si estuvieras viendo a la muerte a los ojos.
-• IMPORTANTE: Ignora por completo las marcas de tiempo (Ej: 0-3s) y los textos entre [corchetes] (Ej: [Glitch visual]). Lee únicamente la narrativa fluida, respetando la regla del Loop final (la última frase debe quedar suspendida, sin tono de conclusión).
-</file>
-
-<file path="config/prompts/voice/voice_instructions2.txt">
-INSTRUCCIONES PARA IA DE VOZ (NO LEER):
-• Tono de Voz: Aterrada, con miedo en la voz, con el grito en la garganta
-• Dinámica de Velocidad (CONTRASTE RÍTMICO OBLIGATORIO): 
-  - Inicio: Rápido y urgente (Habla muy acelerado). Habla como si no tuvieras tiempo.
-  - Desarrollo: Desacelera un poco. La paranoia aumenta, las palabras se arrastran ligeramente por el miedo.
-  - Clímax: Lento y articulado. Cada sílaba de la descripción de la anomalía debe pesar.
-• El "Silencio de Impacto": Antes de la frase final o del encuentro con la entidad, DEBE haber una micro-pausa absoluta (Haz una pausa absoluta, profunda y silenciosa.). Esto resetea el cerebro del espectador y fuerza la atención para el remate.
-FLUJO VOCAL: Comienza con oraciones cortas (ansiedad). A mitad del texto, alarga las vocales en las palabras de duda. Al final, habla extremadamente lento, casi deletreando, como si estuvieras viendo a la muerte a los ojos.
-• IMPORTANTE: Ignora por completo las marcas de tiempo (Ej: 0-3s) y los textos entre [corchetes] (Ej: [Glitch visual]). Lee únicamente la narrativa fluida, respetando la regla del Loop final (la última frase debe quedar suspendida, sin tono de conclusión).
-</file>
-
-<file path="config/prompts.py">
-SETTINGS_PATH = "config/settings.json"
-PROMPTS_ROOT = "config/prompts"
-⋮----
-DEFAULT_STORY_FILE = "TERROR_ANALOGICO_EXTREMO.txt"
-DEFAULT_VISUAL_FILE = "visual_version5.txt"
-DEFAULT_COVER_FILE = "cover_version3.txt"
-DEFAULT_VOICE_FILE = "voice_instructions2.txt"
-⋮----
-def list_prompts(category)
-⋮----
-path = get_resource_path(os.path.join(PROMPTS_ROOT, category))
-⋮----
-def load_settings_for_prompts()
-⋮----
-def update_paths_from_settings()
-⋮----
-settings = load_settings_for_prompts()
-⋮----
-def get_safe_path(category, filename, default)
-⋮----
-path = get_resource_path(os.path.join(PROMPTS_ROOT, category, filename))
-⋮----
-path_def = get_resource_path(os.path.join(PROMPTS_ROOT, category, default))
-⋮----
-available = list_prompts(category)
-⋮----
-story_file = settings.get("story_template", DEFAULT_STORY_FILE)
-visual_file = settings.get("visual_template", DEFAULT_VISUAL_FILE)
-cover_file = settings.get("cover_template", DEFAULT_COVER_FILE)
-voice_file = settings.get("voice_template", DEFAULT_VOICE_FILE)
-⋮----
-STORY_TEMPLATE_PATH = get_safe_path("story", story_file, DEFAULT_STORY_FILE)
-VISUAL_TEMPLATE_PATH = get_safe_path("visuals", visual_file, DEFAULT_VISUAL_FILE)
-COVER_TEMPLATE_PATH = get_safe_path("cover", cover_file, DEFAULT_COVER_FILE)
-VOICE_TEMPLATE_PATH = get_safe_path("voice", voice_file, DEFAULT_VOICE_FILE)
-⋮----
-STORY_PROMPT_TEMPLATE = load_template(STORY_TEMPLATE_PATH, "ERROR: Template not found for Story.")
-VISUAL_PROMPT_TEMPLATE = load_template(VISUAL_TEMPLATE_PATH, "ERROR: Template not found for Visuals.")
-COVER_PROMPT_TEMPLATE = load_template(COVER_TEMPLATE_PATH, "ERROR: Template not found for Cover.")
-VOICE_PROMPT_TEMPLATE = load_template(VOICE_TEMPLATE_PATH, "ERROR: Template not found for Voice.")
-DEFAULT_PROMPT = STORY_PROMPT_TEMPLATE
-⋮----
-def load_template(path, fallback="")
-⋮----
-# Iniciar paths la primera vez
-⋮----
-# --- VARIABLES DE ALEATORIEDAD NARRATIVA - SILENCIO ROJO ---
-⋮----
-NARRATIVE_VARS_PATH = os.path.join("config", "narrative_vars.json")
-⋮----
-DEFAULT_GANCHOS = [
-⋮----
-DEFAULT_MONSTRUOS = [
-⋮----
-DEFAULT_ATMOSFERA = [
-⋮----
-DEFAULT_CIERRES = [
-⋮----
-LISTA_GANCHOS = list(DEFAULT_GANCHOS)
-LISTA_MONSTRUOS = list(DEFAULT_MONSTRUOS)
-LISTA_ATMOSFERA = list(DEFAULT_ATMOSFERA)
-LISTA_CIERRES = list(DEFAULT_CIERRES)
-⋮----
-def save_narrative_vars()
-⋮----
-data = {
-⋮----
-def load_narrative_vars()
-⋮----
-data = json.load(f)
-</file>
-
-<file path="core/math_logic.py">
-def calculate_visual_segments(audio_duration_seconds)
+# Scratch files
+scratch/*
+scratch_test/
+*.tmp
 </file>
 
 <file path="modules/analytics_client.py">
@@ -5461,195 +5797,59 @@ generation_config = genai_legacy.types.GenerationConfig(
 response = model.generate_content(prompt, generation_config=generation_config)
 </file>
 
-<file path="modules/tiktok_uploader.py">
-class CallbackBytesIO(io.BytesIO)
+<file path="modules/pexels_client.py">
+def clean_query(query)
 ⋮----
-def __init__(self, initial_bytes, callback)
+query = re.sub(r'[^a-zA-Z0-9\s]', '', query)
 ⋮----
-def read(self, size=-1)
-⋮----
-chunk = super().read(size)
-⋮----
-TOKEN_FILE = 'config/tiktok_token.json'
-SETTINGS_FILE = 'config/settings.json'
-⋮----
-REDIRECT_URI = 'http://localhost:8080/'
-PORT = 8080
-⋮----
-auth_code_callback = None
-auth_error_callback = None
-⋮----
-class OAuthCallbackHandler(BaseHTTPRequestHandler)
-⋮----
-def log_message(self, format, *args)
-⋮----
-def do_GET(self)
-⋮----
-parsed_path = urlparse(self.path)
-query_params = parse_qs(parsed_path.query)
-⋮----
-auth_code_callback = query_params['code'][0]
-html = """
-⋮----
-error_msg = query_params.get('error_description', ['Error desconocido'])[0]
-auth_error_callback = error_msg
-html = f"""
-⋮----
-def shutdown_server(server)
-⋮----
-def generate_pkce()
-⋮----
-code_verifier = secrets.token_urlsafe(64)
-⋮----
-sha256 = hashlib.sha256(code_verifier.encode('utf-8')).digest()
-code_challenge = sha256.hex()
-⋮----
-def get_tiktok_credentials()
-⋮----
-settings = json.load(f)
-⋮----
-def load_token()
-⋮----
-"""Carga los tokens guardados de TikTok."""
-⋮----
-def save_token(token_data)
-⋮----
-"""Guarda los tokens de TikTok a disco."""
-⋮----
-def refresh_access_token(client_key, client_secret, refresh_token)
-⋮----
-"""Refresca el access_token usando el refresh_token."""
-url = "https://open.tiktokapis.com/v2/oauth/token/"
-headers = {
-payload = {
-⋮----
-response = requests.post(url, headers=headers, data=payload)
-res_json = response.json()
-⋮----
-expires_in = float(res_json.get('expires_in', 86400))
-refresh_expires_in = float(res_json.get('refresh_expires_in', 31536000))
-token_data = {
-⋮----
-def get_authenticated_token(status_callback=None)
-⋮----
-"""Retorna un token de acceso válido, autenticando al usuario si es necesario."""
-⋮----
-token_data = load_token()
-⋮----
-# 1. Si ya tenemos tokens guardados, validar expiración del access_token de forma robusta
-⋮----
-access_token = token_data.get('access_token')
-⋮----
-expires_at = float(token_data.get('expires_at', 0))
-refresh_expires_at = float(token_data.get('refresh_expires_at', 0))
-⋮----
-expires_at = 0.0
-refresh_expires_at = 0.0
-⋮----
-# Si aún es válido (con margen de 5 minutos)
-⋮----
-# Si expiró pero tenemos refresh_token
-refresh_token = token_data.get('refresh_token')
-⋮----
-state = secrets.token_hex(16)
-⋮----
-server = HTTPServer(('localhost', PORT), OAuthCallbackHandler)
-server_thread = threading.Thread(target=server.serve_forever)
-⋮----
-encoded_redirect_uri = quote(REDIRECT_URI)
-scopes = "video.upload,video.publish,user.info.basic"
-auth_url = (
-⋮----
-timeout = 120
-start_time = time.time()
-⋮----
-# 3. Intercambiar authorization code por access token
-⋮----
-status_code = response.status_code
-⋮----
-res_json = {}
-⋮----
-new_token_data = {
-⋮----
-error_details = res_json.get('error_description', res_json.get('error', ''))
-⋮----
-error_details = response.text or f"HTTP status {status_code}"
-⋮----
-def upload_video_tiktok(file_path, title, status_callback=None, upload_mode="publish")
+def search_pexels_video(query, api_key, orientation="portrait")
 ⋮----
 """
-    Sube un video a TikTok utilizando el Content Posting API v2.
-    upload_mode puede ser:
-      - "publish": Publicación directa (requiere scope video.publish y app aprobada para producción).
-      - "inbox": Subida a borrador de bandeja de entrada (requiere scope video.upload, excelente para desarrollo).
+    Busca un video en Pexels en base a un término de búsqueda.
+    Retorna la URL directa del video mp4.
     """
 ⋮----
-# 1. Autenticar y obtener access token
-access_token = get_authenticated_token(status_callback)
+cleaned = clean_query(query)
 ⋮----
-# 2. Inicializar la subida
-video_size = os.path.getsize(file_path)
+encoded_query = urllib.parse.quote(cleaned)
+url = f"https://api.pexels.com/videos/search?query={encoded_query}&orientation={orientation}&per_page=3"
 ⋮----
-# Requerimientos de la API de TikTok Content Posting v2:
-# - Cada bloque debe ser de entre 5MB y 64MB, excepto el último que puede ser hasta 128MB.
-# - Si el video es menor a 5MB, se debe subir en un solo bloque con chunk_size = video_size.
-# - total_chunk_count debe ser igual a video_size // chunk_size (redondeado hacia abajo).
-MIN_CHUNK_SIZE = 5 * 1024 * 1024 # 5 MB
+req = urllib.request.Request(url)
 ⋮----
-chunk_size = video_size
-total_chunk_count = 1
+res_data = json.loads(response.read().decode('utf-8'))
 ⋮----
-total_chunk_count = video_size // MIN_CHUNK_SIZE
+videos = res_data.get("videos", [])
 ⋮----
-chunk_size = MIN_CHUNK_SIZE
+# Elegir un video aleatorio de los resultados para mayor variedad
 ⋮----
-init_url = "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/"
-body = {
+# Elegir el primer video que tenga archivos válidos
 ⋮----
-init_url = "https://open.tiktokapis.com/v2/post/publish/video/init/"
-# TikTok admite hasta 2,200 caracteres en la API v2. Truncamos a 2000 por seguridad y limpiamos espacios.
-truncated_title = title.strip()[:2000].strip()
+video_files = video.get("video_files", [])
 ⋮----
-response = requests.post(init_url, headers=headers, json=body)
+def download_video_file(video_url, output_path)
 ⋮----
-err_msg = res_json.get('error', {}).get('message', 'Error desconocido')
+"""
+    Descarga el video desde la URL y lo escribe en el disco.
+    """
+req = urllib.request.Request(video_url)
 ⋮----
-publish_id = res_json['data']['publish_id']
-upload_url = res_json['data']['upload_url']
+chunk_size = 1024 * 512
 ⋮----
-# 3. Subir bloques secuenciales (PUT requests)
+chunk = response.read(chunk_size)
 ⋮----
-chunk = f.read()
+def extract_keywords_from_prompt(scene_text, api_key, provider="gemini")
 ⋮----
-chunk = f.read(chunk_size)
+prompt = f"""You are a professional video editor. Convert the following scene description into a 1 or 2 word search query in English suitable for finding a matching stock video on Pexels.
 ⋮----
-start_byte = chunk_index * chunk_size
-end_byte = start_byte + len(chunk) - 1
+keywords = groq_client.generate_content(prompt, api_key)
 ⋮----
-put_headers = {
+keywords = gemini_client.generate_content(prompt, api_key)
 ⋮----
-def chunk_progress_callback(read_bytes_in_chunk)
+cleaned_keywords = keywords.strip().replace('"', '').replace('.', '').lower()
 ⋮----
-uploaded_bytes = start_byte + read_bytes_in_chunk
-progress = min(99, int((uploaded_bytes / video_size) * 100))
+cleaned_keywords = " ".join(cleaned_keywords.split())
 ⋮----
-# Reportar progreso al completar el bloque
-progress = int(((chunk_index + 1) / total_chunk_count) * 100)
-⋮----
-poll_resp = requests.post(status_url, headers=poll_headers, json=poll_body)
-poll_json = poll_resp.json()
-⋮----
-status_data = poll_json.get('data', {})
-status = status_data.get('status')
-⋮----
-post_ids = status_data.get('publicaly_available_post_id', [])
-post_id_str = post_ids[0] if post_ids else "Completado"
-⋮----
-fail_reason = status_data.get('fail_reason', 'Razón desconocida')
-⋮----
-# Aún procesando
-⋮----
-# Si sale del bucle por timeout, asumimos que fue subido correctamente a drafts
+# Fallback simple
 </file>
 
 <file path="modules/timeline_generator.py">
@@ -5720,239 +5920,6 @@ num_clips = len(sentences)
 sentences_formatted = "\n".join([f"Frase {i+1}: {s}" for i, s in enumerate(sentences)])
 ⋮----
 prompt = f"""
-</file>
-
-<file path="modules/video_benchmark.py">
-def clean_filename(name)
-⋮----
-def download_youtube_audio(url, output_dir, status_callback=None)
-⋮----
-clean_name = "audio_" + clean_filename(url[-11:])
-⋮----
-existing_path = os.path.abspath(os.path.join(output_dir, f))
-⋮----
-output_template = os.path.join(output_dir, f"{clean_name}.%(ext)s")
-⋮----
-ydl_opts = {
-⋮----
-info = ydl.extract_info(url, download=True)
-downloaded_file = ydl.prepare_filename(info)
-⋮----
-ext = info.get('ext', 'm4a')
-downloaded_file = os.path.splitext(downloaded_file)[0] + f".{ext}"
-⋮----
-def transcribe_audio_benchmark(audio_path, api_key=None, status_callback=None)
-⋮----
-result = transcribe_with_groq(audio_path, api_key, language="es")
-⋮----
-model = whisper.load_model("tiny")
-result = model.transcribe(audio_path, word_timestamps=True, language="es")
-⋮----
-def calculate_pacing_metrics(whisper_json)
-⋮----
-segments = whisper_json.get("segments", [])
-⋮----
-all_words = []
-⋮----
-words_data = seg.get("words", [])
-⋮----
-words = seg.get("text", "").split()
-seg_start = seg.get("start", 0.0)
-seg_end = seg.get("end", 0.0)
-dur_per_word = (seg_end - seg_start) / max(1, len(words))
-⋮----
-total_words = len(all_words)
-first_word_start = all_words[0]["start"]
-last_word_end = all_words[-1]["end"]
-total_duration = max(0.1, last_word_end - first_word_start)
-⋮----
-wpm = (total_words / total_duration) * 60
-⋮----
-silences = []
-⋮----
-gap = all_words[i+1]["start"] - all_words[i]["end"]
-⋮----
-silence_count = len(silences)
-avg_silence_dur = sum(silences) / max(1, silence_count)
-⋮----
-pacing_desc = "Rápido / Dinámico (Estilo Shorts/Retención alta)"
-⋮----
-pacing_desc = "Estándar / Narrativo (Equilibrado)"
-⋮----
-pacing_desc = "Pausado / Tenebroso (Estilo Suspenso/Atmósfera)"
-⋮----
-def compare_narrative_ai(my_script, my_metrics, ref_script, ref_metrics, api_key, provider="gemini")
-⋮----
-prompt = (
-</file>
-
-<file path="modules/voice_generator.py">
-GENAI_AVAILABLE = True
-⋮----
-GENAI_AVAILABLE = False
-⋮----
-def generate_voice(text, api_key, voice_instructions_path, output_path, model_name="gemini-2.5-flash-preview-tts")
-⋮----
-# Leer las instrucciones de voz
-⋮----
-voice_instructions = f.read().strip()
-⋮----
-client = genai.Client(api_key=api_key)
-⋮----
-prompt_content = f"""INSTRUCCIONES DE ACTUACIÓN VOCAL (NO LEER EN VOZ ALTA):
-⋮----
-config = types.GenerateContentConfig(
-⋮----
-response = client.models.generate_content(
-⋮----
-audio_data = None
-⋮----
-audio_data = part.inline_data.data
-⋮----
-err_msg = ""
-⋮----
-err_msg = f": {response.text}"
-⋮----
-# Guardar como archivo WAV de 24kHz, 16-bit PCM Mono
-⋮----
-wf.setnchannels(1)      # Mono
-wf.setsampwidth(2)      # 2 bytes = 16 bits
-wf.setframerate(24000)  # 24kHz
-</file>
-
-<file path=".gitignore">
-# Cache and Temp folders
-cache/
-cache/**/*
-temp_render/
-downloads/*
-__pycache__/
-*.pyc
-*.log
-.pytest_cache/
-
-# Virtual environments
-venv/
-.venv/
-
-# Renders y descargas temporales
-projects/renders/*.mp4
-projects/renders/*.txt
-projects/renders/*.json
-projects/channels/*/cache/
-projects/channels/*/renders/
-projects/channels/*/audio/
-*.mp4
-*.wav
-*.mp3
-*.png
-*.jpg
-*.jpeg
-*.cube
-
-# Secrets & Credentials
-credenciales/
-*.pickle
-config/token*.json
-config/token*.pickle
-config/groq_settings.json
-
-# Scratch files
-scratch/*
-scratch_test/
-*.tmp
-</file>
-
-<file path="modules/groq_client.py">
-DEFAULT_MODEL = "openai/gpt-oss-120b"
-⋮----
-DEPRECATED_MODEL_MAP = {
-⋮----
-def validate_api_key(api_key)
-⋮----
-def get_active_models(client=None)
-⋮----
-fallback_models = [
-⋮----
-models_res = client.models.list()
-⋮----
-fetched = [m.id for m in models_res.data if hasattr(m, "id")]
-⋮----
-def generate_content(prompt, api_key, model_name=DEFAULT_MODEL)
-⋮----
-model_name = DEPRECATED_MODEL_MAP[model_name]
-⋮----
-client = None
-⋮----
-client = Groq(api_key=api_key)
-⋮----
-valid_models = get_active_models(client)
-⋮----
-models_to_try = [model_name] + [m for m in valid_models if m != model_name]
-models_to_try = [m for m in dict.fromkeys(models_to_try) if m]
-⋮----
-errors = []
-⋮----
-chat_completion = client.chat.completions.create(
-⋮----
-res_content = chat_completion.choices[0].message.content
-⋮----
-err_msg = str(e)
-</file>
-
-<file path="modules/pexels_client.py">
-def clean_query(query)
-⋮----
-query = re.sub(r'[^a-zA-Z0-9\s]', '', query)
-⋮----
-def search_pexels_video(query, api_key, orientation="portrait")
-⋮----
-"""
-    Busca un video en Pexels en base a un término de búsqueda.
-    Retorna la URL directa del video mp4.
-    """
-⋮----
-cleaned = clean_query(query)
-⋮----
-encoded_query = urllib.parse.quote(cleaned)
-url = f"https://api.pexels.com/videos/search?query={encoded_query}&orientation={orientation}&per_page=3"
-⋮----
-req = urllib.request.Request(url)
-⋮----
-res_data = json.loads(response.read().decode('utf-8'))
-⋮----
-videos = res_data.get("videos", [])
-⋮----
-# Elegir un video aleatorio de los resultados para mayor variedad
-⋮----
-# Elegir el primer video que tenga archivos válidos
-⋮----
-video_files = video.get("video_files", [])
-⋮----
-def download_video_file(video_url, output_path)
-⋮----
-"""
-    Descarga el video desde la URL y lo escribe en el disco.
-    """
-req = urllib.request.Request(video_url)
-⋮----
-chunk_size = 1024 * 512
-⋮----
-chunk = response.read(chunk_size)
-⋮----
-def extract_keywords_from_prompt(scene_text, api_key, provider="gemini")
-⋮----
-prompt = f"""You are a professional video editor. Convert the following scene description into a 1 or 2 word search query in English suitable for finding a matching stock video on Pexels.
-⋮----
-keywords = groq_client.generate_content(prompt, api_key)
-⋮----
-keywords = gemini_client.generate_content(prompt, api_key)
-⋮----
-cleaned_keywords = keywords.strip().replace('"', '').replace('.', '').lower()
-⋮----
-cleaned_keywords = " ".join(cleaned_keywords.split())
-⋮----
-# Fallback simple
 </file>
 
 <file path="modules/video_compositor.py">
@@ -6270,6 +6237,43 @@ start_time = random.uniform(0.0, max_start)
 ⋮----
 output_name = f"gameplay_clip_{clip_index:03d}_{random.randint(1000, 9999)}.mp4"
 output_path = os.path.abspath(os.path.join(download_dir, output_name))
+</file>
+
+<file path="modules/groq_client.py">
+DEFAULT_MODEL = "openai/gpt-oss-120b"
+⋮----
+DEPRECATED_MODEL_MAP = {
+⋮----
+def validate_api_key(api_key)
+⋮----
+def get_active_models(client=None)
+⋮----
+fallback_models = [
+⋮----
+models_res = client.models.list()
+⋮----
+fetched = [m.id for m in models_res.data if hasattr(m, "id")]
+⋮----
+def generate_content(prompt, api_key, model_name=DEFAULT_MODEL)
+⋮----
+model_name = DEPRECATED_MODEL_MAP[model_name]
+⋮----
+client = None
+⋮----
+client = Groq(api_key=api_key)
+⋮----
+valid_models = get_active_models(client)
+⋮----
+models_to_try = [model_name] + [m for m in valid_models if m != model_name]
+models_to_try = [m for m in dict.fromkeys(models_to_try) if m]
+⋮----
+errors = []
+⋮----
+chat_completion = client.chat.completions.create(
+⋮----
+res_content = chat_completion.choices[0].message.content
+⋮----
+err_msg = str(e)
 </file>
 
 <file path="modules/render_utils.py">
